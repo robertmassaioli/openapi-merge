@@ -1,0 +1,9 @@
+{
+  "name": "openapi-merge",
+  "version": "1.0.0",
+  "description": "A tool to merge numerous OpenAPI files into a single openapi definition.",
+  "main": "index.js",
+  "author": "Robert Massaioli",
+  "license": "MIT",
+  "private": false
+}
