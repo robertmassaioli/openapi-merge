@@ -5,5 +5,9 @@
   "main": "index.js",
   "author": "Robert Massaioli",
   "license": "MIT",
-  "private": false
+  "private": false,
+  "devDependencies": {
+    "ts-node": "^8.10.1",
+    "typescript": "^3.8.3"
+  }
 }
