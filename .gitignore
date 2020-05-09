@@ -1,0 +1,6 @@
+# Temp Files
+*.sw[a-p]
+*~
+
+# Node modules
+/node_modules
