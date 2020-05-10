@@ -7,6 +7,14 @@ arg@^4.1.0:
   resolved "https://packages.atlassian.com/api/npm/npm-remote/arg/-/arg-4.1.3.tgz#269fc7ad5b8e42cb63c896d5666017261c144089"
   integrity sha1-Jp/HrVuOQstjyJbVZmAXJhwUQIk=
 
+atlassian-openapi@^1.0.8:
+  version "1.0.8"
+  resolved "https://packages.atlassian.com/api/npm/npm-remote/atlassian-openapi/-/atlassian-openapi-1.0.8.tgz#aa81a13a68784ed46c3bd708bc3203536d92d8d0"
+  integrity sha1-qoGhOmh4TtRsO9cIvDIDU22S2NA=
+  dependencies:
+    jsonpointer "^4.0.1"
+    urijs "^1.18.10"
+
 buffer-from@^1.0.0:
   version "1.1.1"
   resolved "https://packages.atlassian.com/api/npm/npm-remote/buffer-from/-/buffer-from-1.1.1.tgz#32713bc028f75c02fdb710d7c7bcec1f2c6070ef"
@@ -16,6 +24,11 @@ diff@^4.0.1:
   version "4.0.2"
   resolved "https://packages.atlassian.com/api/npm/npm-remote/diff/-/diff-4.0.2.tgz#60f3aecb89d5fae520c11aa19efc2bb982aade7d"
   integrity sha1-YPOuy4nV+uUgwRqhnvwruYKq3n0=
+
+jsonpointer@^4.0.1:
+  version "4.0.1"
+  resolved "https://packages.atlassian.com/api/npm/npm-remote/jsonpointer/-/jsonpointer-4.0.1.tgz#4fd92cb34e0e9db3c89c8622ecf51f9b978c6cb9"
+  integrity sha1-T9kss04OnbPInIYi7PUfm5eMbLk=
 
 make-error@^1.1.1:
   version "1.3.6"
@@ -35,6 +48,11 @@ source-map@^0.6.0:
   resolved "https://packages.atlassian.com/api/npm/npm-remote/source-map/-/source-map-0.6.1.tgz#74722af32e9614e9c287a8d0bbde48b5e2f1a263"
   integrity sha1-dHIq8y6WFOnCh6jQu95IteLxomM=
 
+ts-is-present@^1.1.1:
+  version "1.1.1"
+  resolved "https://packages.atlassian.com/api/npm/npm-remote/ts-is-present/-/ts-is-present-1.1.1.tgz#eaf23db58c093f0c9e787549c921e2a1689726f2"
+  integrity sha1-6vI9tYwJPwyeeHVJySHioWiXJvI=
+
 ts-node@^8.10.1:
   version "8.10.1"
   resolved "https://packages.atlassian.com/api/npm/npm-remote/ts-node/-/ts-node-8.10.1.tgz#77da0366ff8afbe733596361d2df9a60fc9c9bd3"
@@ -50,6 +68,11 @@ typescript@^3.8.3:
   version "3.8.3"
   resolved "https://packages.atlassian.com/api/npm/npm-remote/typescript/-/typescript-3.8.3.tgz#409eb8544ea0335711205869ec458ab109ee1061"
   integrity sha1-QJ64VE6gM1cRIFhp7EWKsQnuEGE=
+
+urijs@^1.18.10:
+  version "1.19.2"
+  resolved "https://packages.atlassian.com/api/npm/npm-remote/urijs/-/urijs-1.19.2.tgz#f9be09f00c4c5134b7cb3cf475c1dd394526265a"
+  integrity sha1-+b4J8AxMUTS3yzz0dcHdOUUmJlo=
 
 yn@3.1.1:
   version "3.1.1"

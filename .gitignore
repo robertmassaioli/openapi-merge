@@ -4,3 +4,6 @@
 
 # Node modules
 /node_modules
+
+# Build directories
+/dist
