@@ -2,14 +2,14 @@ import { Swagger } from 'atlassian-openapi';
 
 export type SingleMergeInput = {
   oas: Swagger.SwaggerV3;
-  disputePrefix: string;
+  disputePrefix?: string;
   referenceOverrides: { [reference: string]: string };
-  pathModification: PathModification;
+  pathModification?: PathModification;
 };
 
 export type PathModification = {
-  stripStart: string;
-  prepend: string;
+  stripStart?: string;
+  prepend?: string;
 }
 
 export type MergeInput = Array<SingleMergeInput>;
@@ -18,7 +18,7 @@ export type SuccessfulMergeResult = {
   output: Swagger.SwaggerV3;
 };
 
-export type ErrorType = 'no-inputs' | 'duplicate-paths';
+export type ErrorType = 'no-inputs' | 'duplicate-paths' | 'component-definition-conflict';
 
 export type ErrorMergeResult = {
   type: ErrorType;
