@@ -3,7 +3,7 @@ import { Swagger } from 'atlassian-openapi';
 export type SingleMergeInput = {
   oas: Swagger.SwaggerV3;
   disputePrefix?: string;
-  referenceOverrides: { [reference: string]: string };
+  referenceOverrides?: { [reference: string]: string };
   pathModification?: PathModification;
 };
 
