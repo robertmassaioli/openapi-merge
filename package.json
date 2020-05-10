@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc",
     "test": "jest",
+    "lint": "yarn eslint . --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
     "start": "ts-node --project ./tsconfig.json src/index.ts"
   },
   "devDependencies": {
@@ -16,7 +17,10 @@
     "@babel/preset-env": "^7.9.6",
     "@babel/preset-typescript": "^7.9.0",
     "@types/jest": "^25.2.1",
+    "@typescript-eslint/eslint-plugin": "^2.31.0",
+    "@typescript-eslint/parser": "^2.31.0",
     "babel-jest": "^26.0.1",
+    "eslint": "^7.0.0",
     "jest": "^26.0.1",
     "ts-node": "^8.10.1",
     "typescript": "^3.8.3"

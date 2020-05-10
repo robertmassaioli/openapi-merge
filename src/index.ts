@@ -3,10 +3,21 @@ import { MergeInput, MergeResult, isErrorResult } from './data';
 import { mergeTags } from './tags';
 import { mergePathsAndComponents } from './paths-and-components';
 
+function getFirst<A>(inputs: Array<A>): A | undefined {
+  if (inputs.length > 0) {
+    return inputs[0];
+  }
+
+  return undefined;
+}
+
+function getFirstMatching<A, B>(inputs: Array<A>, extract: (input: A) => B | undefined): B | undefined {
+  return getFirst(inputs.map(extract).filter(isPresent));
+}
+
 /**
  * Swagger Merge Tool
  */
-
 export function merge(inputs: MergeInput): MergeResult {
   if (inputs.length === 0) {
     return { type: 'no-inputs', message: 'You must provide at least one OAS file as an input.' };
@@ -35,17 +46,4 @@ export function merge(inputs: MergeInput): MergeResult {
       components,
     }
   };
-}
-
-function getFirstMatching<A, B>(inputs: Array<A>, extract: (input: A) => B | undefined): B | undefined {
-  return getFirst(inputs.map(extract).filter(isPresent));
-}
-
-
-function getFirst<A>(inputs: Array<A>): A | undefined {
-  if (inputs.length > 0) {
-    return inputs[0];
-  }
-
-  return undefined;
 }
