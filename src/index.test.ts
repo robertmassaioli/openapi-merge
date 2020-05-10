@@ -125,73 +125,115 @@ describe('merge', () => {
   });
 
   describe('OAS Component conflict', () => {
-    it('should deduplicate different components with the same name over multiple files', () => {
-      const first: Swagger.SwaggerV3 = toOAS({}, {
-        schemas: {
-          Example: {
-            type: 'number'
-          }
-        }
-      });
-
-      const second: Swagger.SwaggerV3 = toOAS({}, {
-        schemas: {
-          Example: {
-            type: 'string'
-          }
-        }
-      });
-
-      const result = merge(toMergeInputs([first, second]));
-      expectMergeResult(result, {
-        output: toOAS({}, {
+    describe('deduplication of non-reference examples', () => {
+      it('should deduplicate different components with the same name over multiple files', () => {
+        const first: Swagger.SwaggerV3 = toOAS({}, {
           schemas: {
             Example: {
               type: 'number'
-            },
-            Example1: {
+            }
+          }
+        });
+
+        const second: Swagger.SwaggerV3 = toOAS({}, {
+          schemas: {
+            Example: {
               type: 'string'
             }
           }
-        })
-      });
-    });
+        });
 
-    /**
-     * Ideally we would harmonise the same component with the same name and the exact same structure over multiple
-     * files. However, there are some rules we would need to apply, the objects would need to be deep equals of
-     * eachother, including all of their references. This may be difficult to guarantee 100%. It is far safer and faster
-     * to just treat them as objects that can't be merged together.
-     */
-    it('does not (yet) harmonise the same component with the same name over multiple files', () => {
-      const first: Swagger.SwaggerV3 = toOAS({}, {
-        schemas: {
-          Example: {
-            type: 'number'
-          }
-        }
+        const result = merge(toMergeInputs([first, second]));
+        expectMergeResult(result, {
+          output: toOAS({}, {
+            schemas: {
+              Example: {
+                type: 'number'
+              },
+              Example1: {
+                type: 'string'
+              }
+            }
+          })
+        });
       });
 
-      const second: Swagger.SwaggerV3 = toOAS({}, {
-        schemas: {
-          Example: {
-            type: 'number'
-          }
-        }
-      });
-
-      const result = merge(toMergeInputs([first, second]));
-      expectMergeResult(result, {
-        output: toOAS({}, {
+      /**
+       * Ideally we would harmonise the same component with the same name and the exact same structure over multiple
+       * files. However, there are some rules we would need to apply, the objects would need to be deep equals of
+       * eachother, including all of their references. This may be difficult to guarantee 100%. It is far safer and faster
+       * to just treat them as objects that can't be merged together.
+       */
+      it('does not (yet) harmonise the same component with the same name over multiple files', () => {
+        const first: Swagger.SwaggerV3 = toOAS({}, {
           schemas: {
             Example: {
               type: 'number'
-            },
-            Example1: {
+            }
+          }
+        });
+
+        const second: Swagger.SwaggerV3 = toOAS({}, {
+          schemas: {
+            Example: {
               type: 'number'
             }
           }
-        })
+        });
+
+        const result = merge(toMergeInputs([first, second]));
+        expectMergeResult(result, {
+          output: toOAS({}, {
+            schemas: {
+              Example: {
+                type: 'number'
+              },
+              Example1: {
+                type: 'number'
+              }
+            }
+          })
+        });
+      });
+    });
+
+    describe('reference updating', () => {
+      it('should update references to a component that was moved', () => {
+        const first: Swagger.SwaggerV3 = toOAS({}, {
+          schemas: {
+            Example: {
+              type: 'number'
+            }
+          }
+        });
+
+        const second: Swagger.SwaggerV3 = toOAS({}, {
+          schemas: {
+            A: {
+              $ref: '#/components/schemas/Example'
+            },
+            Example: {
+              type: 'string'
+            }
+          }
+        });
+
+        const result = merge(toMergeInputs([first, second]));
+        expectMergeResult(result, {
+          output: toOAS({}, {
+            schemas: {
+              Example: {
+                type: 'number'
+              },
+              A: {
+                $ref: '#/components/schemas/Example1'
+              },
+              Example1: {
+                type: 'string'
+              }
+            }
+          })
+        });
       });
     });
   });
