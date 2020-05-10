@@ -70,16 +70,18 @@ describe('merge', () => {
         fail(`We expected to have a successful merge and instead got: ${JSON.stringify(result, null, 2)}`);
       }
 
-      expect(result).toEqual(toOAS({}, {
-        schemas: {
-          Example: {
-            type: 'number'
-          },
-          Example1: {
-            type: 'string'
+      expect(result).toEqual({
+        output: toOAS({}, {
+          schemas: {
+            Example: {
+              type: 'number'
+            },
+            Example1: {
+              type: 'string'
+            }
           }
-        }
-      }));
+        })
+      });
     });
 
     it('should harmonise the same component with the same name over multiple files', () => {

@@ -29,7 +29,7 @@ export function merge(inputs: MergeInput): MergeResult {
       servers: getFirstMatching(inputs, input => input.oas.servers),
       externalDocs: getFirstMatching(inputs, input => input.oas.externalDocs),
       // TODO implement security merging
-      security: [],
+      // security: [],
       tags: mergeTags(inputs),
       paths,
       components,
