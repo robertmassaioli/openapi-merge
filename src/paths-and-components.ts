@@ -6,6 +6,14 @@ export type PathAndComponents = {
   components: Swagger.Components;
 };
 
+function removeFromStart(input: string, trim: string): string {
+  if (input.startsWith(trim)) {
+    return input.substring(trim.length);
+  }
+
+  return input;
+}
+
 /*
 Merge algorithm:
 
@@ -27,7 +35,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
   for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
     const input = inputs[inputIndex];
 
-    const { oas, referenceOverrides, disputePrefix, pathModification } = input;
+    const { oas, disputePrefix, pathModification } = input;
 
     // Original references will be transformed to new non-conflicting references
     const referenceModification: { [originalReference: string]: string } = {};
@@ -104,12 +112,4 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
   }
 
   return result;
-}
-
-function removeFromStart(input: string, trim: string): string {
-  if (input.startsWith(trim)) {
-    return input.substring(trim.length);
-  }
-
-  return input;
 }
