@@ -31,7 +31,9 @@ export function merge(inputs: MergeInput): MergeResult {
     return pathAndComponentResult;
   }
 
-  const { paths, components } = pathAndComponentResult;
+  const { paths, components: retComponents } = pathAndComponentResult;
+
+  const components = Object.keys(retComponents).length === 0 ? undefined : retComponents;
 
   return {
     output: {

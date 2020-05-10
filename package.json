@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "description": "A tool to merge numerous OpenAPI files into a single openapi definition.",
   "main": "index.js",
-  "author": "Robert Massaioli",
+  "author": {
+    "name": "Robert Massaioli",
+    "email": "packages@rmdir.app",
+    "url": "https://rmdir.app/"
+  },
   "license": "MIT",
   "private": false,
   "scripts": {
