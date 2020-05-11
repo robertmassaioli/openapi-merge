@@ -1,6 +1,6 @@
 import { MergeInput, ErrorMergeResult } from "./data";
 import { Swagger, SwaggerTypeChecks as TC } from "atlassian-openapi";
-import { walkAllReferences, walkPathReferences, walkSchemaReferences } from "./reference-walker";
+import { walkAllReferences, walkSchemaReferences } from "./reference-walker";
 import * as _ from 'lodash';
 
 export type PathAndComponents = {
