@@ -2,7 +2,16 @@
   "name": "openapi-merge",
   "version": "1.0.0",
   "description": "A tool to merge numerous OpenAPI files into a single openapi definition.",
-  "main": "index.js",
+  "keywords": [
+    "openapi",
+    "merge"
+  ],
+  "main": "dist/index",
+  "typings": "dist/index",
+  "files": [
+    "dist/!(__tests__)",
+    "dist/!(__tests__)/**/*"
+  ],
   "author": {
     "name": "Robert Massaioli",
     "email": "packages@rmdir.app",
@@ -11,7 +20,8 @@
   "license": "MIT",
   "private": false,
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --project .",
+    "prepack": "tsc --project .",
     "test": "jest --collect-coverage --verbose",
     "lint": "yarn eslint src --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
     "start": "ts-node --project ./tsconfig.json src/index.ts"
