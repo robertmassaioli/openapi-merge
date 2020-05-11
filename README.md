@@ -8,7 +8,5 @@ deterministic manner, into a single OpenAPI specification.
 
 ## Missing Features
 
- * Write the remainder of the Component copying logic.
  * Ensure that the top-level 'x-' parameters are copied over from the first file that they are found from.
  * Ensure that the security fields come with us. Ensure that they are migrated correctly.
- 

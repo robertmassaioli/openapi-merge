@@ -44,7 +44,7 @@ export function walkSchemaReferences(schema: Swagger.Schema | Swagger.Reference,
   }
 }
 
-function walkExampleReferences(example: Swagger.Example | Swagger.Reference, modify: Modify): void {
+export function walkExampleReferences(example: Swagger.Example | Swagger.Reference, modify: Modify): void {
   if (TC.isReference(example)) {
     example.$ref = modify(example.$ref);
   }
@@ -63,7 +63,7 @@ function walkMediaTypeReferences(mediaType: Swagger.MediaType, modify: Modify): 
   }
 }
 
-function walkParameterReferences(parameterOrRef: Swagger.ParameterOrRef, modify: Modify): void {
+export function walkParameterReferences(parameterOrRef: Swagger.ParameterOrRef, modify: Modify): void {
   if (TC.isReference(parameterOrRef)) {
     parameterOrRef.$ref = modify(parameterOrRef.$ref);
   } else if(TC.isParameterWithSchema(parameterOrRef)) {
@@ -87,7 +87,7 @@ function walkParameterReferences(parameterOrRef: Swagger.ParameterOrRef, modify:
   }
 }
 
-function walkRequestBodyReferences(requestBody: Swagger.RequestBody | Swagger.Reference, modify: Modify): void {
+export function walkRequestBodyReferences(requestBody: Swagger.RequestBody | Swagger.Reference, modify: Modify): void {
   if (TC.isReference(requestBody)) {
     requestBody.$ref = modify(requestBody.$ref);
   } else {
@@ -100,7 +100,7 @@ function walkRequestBodyReferences(requestBody: Swagger.RequestBody | Swagger.Re
   }
 }
 
-function walkHeaderReferences(header: Swagger.Header | Swagger.Reference, modify: Modify): void {
+export function walkHeaderReferences(header: Swagger.Header | Swagger.Reference, modify: Modify): void {
   if (TC.isReference(header)) {
     header.$ref = modify(header.$ref);
   } else if (TC.isHeaderWithSchema(header)) {
@@ -124,7 +124,7 @@ function walkHeaderReferences(header: Swagger.Header | Swagger.Reference, modify
   }
 }
 
-function walkLinkReferences(link: Swagger.Link | Swagger.Reference, modify: Modify): void {
+export function walkLinkReferences(link: Swagger.Link | Swagger.Reference, modify: Modify): void {
   if (TC.isReference(link)) {
     link.$ref = modify(link.$ref);
   } else {
@@ -132,7 +132,7 @@ function walkLinkReferences(link: Swagger.Link | Swagger.Reference, modify: Modi
   }
 }
 
-function walkResponseReferences(response: Swagger.Response | Swagger.Reference, modify: Modify): void {
+export function walkResponseReferences(response: Swagger.Response | Swagger.Reference, modify: Modify): void {
   if (TC.isReference(response)) {
     response.$ref = modify(response.$ref);
   } else {
@@ -163,7 +163,7 @@ function walkResponseReferences(response: Swagger.Response | Swagger.Reference, 
   }
 }
 
-function walkCallbackReferences(callback: Swagger.Callback | Swagger.Reference, modify: Modify): void {
+export function walkCallbackReferences(callback: Swagger.Callback | Swagger.Reference, modify: Modify): void {
   if (TC.isReference(callback)) {
     callback.$ref = modify(callback.$ref);
   } else {

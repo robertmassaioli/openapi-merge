@@ -1,6 +1,17 @@
 import { MergeInput, ErrorMergeResult } from "./data";
 import { Swagger, SwaggerTypeChecks as TC } from "atlassian-openapi";
-import { walkAllReferences, walkSchemaReferences } from "./reference-walker";
+import {
+  Modify,
+  walkAllReferences,
+  walkSchemaReferences,
+  walkResponseReferences,
+  walkParameterReferences,
+  walkExampleReferences,
+  walkRequestBodyReferences,
+  walkHeaderReferences,
+  walkLinkReferences,
+  walkCallbackReferences
+} from "./reference-walker";
 import * as _ from 'lodash';
 
 export type PathAndComponents = {
@@ -16,34 +27,26 @@ function removeFromStart(input: string, trim: string): string {
   return input;
 }
 
-/*
-Merge algorithm:
+type ReferenceWalker<A> = (component: A, modify: Modify) => void;
 
-Generate reference mappings for the components. Eliminating duplicates.
-
-Generate reference mappings for the paths.
-
-Copy the elements into the new location.
-
-Update all of the paths and components to the new references.
-*/
-
-function referenceCountInSchema(schema: Swagger.Schema): number {
+function referenceCount<A>(walker: ReferenceWalker<A>, component: A): number {
   let count = 0;
-  walkSchemaReferences(schema, ref => { count++; return ref; });
+  walker(component, ref => { count++; return ref; });
   return count;
 }
 
-function schemasEqual(a: Swagger.Schema | Swagger.Reference, b: Swagger.Schema | Swagger.Reference): boolean {
-  if (!_.isEqual(a, b)) {
-    return false;
-  }
+function componentsEqual<A>(referenceWalker: ReferenceWalker<A>): (x: A | Swagger.Reference, y: A | Swagger.Reference) => boolean {
+  return (x: A | Swagger.Reference, y: A | Swagger.Reference) => {
+    if (!_.isEqual(x, y)) {
+      return false;
+    }
 
-  if (TC.isReference(a)) {
-    return false;
-  }
+    if (TC.isReference(x)) {
+      return false;
+    }
 
-  return referenceCountInSchema(a) === 0;
+    return referenceCount(referenceWalker, x) === 0;
+  }
 }
 
 type Components<A> = { [key: string]: A };
@@ -96,6 +99,16 @@ function processComponents<A>(results: Components<A>, components: Components<A>,
   }
 }
 
+/**
+ * Merge algorithm:
+ *
+ * Generate reference mappings for the components. Eliminating duplicates.
+ * Generate reference mappings for the paths.
+ * Copy the elements into the new location.
+ * Update all of the paths and components to the new references.
+ *
+ * @param inputs
+ */
 export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents | ErrorMergeResult {
   const result: PathAndComponents = {
     paths: {},
@@ -117,7 +130,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.schemas !== undefined) {
         result.components.schemas = result.components.schemas || {};
 
-        processComponents(result.components.schemas, oas.components.schemas, schemasEqual, disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.schemas, oas.components.schemas, componentsEqual(walkSchemaReferences), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/schemas/${from}`] = `#/components/schemas/${to}`;
         });
       }
@@ -125,7 +138,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.responses !== undefined) {
         result.components.responses = result.components.responses || {};
 
-        processComponents(result.components.responses, oas.components.responses, () => false, disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.responses, oas.components.responses, componentsEqual(walkResponseReferences), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/responses/${from}`] = `#/components/responses/${to}`;
         });
       }
@@ -133,7 +146,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.parameters !== undefined) {
         result.components.parameters = result.components.parameters || {};
 
-        processComponents(result.components.parameters, oas.components.parameters, () => false, disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.parameters, oas.components.parameters, componentsEqual(walkParameterReferences), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/parameters/${from}`] = `#/components/parameters/${to}`;
         });
       }
@@ -142,7 +155,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.examples !== undefined) {
         result.components.examples = result.components.examples || {};
 
-        processComponents(result.components.examples, oas.components.examples, () => false, disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.examples, oas.components.examples, componentsEqual(walkExampleReferences), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/examples/${from}`] = `#/components/examples/${to}`;
         });
       }
@@ -151,7 +164,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.requestBodies !== undefined) {
         result.components.requestBodies = result.components.requestBodies || {};
 
-        processComponents(result.components.requestBodies, oas.components.requestBodies, () => false, disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.requestBodies, oas.components.requestBodies, componentsEqual(walkRequestBodyReferences), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/requestBodies/${from}`] = `#/components/requestBodies/${to}`;
         });
       }
@@ -160,7 +173,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.headers !== undefined) {
         result.components.headers = result.components.headers || {};
 
-        processComponents(result.components.headers, oas.components.headers, () => false, disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.headers, oas.components.headers, componentsEqual(walkHeaderReferences), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/headers/${from}`] = `#/components/headers/${to}`;
         });
       }
@@ -180,7 +193,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.links !== undefined) {
         result.components.links = result.components.links || {};
 
-        processComponents(result.components.links, oas.components.links, () => false, disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.links, oas.components.links, componentsEqual(walkLinkReferences), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/links/${from}`] = `#/components/links/${to}`;
         });
       }
@@ -189,7 +202,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.callbacks !== undefined) {
         result.components.callbacks = result.components.callbacks || {};
 
-        processComponents(result.components.callbacks, oas.components.callbacks, () => false, disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.callbacks, oas.components.callbacks, componentsEqual(walkCallbackReferences), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/callbacks/${from}`] = `#/components/callbacks/${to}`;
         });
       }
