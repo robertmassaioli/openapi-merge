@@ -46,6 +46,56 @@ function schemasEqual(a: Swagger.Schema | Swagger.Reference, b: Swagger.Schema |
   return referenceCountInSchema(a) === 0;
 }
 
+type Components<A> = { [key: string]: A };
+type Equal<A> = (x: A, y: A) => boolean;
+type AddModRef = (from: string, to: string) => void;
+
+function processComponents<A>(results: Components<A>, components: Components<A>, areEqual: Equal<A>, disputePrefix: string | undefined, addModifiedReference: AddModRef): ErrorMergeResult | undefined {
+  for (const key in components) {
+    /* eslint-disable-next-line no-prototype-builtins */
+    if (components.hasOwnProperty(key)) {
+      const component = components[key];
+
+      if (results[key] === undefined || areEqual(results[key], component)) {
+        // Add the schema
+        results[key] = component;
+      } else {
+        // Distnguish the name and then add the element
+        let schemaPlaced = false;
+
+        // Try and use the dispute prefix first
+        if (disputePrefix !== undefined) {
+          const preferredSchemaKey = `${disputePrefix}${key}`;
+          if (results[preferredSchemaKey] === undefined || areEqual(results[preferredSchemaKey], component)) {
+            results[preferredSchemaKey] = component;
+            addModifiedReference(key, preferredSchemaKey);
+            schemaPlaced = true;
+          }
+        }
+
+        // Incrementally find the right prefix
+        for(let antiConflict = 1; schemaPlaced === false && antiConflict < 1000; antiConflict++) {
+          const trySchemaKey = `${key}${antiConflict}`;
+
+          if (results[trySchemaKey] === undefined) {
+            results[trySchemaKey] = component;
+            addModifiedReference(key, trySchemaKey);
+            schemaPlaced = true;
+          }
+        }
+
+        // In the unlikely event that we can't find a duplicate, return an error
+        if (schemaPlaced === false) {
+          return {
+            type: 'component-definition-conflict',
+            message: `The "${key}" definition had a duplicate in a previous input and could not be deduplicated.`
+          };
+        }
+      }
+    }
+  }
+}
+
 export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents | ErrorMergeResult {
   const result: PathAndComponents = {
     paths: {},
@@ -65,51 +115,83 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       // For each component in the original input, place it in the output with deduplicate taking place
     if (oas.components !== undefined) {
       if (oas.components.schemas !== undefined) {
-        const resultSchemas: Swagger.Components['schemas'] = result.components.schemas || {};
-        result.components.schemas = resultSchemas;
+        result.components.schemas = result.components.schemas || {};
 
-        const schemaKeys = Object.keys(oas.components.schemas);
+        processComponents(result.components.schemas, oas.components.schemas, schemasEqual, disputePrefix, (from: string, to: string) => {
+          referenceModification[`#/components/schemas/${from}`] = `#/components/schemas/${to}`;
+        });
+      }
 
-        for (let schemaKeyIndex = 0; schemaKeyIndex < schemaKeys.length; schemaKeyIndex++) {
-          const schemaKey = schemaKeys[schemaKeyIndex];
+      if (oas.components.responses !== undefined) {
+        result.components.responses = result.components.responses || {};
 
-          if (resultSchemas[schemaKey] === undefined || schemasEqual(resultSchemas[schemaKey], oas.components.schemas[schemaKey])) {
-            // Add the schema
-            resultSchemas[schemaKey] = oas.components.schemas[schemaKey];
-          } else {
-            // Distnguish the name and then add the element
-            let schemaPlaced = false;
+        processComponents(result.components.responses, oas.components.responses, () => false, disputePrefix, (from: string, to: string) => {
+          referenceModification[`#/components/responses/${from}`] = `#/components/responses/${to}`;
+        });
+      }
 
-            // Try and use the dispute prefix first
-            if (disputePrefix !== undefined) {
-              const preferredSchemaKey = `${disputePrefix}${schemaKey}`;
-              if (resultSchemas[preferredSchemaKey] === undefined) {
-                resultSchemas[preferredSchemaKey] = oas.components.schemas[schemaKey];
-                referenceModification[`#/components/schemas/${schemaKey}`] = `#/components/schemas/${preferredSchemaKey}`;
-                schemaPlaced = true;
-              }
-            }
+      if (oas.components.parameters !== undefined) {
+        result.components.parameters = result.components.parameters || {};
 
-            // Incrementally find the right prefix
-            for(let antiConflict = 1; schemaPlaced === false && antiConflict < 1000; antiConflict++) {
-              const trySchemaKey = `${schemaKey}${antiConflict}`;
+        processComponents(result.components.parameters, oas.components.parameters, () => false, disputePrefix, (from: string, to: string) => {
+          referenceModification[`#/components/parameters/${from}`] = `#/components/parameters/${to}`;
+        });
+      }
 
-              if (resultSchemas[trySchemaKey] === undefined) {
-                resultSchemas[trySchemaKey] = oas.components.schemas[schemaKey];
-                referenceModification[`#/components/schemas/${schemaKey}`] = `#/components/schemas/${trySchemaKey}`;
-                schemaPlaced = true;
-              }
-            }
+      // examples
+      if (oas.components.examples !== undefined) {
+        result.components.examples = result.components.examples || {};
 
-            // In the unlikely event that we can't find a duplicate, return an error
-            if (schemaPlaced === false) {
-              return {
-                type: 'component-definition-conflict',
-                message: `Input ${inputIndex}: The "${schemaKey}" definition had a duplicate in a previous input and could not be deduplicated.`
-              };
-            }
-          }
-        }
+        processComponents(result.components.examples, oas.components.examples, () => false, disputePrefix, (from: string, to: string) => {
+          referenceModification[`#/components/examples/${from}`] = `#/components/examples/${to}`;
+        });
+      }
+
+      // requestBodies
+      if (oas.components.requestBodies !== undefined) {
+        result.components.requestBodies = result.components.requestBodies || {};
+
+        processComponents(result.components.requestBodies, oas.components.requestBodies, () => false, disputePrefix, (from: string, to: string) => {
+          referenceModification[`#/components/requestBodies/${from}`] = `#/components/requestBodies/${to}`;
+        });
+      }
+
+      // headers
+      if (oas.components.headers !== undefined) {
+        result.components.headers = result.components.headers || {};
+
+        processComponents(result.components.headers, oas.components.headers, () => false, disputePrefix, (from: string, to: string) => {
+          referenceModification[`#/components/headers/${from}`] = `#/components/headers/${to}`;
+        });
+      }
+
+      // security schemes
+      /*
+      if (oas.components.responses !== undefined) {
+        result.components.responses = result.components.responses || {};
+
+        processComponents(result.components.responses, oas.components.responses, () => false, disputePrefix, (from: string, to: string) => {
+          referenceModification[`#/components/responses/${from}`] = `#/components/responses/${to}`;
+        });
+      }
+      */
+
+      // links
+      if (oas.components.links !== undefined) {
+        result.components.links = result.components.links || {};
+
+        processComponents(result.components.links, oas.components.links, () => false, disputePrefix, (from: string, to: string) => {
+          referenceModification[`#/components/links/${from}`] = `#/components/links/${to}`;
+        });
+      }
+
+      // callbacks
+      if (oas.components.callbacks !== undefined) {
+        result.components.callbacks = result.components.callbacks || {};
+
+        processComponents(result.components.callbacks, oas.components.callbacks, () => false, disputePrefix, (from: string, to: string) => {
+          referenceModification[`#/components/callbacks/${from}`] = `#/components/callbacks/${to}`;
+        });
       }
     }
 
