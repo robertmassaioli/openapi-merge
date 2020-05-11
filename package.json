@@ -21,6 +21,7 @@
     "@babel/preset-env": "^7.9.6",
     "@babel/preset-typescript": "^7.9.0",
     "@types/jest": "^25.2.1",
+    "@types/lodash": "^4.14.150",
     "@typescript-eslint/eslint-plugin": "^2.31.0",
     "@typescript-eslint/parser": "^2.31.0",
     "babel-jest": "^26.0.1",
@@ -32,6 +33,7 @@
   },
   "dependencies": {
     "atlassian-openapi": "^1.0.8",
+    "lodash": "^4.17.15",
     "ts-is-present": "^1.1.1"
   },
   "husky": {

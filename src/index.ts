@@ -37,7 +37,7 @@ export function merge(inputs: MergeInput): MergeResult {
 
   return {
     output: {
-      openapi: '3.0.2',
+      openapi: '3.0.3',
       info: rootInput.oas.info,
       servers: getFirstMatching(inputs, input => input.oas.servers),
       externalDocs: getFirstMatching(inputs, input => input.oas.externalDocs),

@@ -1,5 +1,7 @@
 import { MergeInput, ErrorMergeResult } from "./data";
-import { Swagger } from "atlassian-openapi";
+import { Swagger, SwaggerTypeChecks as TC } from "atlassian-openapi";
+import { walkAllReferences, walkPathReferences, walkSchemaReferences } from "./reference-walker";
+import * as _ from 'lodash';
 
 export type PathAndComponents = {
   paths: Swagger.Paths;
@@ -26,6 +28,24 @@ Copy the elements into the new location.
 Update all of the paths and components to the new references.
 */
 
+function referenceCountInSchema(schema: Swagger.Schema): number {
+  let count = 0;
+  walkSchemaReferences(schema, ref => { count++; return ref; });
+  return count;
+}
+
+function schemasEqual(a: Swagger.Schema | Swagger.Reference, b: Swagger.Schema | Swagger.Reference): boolean {
+  if (!_.isEqual(a, b)) {
+    return false;
+  }
+
+  if (TC.isReference(a)) {
+    return false;
+  }
+
+  return referenceCountInSchema(a) === 0;
+}
+
 export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents | ErrorMergeResult {
   const result: PathAndComponents = {
     paths: {},
@@ -35,7 +55,9 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
   for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
     const input = inputs[inputIndex];
 
-    const { oas, disputePrefix, pathModification } = input;
+    const { oas: originalOas, disputePrefix, pathModification } = input;
+
+    const oas = _.cloneDeep(originalOas);
 
     // Original references will be transformed to new non-conflicting references
     const referenceModification: { [originalReference: string]: string } = {};
@@ -51,7 +73,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
         for (let schemaKeyIndex = 0; schemaKeyIndex < schemaKeys.length; schemaKeyIndex++) {
           const schemaKey = schemaKeys[schemaKeyIndex];
 
-          if (resultSchemas[schemaKey] === undefined) {
+          if (resultSchemas[schemaKey] === undefined || schemasEqual(resultSchemas[schemaKey], oas.components.schemas[schemaKey])) {
             // Add the schema
             resultSchemas[schemaKey] = oas.components.schemas[schemaKey];
           } else {
@@ -63,7 +85,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
               const preferredSchemaKey = `${disputePrefix}${schemaKey}`;
               if (resultSchemas[preferredSchemaKey] === undefined) {
                 resultSchemas[preferredSchemaKey] = oas.components.schemas[schemaKey];
-                referenceModification[`#/components/${schemaKey}`] = `#/components/${preferredSchemaKey}`;
+                referenceModification[`#/components/schemas/${schemaKey}`] = `#/components/schemas/${preferredSchemaKey}`;
                 schemaPlaced = true;
               }
             }
@@ -74,7 +96,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
               if (resultSchemas[trySchemaKey] === undefined) {
                 resultSchemas[trySchemaKey] = oas.components.schemas[schemaKey];
-                referenceModification[`#/components/${schemaKey}`] = `#/components/${trySchemaKey}`;
+                referenceModification[`#/components/schemas/${schemaKey}`] = `#/components/schemas/${trySchemaKey}`;
                 schemaPlaced = true;
               }
             }
@@ -99,6 +121,10 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
       const newPath = pathModification === undefined ? originalPath : `${pathModification.prepend || ''}${removeFromStart(originalPath, pathModification.stripStart || '')}`;
 
+      if (originalPath !== newPath) {
+        referenceModification[`#/paths/${originalPath}`] = `#/paths/${newPath}`;
+      }
+
       // TODO perform more advanced matching for an existing path than an equals check
       if (result.paths[newPath] !== undefined) {
         return {
@@ -109,6 +135,24 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
       result.paths[newPath] = oas.paths[originalPath];
     }
+
+    // Update the references to point to the right location
+    const modifiedKeys = Object.keys(referenceModification);
+    walkAllReferences(oas, ref => {
+      if (referenceModification[ref] !== undefined) {
+        return referenceModification[ref];
+      }
+
+      const matchingKeys = modifiedKeys.filter(key => key.startsWith(`${ref}/`));
+
+      if (matchingKeys.length > 1) {
+        throw new Error(`Found more than one matching key for reference '${ref}': ${JSON.stringify(matchingKeys)}`);
+      } else if (matchingKeys.length === 1) {
+        return referenceModification[matchingKeys[0]];
+      }
+
+      return ref;
+    });
   }
 
   return result;
