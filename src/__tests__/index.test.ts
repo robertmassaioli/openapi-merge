@@ -1,6 +1,6 @@
 import 'jest';
-import { merge } from '.';
-import { MergeResult, isErrorResult, ErrorType, MergeInput, SingleMergeInput } from './data';
+import { merge } from '..';
+import { MergeResult, isErrorResult, ErrorType, MergeInput, SingleMergeInput } from '../data';
 import { Swagger } from 'atlassian-openapi';
 
 function toOAS(paths: Swagger.Paths, components?: Swagger.Components): Swagger.SwaggerV3 {
