@@ -19,6 +19,14 @@
   },
   "license": "MIT",
   "private": false,
+  "homepage": "https://bitbucket.org/echo_rm/openapi-merge",
+  "repository": {
+    "type": "git",
+    "url": "git@bitbucket.org:echo_rm/openapi-merge.git"
+  },
+  "bugs": {
+    "url": "https://bitbucket.org/echo_rm/openapi-merge/issues?status=new&status=open"
+  },
   "scripts": {
     "build": "tsc --project .",
     "prepack": "tsc --project .",
