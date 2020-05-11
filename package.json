@@ -12,8 +12,8 @@
   "private": false,
   "scripts": {
     "build": "tsc",
-    "test": "jest",
-    "lint": "yarn eslint . --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
+    "test": "jest --collect-coverage --verbose",
+    "lint": "yarn eslint src --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
     "start": "ts-node --project ./tsconfig.json src/index.ts"
   },
   "devDependencies": {
