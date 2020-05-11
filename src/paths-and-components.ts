@@ -36,7 +36,7 @@ function referenceCount<A>(walker: ReferenceWalker<A>, component: A): number {
 }
 
 function componentsEqual<A>(referenceWalker: ReferenceWalker<A>): (x: A | Swagger.Reference, y: A | Swagger.Reference) => boolean {
-  return (x: A | Swagger.Reference, y: A | Swagger.Reference) => {
+  return (x: A | Swagger.Reference, y: A | Swagger.Reference): boolean => {
     if (!_.isEqual(x, y)) {
       return false;
     }
@@ -178,16 +178,10 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
         });
       }
 
-      // security schemes
-      /*
-      if (oas.components.responses !== undefined) {
-        result.components.responses = result.components.responses || {};
-
-        processComponents(result.components.responses, oas.components.responses, () => false, disputePrefix, (from: string, to: string) => {
-          referenceModification[`#/components/responses/${from}`] = `#/components/responses/${to}`;
-        });
+      // security schemes are different, we just take the security schemes from the first file that has any
+      if (oas.components.securitySchemes !== undefined && Object.keys(oas.components.securitySchemes).length > 0 && result.components.securitySchemes === undefined) {
+        result.components.securitySchemes = oas.components.securitySchemes;
       }
-      */
 
       // links
       if (oas.components.links !== undefined) {

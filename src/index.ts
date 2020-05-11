@@ -2,6 +2,10 @@ import { isPresent } from 'ts-is-present';
 import { MergeInput, MergeResult, isErrorResult } from './data';
 import { mergeTags } from './tags';
 import { mergePathsAndComponents } from './paths-and-components';
+import { mergeExtensions } from './extensions';
+import { Swagger } from 'atlassian-openapi';
+
+export { MergeInput, MergeResult };
 
 function getFirst<A>(inputs: Array<A>): A | undefined {
   if (inputs.length > 0) {
@@ -35,17 +39,19 @@ export function merge(inputs: MergeInput): MergeResult {
 
   const components = Object.keys(retComponents).length === 0 ? undefined : retComponents;
 
-  return {
-    output: {
+  const output: Swagger.SwaggerV3 = mergeExtensions(
+    {
       openapi: '3.0.3',
       info: rootInput.oas.info,
       servers: getFirstMatching(inputs, input => input.oas.servers),
       externalDocs: getFirstMatching(inputs, input => input.oas.externalDocs),
-      // TODO implement security merging
-      // security: [],
+      security: getFirstMatching(inputs, input => input.oas.security),
       tags: mergeTags(inputs),
       paths,
       components,
-    }
-  };
+    },
+    inputs.map(input => input.oas)
+  );
+
+  return { output };
 }
