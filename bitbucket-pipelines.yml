@@ -25,6 +25,8 @@ pipelines:
           script:
             - npm version "1.0.${BITBUCKET_BUILD_NUMBER}" -m "%s [skip ci]"
             - git push && git push --tags
+            - yarn install
+            - yarn build
             - pipe: atlassian/npm-publish:0.2.0
               variables:
                 NPM_TOKEN: $NPM_TOKEN
