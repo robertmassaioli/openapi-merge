@@ -4,6 +4,7 @@ import ConfigurationSchema from './configuration.schema.json';
 import fs from 'fs';
 
 function validateConfiguration(rawData: string): Configuration | string {
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   let data: any;
   try {
     data = JSON.parse(rawData);

@@ -33,7 +33,7 @@ export type ConfigurationInput = {
      * @minLength 1
      */
     prepend?: string;
-  }
+  };
 };
 
 /**
