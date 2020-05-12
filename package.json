@@ -59,5 +59,8 @@
       "pre-commit": "yarn lint",
       "pre-push": "yarn test"
     }
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
   }
 }

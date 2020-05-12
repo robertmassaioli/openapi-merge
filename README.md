@@ -17,12 +17,7 @@ Some elements are just taken from the first file that matches:
 
  - Info
  - Servers
- - Security Schemes and references
+ - Security Schemes
  - ExternalDocumentation
 
 The intention here, is that the first file will define these elements and effectively override them from the other files.
-
-## Missing Features
-
- * Ensure that the top-level 'x-' parameters are copied over from the first file that they are found from.
- * Ensure that the security fields come with us. Ensure that they are migrated correctly.

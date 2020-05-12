@@ -7,10 +7,25 @@ image: node:10.15.3
 
 pipelines:
   default:
-    - step:
+    - step: &testing
+        name: Testing
         caches:
           - node
         script: # Modify the commands below to build your repository.
           - yarn install
           - yarn lint
           - yarn test
+  branches:
+    master:
+      - *testing
+      - step:
+          name: Deployment
+          caches:
+            - node
+          script:
+            - npm version "1.0.${BITBUCKET_BUILD_NUMBER}" -m "%s [skip ci]"
+            - git push && git push --tags
+            - pipe: atlassian/npm-publish:0.2.0
+              variables:
+                NPM_TOKEN: $NPM_TOKEN
+
