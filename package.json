@@ -21,6 +21,9 @@
   },
   "devDependencies": {
     "@types/node": "^13.13.5",
+    "@typescript-eslint/eslint-plugin": "^2.32.0",
+    "@typescript-eslint/parser": "^2.32.0",
+    "eslint": "^7.0.0",
     "ts-node": "^8.10.1",
     "typescript": "^3.8.3",
     "typescript-json-schema": "^0.42.0"
@@ -35,6 +38,7 @@
     "prepare": "npm run gen-schema && tsc --project .",
     "prepublishOnly": "npm run gen-schema && tsc --project .",
     "gen-schema": "typescript-json-schema src/data.ts Configuration --titles --refs --noExtraProps --required --strictNullChecks -o src/configuration.schema.json",
-    "start": "ts-node --project ./tsconfig.json ./src/index.ts"
+    "start": "ts-node --project ./tsconfig.json ./src/index.ts",
+    "lint": "yarn eslint src --ext .js,.jsx,.ts,.tsx"
   }
 }
