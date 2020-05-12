@@ -29,8 +29,8 @@
   },
   "scripts": {
     "build": "tsc --project .",
-    "prepack": "tsc --project .",
-    "prepublish": "tsc --project .",
+    "prepare": "tsc --project .",
+    "prepublishOnly": "tsc --project .",
     "test": "jest --collect-coverage --verbose",
     "lint": "yarn eslint src --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
     "start": "ts-node --project ./tsconfig.json src/index.ts"
