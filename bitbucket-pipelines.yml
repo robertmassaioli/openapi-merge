@@ -17,7 +17,7 @@ pipelines:
           - yarn test
   branches:
     master:
-      - *testing
+      - step: *testing
       - step:
           name: Deployment
           caches:
