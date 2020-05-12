@@ -1,0 +1,9 @@
+{
+  "name": "openapi-merge-cli",
+  "version": "1.0.0",
+  "description": "A cli tool for the openapi-merge library.",
+  "main": "index.js",
+  "author": "Robert Massaioli",
+  "license": "MIT",
+  "private": false
+}
