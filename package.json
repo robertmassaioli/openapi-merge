@@ -31,6 +31,9 @@
     "openapi-merge": "^1.0.16"
   },
   "scripts": {
+    "build": "tsc --project .",
+    "prepare": "npm run gen-schema && tsc --project .",
+    "prepublishOnly": "npm run gen-schema && tsc --project .",
     "gen-schema": "typescript-json-schema src/data.ts Configuration --titles --refs --noExtraProps --required --strictNullChecks -o src/configuration.schema.json",
     "start": "ts-node --project ./tsconfig.json ./src/index.ts"
   }
