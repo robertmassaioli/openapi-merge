@@ -40,7 +40,7 @@ function convertInputs(configInputs: ConfigurationInput[]): MergeInput | string 
   return results;
 }
 
-function main(): void {
+export function main(): void {
   program.parse(process.argv);
 
   const config = loadConfiguration(program.config);

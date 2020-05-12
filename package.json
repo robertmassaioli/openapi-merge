@@ -8,6 +8,9 @@
     "cli"
   ],
   "main": "dist/index",
+  "bin": {
+    "openapi-merge-cli": "dist/cli.js"
+  },
   "files": [
     "dist/!(__tests__)",
     "dist/!(__tests__)/**/*"
