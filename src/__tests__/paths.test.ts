@@ -163,4 +163,167 @@ describe('OAS Path Merge', () => {
 
     expectErrorType(merge([firstInput, secondInput]), 'duplicate-paths');
   });
+
+  describe('Tag Exclusion', () => {
+    it('should strip out Path Items with no operations', () => {
+      const first = toOAS({
+        '/path/a': {
+          get: {
+            responses: {}
+          }
+        },
+        '/path/b': {
+          servers: []
+        }
+      });
+
+      const second = toOAS({
+        '/path/b': {
+          get: {
+            responses: {}
+          }
+        }
+      });
+
+      const output = toOAS({
+        '/path/a': {
+          get: {
+            responses: {}
+          }
+        },
+        '/path/b': {
+          get: {
+            responses: {}
+          }
+        }
+      });
+
+      expectMergeResult(merge([{ oas: first }, { oas: second }]), {
+        output
+      });
+    });
+
+    it('should remove tags that have been excluded', () => {
+      const first = toOAS({
+        '/path/a': {
+          get: {
+            tags: ['included'],
+            responses: {}
+          }
+        },
+        '/path/b': {
+          servers: []
+        },
+        '/path/c': {
+          get: {
+            tags: ['excluded'],
+            responses: {}
+          }
+        },
+        '/path/d': {
+          get: {
+            tags: ['included', 'excluded'],
+            responses: {}
+          }
+        }
+      });
+
+      const second = toOAS({
+        '/path/b': {
+          get: {
+            responses: {}
+          }
+        }
+      });
+
+      const output = toOAS({
+        '/path/a': {
+          get: {
+            tags: ['included'],
+            responses: {}
+          }
+        },
+        '/path/b': {
+          get: {
+            responses: {}
+          }
+        }
+      });
+
+      expectMergeResult(merge([{ oas: first, excludePathsTaggedWith: ['excluded'] }, { oas: second }]), {
+        output
+      });
+    });
+
+    it('should filter top level tags definitions', () => {
+      const first = toOAS({
+        '/path/a': {
+          get: {
+            tags: ['included'],
+            responses: {}
+          }
+        },
+        '/path/b': {
+          servers: []
+        },
+        '/path/c': {
+          get: {
+            tags: ['excluded'],
+            responses: {}
+          }
+        },
+        '/path/d': {
+          get: {
+            tags: ['included', 'excluded'],
+            responses: {}
+          }
+        }
+      });
+
+      first.tags = [{
+        name: 'included',
+        description: 'This tag is included'
+      }, {
+        name: 'excluded',
+        description: 'This tag is excluded'
+      }, {
+        name: 'unused',
+        description: 'This tag is not used'
+      }];
+
+      const second = toOAS({
+        '/path/b': {
+          get: {
+            responses: {}
+          }
+        }
+      });
+
+      const output = toOAS({
+        '/path/a': {
+          get: {
+            tags: ['included'],
+            responses: {}
+          }
+        },
+        '/path/b': {
+          get: {
+            responses: {}
+          }
+        }
+      });
+
+      output.tags = [{
+        name: 'included',
+        description: 'This tag is included'
+      }, {
+        name: 'unused',
+        description: 'This tag is not used'
+      }];
+
+      expectMergeResult(merge([{ oas: first, excludePathsTaggedWith: ['excluded'] }, { oas: second }]), {
+        output
+      });
+    });
+  });
 });

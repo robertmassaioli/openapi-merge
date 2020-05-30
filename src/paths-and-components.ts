@@ -99,6 +99,78 @@ function processComponents<A>(results: Components<A>, components: Components<A>,
   }
 }
 
+function countOperationsInPathItem(pathItem: Swagger.PathItem): number {
+  let count = 0;
+  count += pathItem.get !== undefined ? 1 : 0;
+  count += pathItem.put !== undefined ? 1 : 0;
+  count += pathItem.post !== undefined ? 1 : 0;
+  count += pathItem.delete !== undefined ? 1 : 0;
+  count += pathItem.options !== undefined ? 1 : 0;
+  count += pathItem.head !== undefined ? 1 : 0;
+  count += pathItem.patch !== undefined ? 1 : 0;
+  count += pathItem.trace !== undefined ? 1 : 0;
+  return count;
+}
+
+function dropPathItemsWithNoOperations(originalOas: Swagger.SwaggerV3): Swagger.SwaggerV3 {
+  const oas = _.cloneDeep(originalOas);
+
+  for (const path in oas.paths) {
+    /* eslint-disable-next-line no-prototype-builtins */
+    if (oas.paths.hasOwnProperty(path)) {
+      const pathItem = oas.paths[path];
+
+      if (countOperationsInPathItem(pathItem) === 0) {
+        delete oas.paths[path];
+      }
+    }
+  }
+
+  return oas;
+}
+
+function dropOperationsThatHaveTags(originalOas: Swagger.SwaggerV3, excludedTags: string[]): Swagger.SwaggerV3 {
+  if (excludedTags.length === 0) {
+    return originalOas;
+  }
+
+  const oas = _.cloneDeep(originalOas);
+
+  for (const path in oas.paths) {
+    /* eslint-disable-next-line no-prototype-builtins */
+    if (oas.paths.hasOwnProperty(path)) {
+      const pathItem = oas.paths[path];
+
+      if (pathItem.get !== undefined && pathItem.get.tags !== undefined && pathItem.get.tags.some(tag => excludedTags.includes(tag))) {
+        delete pathItem.get;
+      }
+      if (pathItem.put !== undefined && pathItem.put.tags !== undefined && pathItem.put.tags.some(tag => excludedTags.includes(tag))) {
+        delete pathItem.put;
+      }
+      if (pathItem.post !== undefined && pathItem.post.tags !== undefined && pathItem.post.tags.some(tag => excludedTags.includes(tag))) {
+        delete pathItem.post;
+      }
+      if (pathItem.delete !== undefined && pathItem.delete.tags !== undefined && pathItem.delete.tags.some(tag => excludedTags.includes(tag))) {
+        delete pathItem.delete;
+      }
+      if (pathItem.options !== undefined && pathItem.options.tags !== undefined && pathItem.options.tags.some(tag => excludedTags.includes(tag))) {
+        delete pathItem.options;
+      }
+      if (pathItem.head !== undefined && pathItem.head.tags !== undefined && pathItem.head.tags.some(tag => excludedTags.includes(tag))) {
+        delete pathItem.head;
+      }
+      if (pathItem.patch !== undefined && pathItem.patch.tags !== undefined && pathItem.patch.tags.some(tag => excludedTags.includes(tag))) {
+        delete pathItem.patch;
+      }
+      if (pathItem.trace !== undefined && pathItem.trace.tags !== undefined && pathItem.trace.tags.some(tag => excludedTags.includes(tag))) {
+        delete pathItem.trace;
+      }
+    }
+  }
+
+  return oas;
+}
+
 /**
  * Merge algorithm:
  *
@@ -118,9 +190,9 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
   for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
     const input = inputs[inputIndex];
 
-    const { oas: originalOas, disputePrefix, pathModification } = input;
+    const { oas: originalOas, disputePrefix, pathModification, excludePathsTaggedWith } = input;
 
-    const oas = _.cloneDeep(originalOas);
+    const oas = dropPathItemsWithNoOperations(dropOperationsThatHaveTags(_.cloneDeep(originalOas), excludePathsTaggedWith || []));
 
     // Original references will be transformed to new non-conflicting references
     const referenceModification: { [originalReference: string]: string } = {};

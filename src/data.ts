@@ -5,6 +5,12 @@ export type SingleMergeInput = {
   disputePrefix?: string;
   //referenceOverrides?: { [reference: string]: string };
   pathModification?: PathModification;
+
+  /**
+   * Any Operation tagged with one of the paths in this definition will be excluded from the merge result. Any tag
+   * mentioned in this list will also be excluded from the top level list of tags.
+   */
+  excludePathsTaggedWith?: string[];
 };
 
 export type PathModification = {
