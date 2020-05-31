@@ -1,10 +1,30 @@
 import { Swagger } from 'atlassian-openapi';
 
+export type OperationSelection = {
+  /**
+   * Only Operatinos that have these tags will be taken from this OpenAPI file. If a single Operation contains
+   * an includeTag and an excludeTag then it will be excluded; exclusion takes precedence.
+   */
+  includeTags?: string[];
+
+  /**
+   * Any Operation that has any one of these tags will be excluded from the final result. If a single Operation contains
+   * an includeTag and an excludeTag then it will be excluded; exclusion takes precedence.
+   */
+  excludeTags?: string[];
+};
+
 export type SingleMergeInput = {
   oas: Swagger.SwaggerV3;
   disputePrefix?: string;
   //referenceOverrides?: { [reference: string]: string };
   pathModification?: PathModification;
+
+  /**
+   * Any Operation tagged with one of the paths in this definition will be excluded from the merge result. Any tag
+   * mentioned in this list will also be excluded from the top level list of tags.
+   */
+  operationSelection?: OperationSelection;
 };
 
 export type PathModification = {

@@ -12,7 +12,8 @@ import {
   walkLinkReferences,
   walkCallbackReferences
 } from "./reference-walker";
-import * as _ from 'lodash';
+import _ from 'lodash';
+import { runOperationSelection } from "./operation-selection";
 
 export type PathAndComponents = {
   paths: Swagger.Paths;
@@ -99,6 +100,36 @@ function processComponents<A>(results: Components<A>, components: Components<A>,
   }
 }
 
+function countOperationsInPathItem(pathItem: Swagger.PathItem): number {
+  let count = 0;
+  count += pathItem.get !== undefined ? 1 : 0;
+  count += pathItem.put !== undefined ? 1 : 0;
+  count += pathItem.post !== undefined ? 1 : 0;
+  count += pathItem.delete !== undefined ? 1 : 0;
+  count += pathItem.options !== undefined ? 1 : 0;
+  count += pathItem.head !== undefined ? 1 : 0;
+  count += pathItem.patch !== undefined ? 1 : 0;
+  count += pathItem.trace !== undefined ? 1 : 0;
+  return count;
+}
+
+function dropPathItemsWithNoOperations(originalOas: Swagger.SwaggerV3): Swagger.SwaggerV3 {
+  const oas = _.cloneDeep(originalOas);
+
+  for (const path in oas.paths) {
+    /* eslint-disable-next-line no-prototype-builtins */
+    if (oas.paths.hasOwnProperty(path)) {
+      const pathItem = oas.paths[path];
+
+      if (countOperationsInPathItem(pathItem) === 0) {
+        delete oas.paths[path];
+      }
+    }
+  }
+
+  return oas;
+}
+
 /**
  * Merge algorithm:
  *
@@ -118,9 +149,9 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
   for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
     const input = inputs[inputIndex];
 
-    const { oas: originalOas, disputePrefix, pathModification } = input;
+    const { oas: originalOas, disputePrefix, pathModification, operationSelection } = input;
 
-    const oas = _.cloneDeep(originalOas);
+    const oas = dropPathItemsWithNoOperations(runOperationSelection(_.cloneDeep(originalOas), operationSelection));
 
     // Original references will be transformed to new non-conflicting references
     const referenceModification: { [originalReference: string]: string } = {};
