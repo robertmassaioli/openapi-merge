@@ -17,7 +17,7 @@ export function mergeTags(inputs: MergeInput): Swagger.Tag[] | undefined {
     const { operationSelection } = input;
     const { tags } = input.oas;
     if (tags !== undefined) {
-      let excludeTags = operationSelection !== undefined && operationSelection.excludeTags !== undefined ? operationSelection.excludeTags : [];
+      const excludeTags = operationSelection !== undefined && operationSelection.excludeTags !== undefined ? operationSelection.excludeTags : [];
       const nonExcludedTags = getNonExcludedTags(tags, excludeTags);
 
       nonExcludedTags.forEach(tag => {

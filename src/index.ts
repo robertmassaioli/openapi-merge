@@ -5,7 +5,7 @@ import { mergePathsAndComponents } from './paths-and-components';
 import { mergeExtensions } from './extensions';
 import { Swagger } from 'atlassian-openapi';
 
-export { MergeInput, MergeResult, PathModification, OperationSelection };
+export { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection };
 
 function getFirst<A>(inputs: Array<A>): A | undefined {
   if (inputs.length > 0) {
