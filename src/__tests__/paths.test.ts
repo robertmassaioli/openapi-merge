@@ -174,6 +174,17 @@ describe('OAS Path Merge', () => {
         },
         '/path/b': {
           servers: []
+        },
+        '/path/emptyTags': {
+          delete: {
+            tags: [],
+            responses: {}
+          }
+        },
+        '/path/noTags': {
+          head: {
+            responses: {}
+          }
         }
       });
 
@@ -195,6 +206,17 @@ describe('OAS Path Merge', () => {
           get: {
             responses: {}
           }
+        },
+        '/path/emptyTags': {
+          delete: {
+            tags: [],
+            responses: {}
+          }
+        },
+        '/path/noTags': {
+          head: {
+            responses: {}
+          }
         }
       });
 
@@ -203,7 +225,7 @@ describe('OAS Path Merge', () => {
       });
     });
 
-    it('should remove tags that have been excluded', () => {
+    it('should remove operations that have been excluded', () => {
       const first = toOAS({
         '/path/a': {
           get: {
@@ -225,6 +247,160 @@ describe('OAS Path Merge', () => {
             tags: ['included', 'excluded'],
             responses: {}
           }
+        },
+        '/path/emptyTags': {
+          delete: {
+            tags: [],
+            responses: {}
+          }
+        },
+        '/path/noTags': {
+          head: {
+            responses: {}
+          }
+        }
+      });
+
+      const second = toOAS({
+        '/path/b': {
+          get: {
+            responses: {}
+          }
+        }
+      });
+
+      const output = toOAS({
+        '/path/a': {
+          get: {
+            tags: ['included'],
+            responses: {}
+          }
+        },
+        '/path/b': {
+          get: {
+            responses: {}
+          }
+        },
+        '/path/emptyTags': {
+          delete: {
+            tags: [],
+            responses: {}
+          }
+        },
+        '/path/noTags': {
+          head: {
+            responses: {}
+          }
+        }
+      });
+
+      expectMergeResult(merge([{ oas: first, operationSelection: { excludeTags: ['excluded'] }}, { oas: second }]), {
+        output
+      });
+    });
+
+    it('should include operations that have been included', () => {
+      const first = toOAS({
+        '/path/a': {
+          get: {
+            tags: ['included'],
+            responses: {}
+          }
+        },
+        '/path/b': {
+          servers: []
+        },
+        '/path/c': {
+          get: {
+            tags: ['excluded'],
+            responses: {}
+          }
+        },
+        '/path/d': {
+          get: {
+            tags: ['included', 'excluded'],
+            responses: {}
+          }
+        },
+        '/path/emptyTags': {
+          delete: {
+            tags: [],
+            responses: {}
+          }
+        },
+        '/path/noTags': {
+          head: {
+            responses: {}
+          }
+        }
+      });
+
+      const second = toOAS({
+        '/path/b': {
+          get: {
+            responses: {}
+          }
+        }
+      });
+
+      const output = toOAS({
+        '/path/a': {
+          get: {
+            tags: ['included'],
+            responses: {}
+          }
+        },
+        '/path/b': {
+          get: {
+            responses: {}
+          }
+        },
+        '/path/d': {
+          get: {
+            tags: ['included', 'excluded'],
+            responses: {}
+          }
+        }
+      });
+
+      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'] }}, { oas: second }]), {
+        output
+      });
+    });
+
+    it('should follow exclusion precidence to inclusion', () => {
+      const first = toOAS({
+        '/path/a': {
+          get: {
+            tags: ['included'],
+            responses: {}
+          }
+        },
+        '/path/b': {
+          servers: []
+        },
+        '/path/c': {
+          get: {
+            tags: ['excluded'],
+            responses: {}
+          }
+        },
+        '/path/d': {
+          get: {
+            tags: ['included', 'excluded'],
+            responses: {}
+          }
+        },
+        '/path/emptyTags': {
+          delete: {
+            tags: [],
+            responses: {}
+          }
+        },
+        '/path/noTags': {
+          head: {
+            responses: {}
+          }
         }
       });
 
@@ -250,7 +426,7 @@ describe('OAS Path Merge', () => {
         }
       });
 
-      expectMergeResult(merge([{ oas: first, excludePathsTaggedWith: ['excluded'] }, { oas: second }]), {
+      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'], excludeTags: ['excluded'] }}, { oas: second }]), {
         output
       });
     });
@@ -321,7 +497,7 @@ describe('OAS Path Merge', () => {
         description: 'This tag is not used'
       }];
 
-      expectMergeResult(merge([{ oas: first, excludePathsTaggedWith: ['excluded'] }, { oas: second }]), {
+      expectMergeResult(merge([{ oas: first, operationSelection: { excludeTags: ['excluded'] } }, { oas: second }]), {
         output
       });
     });

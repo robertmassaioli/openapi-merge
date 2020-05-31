@@ -1,11 +1,11 @@
 import { isPresent } from 'ts-is-present';
-import { MergeInput, MergeResult, isErrorResult, PathModification } from './data';
+import { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection } from './data';
 import { mergeTags } from './tags';
 import { mergePathsAndComponents } from './paths-and-components';
 import { mergeExtensions } from './extensions';
 import { Swagger } from 'atlassian-openapi';
 
-export { MergeInput, MergeResult, PathModification };
+export { MergeInput, MergeResult, PathModification, OperationSelection };
 
 function getFirst<A>(inputs: Array<A>): A | undefined {
   if (inputs.length > 0) {
