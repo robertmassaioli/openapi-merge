@@ -840,10 +840,10 @@ onetime@^5.1.0:
   dependencies:
     mimic-fn "^2.1.0"
 
-openapi-merge@^1.0.16:
-  version "1.0.16"
-  resolved "https://packages.atlassian.com/api/npm/npm-remote/openapi-merge/-/openapi-merge-1.0.16.tgz#dad728e648c7335ef358b493d9660d06277d1e5c"
-  integrity sha1-2tco5kjHM17zWLST2WYNBid9Hlw=
+openapi-merge@^1.0.22:
+  version "1.0.22"
+  resolved "https://packages.atlassian.com/api/npm/npm-remote/openapi-merge/-/openapi-merge-1.0.22.tgz#bed1cd8e024348772b7be38f85908cd46210930c"
+  integrity sha1-vtHNjgJDSHcre+OPhZCM1GIQkww=
   dependencies:
     atlassian-openapi "^1.0.8"
     lodash "^4.17.15"

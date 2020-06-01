@@ -39,7 +39,7 @@
   "dependencies": {
     "ajv": "^6.12.2",
     "commander": "^5.1.0",
-    "openapi-merge": "^1.0.16"
+    "openapi-merge": "^1.0.22"
   },
   "scripts": {
     "build": "tsc --project .",
