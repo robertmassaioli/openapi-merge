@@ -104,5 +104,3 @@ export function main(): void {
 
   logger.log(`## Finished writing to '${outputFullPath}'`);
 }
-
-main();
