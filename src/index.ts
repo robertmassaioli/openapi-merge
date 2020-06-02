@@ -53,7 +53,8 @@ function convertInputs(basePath: string, configInputs: ConfigurationInput[], log
       results.push({
         oas: rawData, // Just assume that it is a valid file. Could improve this and do a rudimentary check
         disputePrefix: input.disputePrefix,
-        pathModification: input.pathModification
+        pathModification: input.pathModification,
+        operationSelection: input.operationSelection
       });
     } catch (e) {
       return `Input ${inputIndex}: could not load configuration file. ${e}`;
