@@ -67,6 +67,7 @@ function convertInputs(basePath: string, configInputs: ConfigurationInput[], log
 export function main(): void {
   const logger = new LogWithMillisDiff();
   program.parse(process.argv);
+  logger.log(`## ${process.argv[0]}: Running v${pjson.version}`);
 
   const config = loadConfiguration(program.config);
 
