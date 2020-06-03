@@ -15,10 +15,10 @@ If you are looking for a CLI tool based on this library, then please check out: 
 We process the inputs sequentially such that the first input in the list takes preference and subsequent inputs will be 
 modified to merge seamlessly into the first.
 
-For some parts of the OpenAPI file, like `paths` and `components` we attempt to merge the definitions together such that there are no overlaps and no information
-is dropped.
+For some parts of the OpenAPI file, like `paths`, `components` and `tags` we attempt to merge the definitions together 
+such that there are no overlaps and no information is dropped.
 
-However, for other elements of the OpenAPI files the algorithm simply takes the value that is first defined in the list of
+However, for other elements of the OpenAPI files, the algorithm simply takes the value that is first defined in the list of
 OpenAPI files. Examples of elements of the OpenAPI files that follow this pattern are:
 
  - Info
@@ -27,4 +27,5 @@ OpenAPI files. Examples of elements of the OpenAPI files that follow this patter
  - ExternalDocumentation
 
 The intention here is that the first file will define these elements and effectively override them from the other files. This 
-matches the "API gateway" use case that we have mentioned at the top whereby we probably want to override the top level definitions.
+matches the "API gateway" use case that we have mentioned previously whereby we probably want these definitions to be specific to
+the API gateway and thus override the top level definitions from other inputs.
