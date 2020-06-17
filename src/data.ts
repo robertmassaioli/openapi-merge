@@ -58,7 +58,7 @@ export interface ConfigurationInputFromFile extends ConfigurationInputBase {
    * @minLength 1
    */
   inputFile: string;
-};
+}
 
 /**
  * A single Configuration input from a URL

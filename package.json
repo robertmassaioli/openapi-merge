@@ -27,6 +27,7 @@
     "url": "https://bitbucket.org/echo_rm/openapi-merge-cli/issues?status=new&status=open"
   },
   "devDependencies": {
+    "@adobe/jsonschema2md": "^4.1.3",
     "@types/isomorphic-fetch": "^0.0.35",
     "@types/node": "^13.13.5",
     "@typescript-eslint/eslint-plugin": "2.31.0",
@@ -48,9 +49,10 @@
     "build": "tsc --project .",
     "prepare": "npm run gen-schema && tsc --project .",
     "prepublishOnly": "npm run gen-schema && tsc --project .",
-    "gen-schema": "typescript-json-schema src/data.ts Configuration --titles --refs --noExtraProps --required --strictNullChecks -o src/configuration.schema.json",
+    "gen-schema": "typescript-json-schema src/data.ts Configuration --titles --refs --noExtraProps --required --strictNullChecks -o src/configuration.schema.json && ts-node ./fix-schema.ts",
     "start": "ts-node --project ./tsconfig.json ./src/cli.ts",
-    "lint": "yarn eslint src --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio"
+    "lint": "yarn eslint src --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
+    "gen-docs": "jsonschema2md --input=src"
   },
   "husky": {
     "hooks": {
