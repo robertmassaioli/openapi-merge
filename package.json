@@ -27,6 +27,7 @@
     "url": "https://bitbucket.org/echo_rm/openapi-merge-cli/issues?status=new&status=open"
   },
   "devDependencies": {
+    "@types/isomorphic-fetch": "^0.0.35",
     "@types/node": "^13.13.5",
     "@typescript-eslint/eslint-plugin": "2.31.0",
     "@typescript-eslint/parser": "2.31.0",
@@ -39,6 +40,8 @@
   "dependencies": {
     "ajv": "^6.12.2",
     "commander": "^5.1.0",
+    "es6-promise": "^4.2.8",
+    "isomorphic-fetch": "^2.2.1",
     "openapi-merge": "^1.0.22"
   },
   "scripts": {

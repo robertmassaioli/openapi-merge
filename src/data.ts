@@ -13,16 +13,9 @@ export type OperationSelection = {
 }
 
 /**
- * A single Configuration input
+ * The common configuration properties of an Input.
  */
-export type ConfigurationInput = {
-  /**
-   * The path to the input OpenAPI Schema that will be merged.
-   *
-   * @minLength 1
-   */
-  inputFile: string;
-
+export interface ConfigurationInputBase {
   /**
    * The prefix that will be used in the event of a conflict of two definition names.
    *
@@ -53,7 +46,41 @@ export type ConfigurationInput = {
    * Choose which OpenAPI Operations should be included from this input.
    */
   operationSelection?: OperationSelection;
+}
+
+/**
+ * A single Configuration input from a File.
+ */
+export interface ConfigurationInputFromFile extends ConfigurationInputBase {
+  /**
+   * The path to the input OpenAPI Schema that will be merged.
+   *
+   * @minLength 1
+   */
+  inputFile: string;
 };
+
+/**
+ * A single Configuration input from a URL
+ */
+export interface ConfigurationInputFromUrl extends ConfigurationInputBase {
+  /**
+   * The input url that we should load our configuration file from.
+   *
+   * @format uri
+   * @pattern ^https?://
+   */
+  inputURL: string;
+}
+
+/**
+ * The multiple types of configuration inputs that are supported.
+ */
+export type ConfigurationInput = ConfigurationInputFromFile | ConfigurationInputFromUrl;
+
+export function isConfigurationInputFromFile(input: ConfigurationInput): input is ConfigurationInputFromFile {
+  return 'inputFile' in input;
+}
 
 /**
  * The Configuration file for the OpenAPI Merge CLI Tool.
