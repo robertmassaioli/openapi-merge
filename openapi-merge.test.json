@@ -1,11 +1,11 @@
 {
   "inputs": [
     {
-      "inputFile": "./jira.swagger.json"
+      "inputURL": "https://developer.atlassian.com/cloud/jira/platform/swagger-v3.v3.json"
     },
     {
       "inputFile": "./confluence.swagger.json"
     }
-  ], 
+  ],
   "output": "./result.swagger.json"
 }

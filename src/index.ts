@@ -1,4 +1,4 @@
-import { ConfigurationInput } from "./data";
+import { ConfigurationInput, isConfigurationInputFromFile } from "./data";
 import { loadConfiguration } from "./load-configuration";
 import { Command } from 'commander';
 /* eslint-disable-next-line @typescript-eslint/no-var-requires */
@@ -6,7 +6,9 @@ const pjson = require('../package.json');
 import { merge, MergeInput } from 'openapi-merge';
 import fs from 'fs';
 import path from 'path';
-import { isErrorResult } from "openapi-merge/dist/data";
+import { isErrorResult, SingleMergeInput } from "openapi-merge/dist/data";
+import { Swagger } from "atlassian-openapi";
+import fetch from 'isomorphic-fetch';
 
 const ERROR_LOADING_CONFIG = 1;
 const ERROR_LOADING_INPUTS = 2;
@@ -39,32 +41,55 @@ class LogWithMillisDiff {
   }
 }
 
-function convertInputs(basePath: string, configInputs: ConfigurationInput[], logger: LogWithMillisDiff): MergeInput | string {
-  const results: MergeInput = [];
+async function loadOasForInput(basePath: string, input: ConfigurationInput, inputIndex: number, logger: LogWithMillisDiff): Promise<Swagger.SwaggerV3> {
+  if (isConfigurationInputFromFile(input)) {
+    const fullPath = path.join(basePath, input.inputFile);
+    logger.log(`## Loading input ${inputIndex}: ${fullPath}`);
+    return JSON.parse(fs.readFileSync(fullPath).toString('utf-8'));
+  } else {
+    logger.log(`## Loading input ${inputIndex} from URL: ${input.inputURL}`);
+    return await fetch(input.inputURL).then(rsp => rsp.json());
+  }
+}
 
-  for (let inputIndex = 0; inputIndex < configInputs.length; inputIndex++) {
-    const input = configInputs[inputIndex];
+type InputConversionErrors = {
+  errors: string[];
+};
 
+function isString<A extends object>(s: A | string): s is string {
+  return typeof s === 'string';
+}
+
+function isSingleMergeInput(i: SingleMergeInput | string): i is SingleMergeInput {
+  return typeof i !== 'string';
+}
+
+async function convertInputs(basePath: string, configInputs: ConfigurationInput[], logger: LogWithMillisDiff): Promise<MergeInput | InputConversionErrors> {
+  const results = await Promise.all(configInputs.map<Promise<SingleMergeInput | string>>(async (input, inputIndex) => {
     try {
-      const fullPath = path.join(basePath, input.inputFile);
-      logger.log(`## Loading input ${inputIndex}: ${fullPath}`);
-      const rawData = JSON.parse(fs.readFileSync(fullPath).toString('utf-8'));
+      const oas = await loadOasForInput(basePath, input, inputIndex, logger);
 
-      results.push({
-        oas: rawData, // Just assume that it is a valid file. Could improve this and do a rudimentary check
+      return {
+        oas,
         disputePrefix: input.disputePrefix,
         pathModification: input.pathModification,
         operationSelection: input.operationSelection
-      });
+      };
     } catch (e) {
       return `Input ${inputIndex}: could not load configuration file. ${e}`;
     }
+  }));
+
+  const errors = results.filter(isString);
+
+  if (errors.length > 0) {
+    return { errors };
   }
 
-  return results;
+  return results.filter(isSingleMergeInput);
 }
 
-export function main(): void {
+export async function main(): Promise<void> {
   const logger = new LogWithMillisDiff();
   program.parse(process.argv);
   logger.log(`## ${process.argv[0]}: Running v${pjson.version}`);
@@ -81,9 +106,9 @@ export function main(): void {
 
   const basePath = path.dirname(program.config || './');
 
-  const inputs = convertInputs(basePath, config.inputs, logger);
+  const inputs = await convertInputs(basePath, config.inputs, logger);
 
-  if (typeof inputs === 'string') {
+  if ('errors' in inputs) {
     console.error(inputs);
     process.exit(ERROR_LOADING_INPUTS);
     return;
