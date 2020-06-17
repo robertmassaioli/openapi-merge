@@ -30,9 +30,4 @@ pipelines:
             - pipe: atlassian/npm-publish:0.2.0
               variables:
                 NPM_TOKEN: $NPM_TOKEN
-            - git remote set-url origin ${BITBUCKET_GIT_SSH_ORIGIN}
-            - git clone git@bitbucket.org:echo_rm/openapi-merge-cli.git/wiki
-            - yarn gen-docs --out=wiki && cd wiki
-            - git commit -m "[skip ci] Updating the docs in build ${BITBUCKET_BUILD_NUMBER}."
-            - git push
 
