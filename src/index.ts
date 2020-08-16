@@ -9,6 +9,7 @@ import path from 'path';
 import { isErrorResult, SingleMergeInput } from "openapi-merge/dist/data";
 import { Swagger } from "atlassian-openapi";
 import fetch from 'isomorphic-fetch';
+import yaml from 'js-yaml';
 
 const ERROR_LOADING_CONFIG = 1;
 const ERROR_LOADING_INPUTS = 2;
@@ -41,11 +42,49 @@ class LogWithMillisDiff {
   }
 }
 
+function readFilePromise(filePath: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    fs.readFile(filePath, (err, result) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(result);
+      }
+    });
+  })
+}
+
+class JsonOrYamlParseError extends Error {
+  constructor(jsonError: Error, yamlError: Error) {
+    super(`Failed to parse the input as either JSON or YAML.\n\nJSON Error: ${jsonError.message}\n\nYAML Error: ${yamlError.message}`);
+  }
+}
+
+async function readYamlOrJSON(filePath: string): Promise<unknown> {
+  const fileContents = (await readFilePromise(filePath)).toString('utf-8');
+
+  let jsonError: Error;
+  try {
+    return JSON.parse(fileContents);
+  } catch (e) {
+    jsonError = e;
+  }
+
+  let yamlError: Error;
+  try {
+    return yaml.safeLoad(fileContents);
+  } catch (e) {
+    yamlError = e;
+  }
+
+  throw new JsonOrYamlParseError(jsonError, yamlError);
+}
+
 async function loadOasForInput(basePath: string, input: ConfigurationInput, inputIndex: number, logger: LogWithMillisDiff): Promise<Swagger.SwaggerV3> {
   if (isConfigurationInputFromFile(input)) {
     const fullPath = path.join(basePath, input.inputFile);
     logger.log(`## Loading input ${inputIndex}: ${fullPath}`);
-    return JSON.parse(fs.readFileSync(fullPath).toString('utf-8'));
+    return (await readYamlOrJSON(fullPath)) as Swagger.SwaggerV3;
   } else {
     logger.log(`## Loading input ${inputIndex} from URL: ${input.inputURL}`);
     return await fetch(input.inputURL).then(rsp => rsp.json());
