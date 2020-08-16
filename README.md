@@ -29,7 +29,7 @@ called `openapi-merge.json` by default, in your current directory. It should loo
       }
     },
     {
-      "inputFile": "./confluence.swagger.json",
+      "inputFile": "./confluence.swagger.yaml",
       "disputePrefix": "Confluence",
       "pathModification": {
         "prepend": "/confluence"
@@ -45,7 +45,7 @@ called `openapi-merge.json` by default, in your current directory. It should loo
 
 In this configuration you specify your inputs and your output file. For each input you have the following parameters:
 
- * `inputFile` or `inputURL`: the relative path (or URL), from the `openapi-merge.json`, to the OpenAPI schema file for that input.
+ * `inputFile` or `inputURL`: the relative path (or URL), from the `openapi-merge.json`, to the OpenAPI schema file for that input (in JSON or Yaml format).
  * `disputePrefix`: if two inputs both define a component with the same name then, in order to prevent incorrect overlaps, we will attempt to use the dispute prefix to come up with a unique name for that component.
  * `pathModification.stripStart`: When copying over the `paths` from your OpenAPI specification for this input, it will strip this string from the start of the path if it is found.
  * `pathModification.prepend`: When copying over the `paths` from your OpenAPI specification for this input, it will prepend this string to the start of the path if it is found. `prepend` will always run after `stripStart` so that it is deterministic.
