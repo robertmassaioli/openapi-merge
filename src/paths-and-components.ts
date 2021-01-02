@@ -234,7 +234,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
     }
 
     // For each path, convert it into the right format (looking out for duplicates)
-    const paths = Object.keys(oas.paths);
+    const paths = Object.keys(oas.paths || {});
 
     for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
       const originalPath = paths[pathIndex];

@@ -4,6 +4,31 @@ import { expectMergeResult, toMergeInputs, expectErrorType } from "./test-utils"
 import { SingleMergeInput } from "../data";
 
 describe('OAS Path Merge', () => {
+  it('should merge paths where one paths is null', () => {
+    const first = toOAS({});
+    (first as any)['paths'] = null;
+
+    const second = toOAS({
+      '/path/b': {
+        post: {
+          responses: {}
+        }
+      }
+    });
+
+    const output = toOAS({
+      '/path/b': {
+        post: {
+          responses: {}
+        }
+      }
+    });
+
+    expectMergeResult(merge(toMergeInputs([first, second])), {
+      output
+    });
+  });
+
   it('should merge paths from two files that do not overlap', () => {
     const first = toOAS({
       '/path/a': {
