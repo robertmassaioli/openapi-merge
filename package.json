@@ -1,6 +1,6 @@
 {
   "name": "openapi-merge-cli",
-  "version": "1.1.23",
+  "version": "1.1.25",
   "description": "A cli tool for the openapi-merge library.",
   "keywords": [
     "openapi",
