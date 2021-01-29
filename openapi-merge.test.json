@@ -7,5 +7,5 @@
       "inputFile": "./confluence.swagger.yaml"
     }
   ],
-  "output": "./result.swagger.json"
+  "output": "./result.swagger.yaml"
 }

@@ -131,6 +131,24 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
   return results.filter(isSingleMergeInput);
 }
 
+function isYamlExtension(filePath: string): boolean {
+  const extension = path.extname(filePath);
+  return ['.yaml', '.yml'].includes(extension);
+}
+
+function dumpAsYaml(blob: unknown): string {
+  // Note: The JSON stringify and parse is required to strip the undefined values: https://github.com/nodeca/js-yaml/issues/571
+  return yaml.safeDump(JSON.parse(JSON.stringify(blob)), { indent: 2 });
+}
+
+function writeOutput(outputFullPath: string, outputSchema: Swagger.SwaggerV3): void {
+  const fileContents = isYamlExtension(outputFullPath)
+    ? dumpAsYaml(outputSchema)
+    : JSON.stringify(outputSchema, null, 2);
+
+  fs.writeFileSync(outputFullPath, fileContents);
+}
+
 export async function main(): Promise<void> {
   const logger = new LogWithMillisDiff();
   program.parse(process.argv);
@@ -169,7 +187,8 @@ export async function main(): Promise<void> {
   const outputFullPath = path.join(basePath, config.output);
   logger.log(`## Inputs merged, writing the results out to '${outputFullPath}'`);
 
-  fs.writeFileSync(outputFullPath, JSON.stringify(mergeResult.output, null, 2));
+
+  writeOutput(outputFullPath, mergeResult.output);
 
   logger.log(`## Finished writing to '${outputFullPath}'`);
 }
