@@ -1,7 +1,7 @@
 {
   "inputs": [
     {
-      "inputURL": "https://developer.atlassian.com/cloud/jira/platform/swagger-v3.v3.json"
+      "inputURL": "https://raw.githubusercontent.com/moatazeldebsy/api-doc/main/openapi.yaml"
     },
     {
       "inputFile": "./confluence.swagger.yaml"
