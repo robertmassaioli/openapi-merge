@@ -54,15 +54,17 @@ function readFilePromise(filePath: string): Promise<Buffer> {
   })
 }
 
+async function readFileAsString(filePath: string): Promise<string> {
+  return (await readFilePromise(filePath)).toString('utf-8');
+}
+
 class JsonOrYamlParseError extends Error {
   constructor(jsonError: Error, yamlError: Error) {
     super(`Failed to parse the input as either JSON or YAML.\n\nJSON Error: ${jsonError.message}\n\nYAML Error: ${yamlError.message}`);
   }
 }
 
-async function readYamlOrJSON(filePath: string): Promise<unknown> {
-  const fileContents = (await readFilePromise(filePath)).toString('utf-8');
-
+async function readYamlOrJSON(fileContents: string): Promise<unknown> {
   let jsonError: Error;
   try {
     return JSON.parse(fileContents);
@@ -84,10 +86,11 @@ async function loadOasForInput(basePath: string, input: ConfigurationInput, inpu
   if (isConfigurationInputFromFile(input)) {
     const fullPath = path.join(basePath, input.inputFile);
     logger.log(`## Loading input ${inputIndex}: ${fullPath}`);
-    return (await readYamlOrJSON(fullPath)) as Swagger.SwaggerV3;
+    return (await readYamlOrJSON(await readFileAsString(fullPath))) as Swagger.SwaggerV3;
   } else {
     logger.log(`## Loading input ${inputIndex} from URL: ${input.inputURL}`);
-    return await fetch(input.inputURL).then(rsp => rsp.json());
+    const inputContents = await fetch(input.inputURL).then(rsp => rsp.text());
+    return (await readYamlOrJSON(inputContents)) as Swagger.SwaggerV3;
   }
 }
 
