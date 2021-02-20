@@ -60,6 +60,12 @@ npx openapi-merge-cli
 
 For more fine grained details on what `Configuration` options are available to you. [Please read the docs](https://bitbucket.org/echo_rm/openapi-merge-cli/wiki/README).
 
+If you wish, you may write your configuration file in YAML format and then run:
+
+``` shell
+npx openapi-merge-cli --config path/to/openapi-merge.yaml
+```
+
 And the merge should be run and complete! Congratulations and enjoy!
 
 If you experience any issues then please raise them in the bug tracker.
