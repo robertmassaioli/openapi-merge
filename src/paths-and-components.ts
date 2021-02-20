@@ -1,19 +1,9 @@
 import { MergeInput, ErrorMergeResult } from "./data";
-import { Swagger, SwaggerTypeChecks as TC } from "atlassian-openapi";
-import {
-  Modify,
-  walkAllReferences,
-  walkSchemaReferences,
-  walkResponseReferences,
-  walkParameterReferences,
-  walkExampleReferences,
-  walkRequestBodyReferences,
-  walkHeaderReferences,
-  walkLinkReferences,
-  walkCallbackReferences
-} from "./reference-walker";
+import { Swagger, SwaggerLookup } from "atlassian-openapi";
+import { walkAllReferences } from "./reference-walker";
 import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";
+import { deepEquality } from "./component-equivalence";
 
 export type PathAndComponents = {
   paths: Swagger.Paths;
@@ -26,28 +16,6 @@ function removeFromStart(input: string, trim: string): string {
   }
 
   return input;
-}
-
-type ReferenceWalker<A> = (component: A, modify: Modify) => void;
-
-function referenceCount<A>(walker: ReferenceWalker<A>, component: A): number {
-  let count = 0;
-  walker(component, ref => { count++; return ref; });
-  return count;
-}
-
-function componentsEqual<A>(referenceWalker: ReferenceWalker<A>): (x: A | Swagger.Reference, y: A | Swagger.Reference) => boolean {
-  return (x: A | Swagger.Reference, y: A | Swagger.Reference): boolean => {
-    if (!_.isEqual(x, y)) {
-      return false;
-    }
-
-    if (TC.isReference(x)) {
-      return false;
-    }
-
-    return referenceCount(referenceWalker, x) === 0;
-  }
 }
 
 type Components<A> = { [key: string]: A };
@@ -158,10 +126,12 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
       // For each component in the original input, place it in the output with deduplicate taking place
     if (oas.components !== undefined) {
+      const resultLookup = new SwaggerLookup.InternalLookup({ openapi: '3.0.1', info: { title: 'dummy', version: '0' }, paths: {}, components: result.components });
+      const currentLookup = new SwaggerLookup.InternalLookup(oas);
       if (oas.components.schemas !== undefined) {
         result.components.schemas = result.components.schemas || {};
 
-        processComponents(result.components.schemas, oas.components.schemas, componentsEqual(walkSchemaReferences), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.schemas, oas.components.schemas, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/schemas/${from}`] = `#/components/schemas/${to}`;
         });
       }
@@ -169,7 +139,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.responses !== undefined) {
         result.components.responses = result.components.responses || {};
 
-        processComponents(result.components.responses, oas.components.responses, componentsEqual(walkResponseReferences), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.responses, oas.components.responses, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/responses/${from}`] = `#/components/responses/${to}`;
         });
       }
@@ -177,7 +147,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.parameters !== undefined) {
         result.components.parameters = result.components.parameters || {};
 
-        processComponents(result.components.parameters, oas.components.parameters, componentsEqual(walkParameterReferences), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.parameters, oas.components.parameters, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/parameters/${from}`] = `#/components/parameters/${to}`;
         });
       }
@@ -186,7 +156,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.examples !== undefined) {
         result.components.examples = result.components.examples || {};
 
-        processComponents(result.components.examples, oas.components.examples, componentsEqual(walkExampleReferences), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.examples, oas.components.examples, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/examples/${from}`] = `#/components/examples/${to}`;
         });
       }
@@ -195,7 +165,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.requestBodies !== undefined) {
         result.components.requestBodies = result.components.requestBodies || {};
 
-        processComponents(result.components.requestBodies, oas.components.requestBodies, componentsEqual(walkRequestBodyReferences), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.requestBodies, oas.components.requestBodies, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/requestBodies/${from}`] = `#/components/requestBodies/${to}`;
         });
       }
@@ -204,7 +174,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.headers !== undefined) {
         result.components.headers = result.components.headers || {};
 
-        processComponents(result.components.headers, oas.components.headers, componentsEqual(walkHeaderReferences), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.headers, oas.components.headers, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/headers/${from}`] = `#/components/headers/${to}`;
         });
       }
@@ -218,7 +188,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.links !== undefined) {
         result.components.links = result.components.links || {};
 
-        processComponents(result.components.links, oas.components.links, componentsEqual(walkLinkReferences), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.links, oas.components.links, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/links/${from}`] = `#/components/links/${to}`;
         });
       }
@@ -227,7 +197,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.callbacks !== undefined) {
         result.components.callbacks = result.components.callbacks || {};
 
-        processComponents(result.components.callbacks, oas.components.callbacks, componentsEqual(walkCallbackReferences), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.callbacks, oas.components.callbacks, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
           referenceModification[`#/components/callbacks/${from}`] = `#/components/callbacks/${to}`;
         });
       }

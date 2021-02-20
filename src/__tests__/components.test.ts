@@ -175,9 +175,6 @@ describe('OAS Component conflict', () => {
             A: {
               $ref: '#/components/schemas/Example'
             },
-            A1: {
-              $ref: '#/components/schemas/Example'
-            },
             Example: {
               type: 'string'
             }
@@ -186,7 +183,7 @@ describe('OAS Component conflict', () => {
       });
     });
 
-    it('should update multiple nested references that moved', () => {
+    it('should update multiple nested references that moved with different root types', () => {
       const first: Swagger.SwaggerV3 = toOAS({}, {
         schemas: {
           A: {
@@ -278,6 +275,255 @@ describe('OAS Component conflict', () => {
             },
             SecondExample: {
               type: 'number'
+            }
+          }
+        })
+      });
+    });
+
+    it('should keep objects separate that are separate and reuse where possible', () => {
+      const first: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            properties: {
+              "x": {
+                $ref: "#/components/schemas/X"
+              },
+              "y": {
+                $ref: "#/components/schemas/Y"
+              }
+            }
+          },
+          X: {
+            type: 'string'
+          },
+          Y: {
+            type: 'number'
+          }
+        }
+      });
+
+      const second: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            properties: {
+              "x": {
+                $ref: "#/components/schemas/X"
+              },
+              "y": {
+                $ref: "#/components/schemas/Y"
+              }
+            }
+          },
+          X: {
+            type: 'string'
+          },
+          Y: {
+            type: 'boolean'
+          }
+        }
+      });
+
+      const result = merge(toMergeInputs([first, second]));
+      expectMergeResult(result, {
+        output: toOAS({}, {
+          schemas: {
+            A: {
+              properties: {
+                "x": {
+                  $ref: "#/components/schemas/X"
+                },
+                "y": {
+                  $ref: "#/components/schemas/Y"
+                }
+              }
+            },
+            A1: {
+              properties: {
+                "x": {
+                  $ref: "#/components/schemas/X"
+                },
+                "y": {
+                  $ref: "#/components/schemas/Y1"
+                }
+              }
+            },
+            X: {
+              type: 'string'
+            },
+            Y: {
+              type: 'number'
+            },
+            Y1: {
+              type: 'boolean'
+            }
+          }
+        })
+      });
+    });
+
+    it('should spot cycles in the chain but merge if they are still equivalent', () => {
+      const first: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            properties: {
+              "x": {
+                $ref: "#/components/schemas/X"
+              },
+              "y": {
+                $ref: "#/components/schemas/Y"
+              }
+            }
+          },
+          X: {
+            type: 'string'
+          },
+          Y: {
+            type: 'array',
+            items: {
+              $ref: '#/components/schemas/A'
+            }
+          }
+        }
+      });
+
+      const second: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            properties: {
+              "x": {
+                $ref: "#/components/schemas/X"
+              },
+              "y": {
+                $ref: "#/components/schemas/Y"
+              }
+            }
+          },
+          X: {
+            type: 'string'
+          },
+          Y: {
+            type: 'array',
+            items: {
+              $ref: '#/components/schemas/A'
+            }
+          }
+        }
+      });
+
+      const result = merge(toMergeInputs([first, second]));
+      expectMergeResult(result, {
+        output: toOAS({}, {
+          schemas: {
+            A: {
+              properties: {
+                "x": {
+                  $ref: "#/components/schemas/X"
+                },
+                "y": {
+                  $ref: "#/components/schemas/Y"
+                }
+              }
+            },
+            X: {
+              type: 'string'
+            },
+            Y: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/A'
+              }
+            }
+          }
+        })
+      });
+    });
+
+    it('should spot cycles in the chain but not merge if they are not still equivalent', () => {
+      const first: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            properties: {
+              "x": {
+                $ref: "#/components/schemas/X"
+              },
+              "y": {
+                $ref: "#/components/schemas/Y"
+              }
+            }
+          },
+          X: {
+            type: 'string'
+          },
+          Y: {
+            type: 'array',
+            items: {
+              $ref: '#/components/schemas/A'
+            }
+          }
+        }
+      });
+
+      const second: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            properties: {
+              "x": {
+                $ref: "#/components/schemas/X"
+              },
+              "y": {
+                $ref: "#/components/schemas/Y"
+              }
+            }
+          },
+          X: {
+            type: 'string'
+          },
+          Y: {
+            items: {
+              $ref: '#/components/schemas/A'
+            }
+          }
+        }
+      });
+
+      const result = merge(toMergeInputs([first, second]));
+      expectMergeResult(result, {
+        output: toOAS({}, {
+          schemas: {
+            A: {
+              properties: {
+                "x": {
+                  $ref: "#/components/schemas/X"
+                },
+                "y": {
+                  $ref: "#/components/schemas/Y"
+                }
+              }
+            },
+            A1: {
+              properties: {
+                "x": {
+                  $ref: "#/components/schemas/X"
+                },
+                "y": {
+                  $ref: "#/components/schemas/Y1"
+                }
+              }
+            },
+            X: {
+              type: 'string'
+            },
+            Y: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/A'
+              }
+            },
+            Y1: {
+              items: {
+                $ref: '#/components/schemas/A1'
+              }
             }
           }
         })
