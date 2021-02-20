@@ -68,4 +68,6 @@ npx openapi-merge-cli --config path/to/openapi-merge.yaml
 
 And the merge should be run and complete! Congratulations and enjoy!
 
-If you experience any issues then please raise them in the bug tracker.
+If you experience any issues then please [raise them in the bug tracker][1].
+
+ [1]: https://bitbucket.org/echo_rm/openapi-merge-cli/issues?status=new&status=open
