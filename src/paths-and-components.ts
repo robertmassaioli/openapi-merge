@@ -1,16 +1,6 @@
 import { MergeInput, ErrorMergeResult } from "./data";
 import { Swagger, SwaggerLookup } from "atlassian-openapi";
-import {
-  walkAllReferences,
-  walkSchemaReferences,
-  walkResponseReferences,
-  walkParameterReferences,
-  walkExampleReferences,
-  walkRequestBodyReferences,
-  walkHeaderReferences,
-  walkLinkReferences,
-  walkCallbackReferences
-} from "./reference-walker";
+import { walkAllReferences } from "./reference-walker";
 import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";
 import { deepEquality } from "./component-equivalence";

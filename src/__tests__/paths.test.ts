@@ -6,6 +6,7 @@ import { SingleMergeInput } from "../data";
 describe('OAS Path Merge', () => {
   it('should merge paths where one paths is null', () => {
     const first = toOAS({});
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (first as any)['paths'] = null;
 
     const second = toOAS({
