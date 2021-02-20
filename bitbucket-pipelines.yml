@@ -3,7 +3,7 @@
 # Only use spaces to indent your .yml configuration.
 # -----
 # You can specify a custom docker image from Docker Hub as your build environment.
-image: node:10.15.3
+image: node:12
 
 pipelines:
   default:
@@ -15,6 +15,7 @@ pipelines:
           - yarn install
           - yarn lint
           - yarn test
+          - yarn build
   branches:
     master:
       - step: *testing
