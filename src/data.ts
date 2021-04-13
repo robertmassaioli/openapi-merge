@@ -38,7 +38,7 @@ export type SuccessfulMergeResult = {
   output: Swagger.SwaggerV3;
 };
 
-export type ErrorType = 'no-inputs' | 'duplicate-paths' | 'component-definition-conflict';
+export type ErrorType = 'no-inputs' | 'duplicate-paths' | 'component-definition-conflict' | 'operation-id-conflict';
 
 export type ErrorMergeResult = {
   type: ErrorType;

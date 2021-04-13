@@ -98,6 +98,70 @@ function dropPathItemsWithNoOperations(originalOas: Swagger.SwaggerV3): Swagger.
   return oas;
 }
 
+function findUniqueOperationId(operationId: string, seenOperationIds: Set<string>, disputePrefix: string | undefined): string | ErrorMergeResult {
+  if (!seenOperationIds.has(operationId)) {
+    return operationId;
+  }
+
+  // Try the dispute prefix
+  if (disputePrefix !== undefined) {
+    const disputeOpId = `${disputePrefix}${operationId}`;
+    if (!seenOperationIds.has(disputeOpId)) {
+      return disputeOpId;
+    }
+  }
+
+  // Incrementally find the right prefix
+  for (let antiConflict = 1; antiConflict < 1000; antiConflict++) {
+    const tryOpId = `${operationId}${antiConflict}`;
+    if (!seenOperationIds.has(tryOpId)) {
+      return tryOpId;
+    }
+  }
+
+  // Fail with an error
+  return {
+    type: 'operation-id-conflict',
+    message: `Could not resolve a conflict for the operationId '${operationId}'`
+  };
+}
+
+function ensureUniqueOperationId(operation: Swagger.Operation, seenOperationIds: Set<string>, disputePrefix: string | undefined): ErrorMergeResult | undefined {
+  if (operation.operationId !== undefined) {
+    const opId = findUniqueOperationId(operation.operationId, seenOperationIds, disputePrefix);
+    if (typeof opId === 'string') {
+      operation.operationId = opId;
+      seenOperationIds.add(opId);
+    } else {
+      return opId;
+    }
+  }
+}
+
+function ensureUniqueOperationIds(pathItem: Swagger.PathItem, seenOperationIds: Set<string>, disputePrefix: string | undefined): ErrorMergeResult | undefined {
+  const operations = [
+    pathItem.get,
+    pathItem.put,
+    pathItem.post,
+    pathItem.delete,
+    pathItem.patch,
+    pathItem.head,
+    pathItem.trace,
+    pathItem.options
+  ];
+
+  for (let opIndex = 0; opIndex < operations.length; opIndex++) {
+    const operation = operations[opIndex];
+
+    if (operation !== undefined) {
+      const result = ensureUniqueOperationId(operation, seenOperationIds, disputePrefix);
+      if (result !== undefined) {
+        return result;
+      }
+    }
+  }
+}
+
 /**
  * Merge algorithm:
  *
@@ -109,6 +173,8 @@ function dropPathItemsWithNoOperations(originalOas: Swagger.SwaggerV3): Swagger.
  * @param inputs
  */
 export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents | ErrorMergeResult {
+  const seenOperationIds = new Set<string>();
+
   const result: PathAndComponents = {
     paths: {},
     components: {},
@@ -223,7 +289,11 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
         };
       }
 
-      result.paths[newPath] = oas.paths[originalPath];
+      const copyPathItem = oas.paths[originalPath];
+
+      ensureUniqueOperationIds(copyPathItem, seenOperationIds, input.disputePrefix);
+
+      result.paths[newPath] = copyPathItem;
     }
 
     // Update the references to point to the right location

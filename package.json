@@ -1,6 +1,6 @@
 {
   "name": "openapi-merge",
-  "version": "1.0.29",
+  "version": "1.1.0",
   "description": "A tool to merge numerous OpenAPI files into a single openapi definition.",
   "keywords": [
     "openapi",
