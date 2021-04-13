@@ -64,6 +64,45 @@ describe('OAS Path Merge', () => {
     });
   });
 
+  it('should ensure unique operationIds even if paths are different', () => {
+    const first = toOAS({
+      '/path/a': {
+        get: {
+          operationId: 'same',
+          responses: {}
+        }
+      }
+    });
+
+    const second = toOAS({
+      '/path/b': {
+        post: {
+          operationId: 'same',
+          responses: {}
+        }
+      }
+    });
+
+    const output = toOAS({
+      '/path/a': {
+        get: {
+          operationId: 'same',
+          responses: {}
+        }
+      },
+      '/path/b': {
+        post: {
+          operationId: 'same1',
+          responses: {}
+        }
+      }
+    });
+
+    expectMergeResult(merge(toMergeInputs([first, second])), {
+      output
+    });
+  });
+
   it('should prefix paths correctly', () => {
     const first = toOAS({
       '/path/a': {
