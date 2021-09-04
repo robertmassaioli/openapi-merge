@@ -8,6 +8,7 @@
   "license": "MIT",
   "private": false,
   "scripts": {
+    "test": "bolt ws test",
     "cli": "bolt w openapi-merge-cli run start"
   },
   "bolt": {
