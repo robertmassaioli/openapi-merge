@@ -7,6 +7,9 @@
   "author": "Robert Massaioli <robertmassaioli@gmail.com>",
   "license": "MIT",
   "private": false,
+  "scripts": {
+    "cli": "bolt w openapi-merge-cli run start"
+  },
   "bolt": {
     "workspaces": [
       "packages/*"
