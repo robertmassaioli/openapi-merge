@@ -1,0 +1,67 @@
+{
+  "name": "openapi-merge",
+  "version": "1.1.33",
+  "description": "A tool to merge numerous OpenAPI files into a single openapi definition.",
+  "keywords": [
+    "openapi",
+    "merge"
+  ],
+  "main": "dist/index",
+  "typings": "dist/index",
+  "files": [
+    "dist/!(__tests__)",
+    "dist/!(__tests__)/**/*"
+  ],
+  "author": {
+    "name": "Robert Massaioli",
+    "email": "packages@rmdir.app",
+    "url": "https://rmdir.app/"
+  },
+  "license": "MIT",
+  "private": false,
+  "homepage": "https://bitbucket.org/echo_rm/openapi-merge",
+  "repository": {
+    "type": "git",
+    "url": "git@bitbucket.org:echo_rm/openapi-merge.git"
+  },
+  "bugs": {
+    "url": "https://bitbucket.org/echo_rm/openapi-merge/issues?status=new&status=open"
+  },
+  "scripts": {
+    "build": "tsc --project .",
+    "prepare": "tsc --project .",
+    "prepublishOnly": "tsc --project .",
+    "test": "jest --collect-coverage --verbose",
+    "lint": "yarn eslint src --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
+    "start": "ts-node --project ./tsconfig.json src/index.ts"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.9.6",
+    "@babel/preset-env": "^7.9.6",
+    "@babel/preset-typescript": "^7.9.0",
+    "@types/jest": "^25.2.1",
+    "@types/lodash": "^4.14.150",
+    "@typescript-eslint/eslint-plugin": "^2.31.0",
+    "@typescript-eslint/parser": "^2.31.0",
+    "babel-jest": "^26.0.1",
+    "eslint": "^7.0.0",
+    "husky": "^4.2.5",
+    "jest": "^26.0.1",
+    "ts-node": "^8.10.1",
+    "typescript": "^3.8.3"
+  },
+  "dependencies": {
+    "atlassian-openapi": "^1.0.8",
+    "lodash": "^4.17.15",
+    "ts-is-present": "^1.1.1"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "yarn lint",
+      "pre-push": "yarn test"
+    }
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  }
+}
