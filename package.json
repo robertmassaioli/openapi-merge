@@ -1,0 +1,43 @@
+{
+  "name": "openapi-merge",
+  "version": "1.0.0",
+  "description": "The parent openapi-merge package",
+  "main": "index.js",
+  "repository": "git@github.com-personal:robertmassaioli/openapi-merge.git",
+  "author": "Robert Massaioli <robertmassaioli@gmail.com>",
+  "license": "MIT",
+  "private": false,
+  "bolt": {
+    "workspaces": [
+      "packages/*"
+    ]
+  },
+  "dependencies": {
+    "@adobe/jsonschema2md": "^4.1.3",
+    "@babel/core": "^7.9.6",
+    "@babel/preset-env": "^7.9.6",
+    "@babel/preset-typescript": "^7.9.0",
+    "@types/isomorphic-fetch": "^0.0.35",
+    "@types/jest": "^25.2.1",
+    "@types/js-yaml": "^3.12.5",
+    "@types/lodash": "^4.14.150",
+    "@types/node": "^13.13.5",
+    "@typescript-eslint/eslint-plugin": "^2.31.0",
+    "@typescript-eslint/parser": "^2.31.0",
+    "ajv": "^6.12.2",
+    "atlassian-openapi": "^1.0.8",
+    "babel-jest": "^26.0.1",
+    "commander": "^5.1.0",
+    "es6-promise": "^4.2.8",
+    "eslint": "^7.0.0",
+    "husky": "^4.2.5",
+    "isomorphic-fetch": "^2.2.1",
+    "jest": "^26.0.1",
+    "js-yaml": "^3.14.0",
+    "lodash": "^4.17.15",
+    "ts-is-present": "^1.1.1",
+    "ts-node": "^8.10.1",
+    "typescript": "^3.8.3",
+    "typescript-json-schema": "^0.42.0"
+  }
+}
