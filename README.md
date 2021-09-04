@@ -2,6 +2,13 @@
 
 Welcome to the openapi-merge repository. This library is intended to be used for merging multiple OpenAPI 3.0 files together. The most common reason that developers want to do this is because they have multiple services that they wish to expose underneath a single API Gateway. Therefore, even though this merging logic is sufficiently generic to be used for most use cases, some of the feature decisions are tailored for that specific use case.
 
+### Screenshots
+
+![Imgur](https://i.imgur.com/GjnSXCS.png)
+(An example of creating an openapi-merge.json configuration file for the CLI tool)
+
+### About this repository
+
 This is a multi-package repository that contains:
 
 * The openapi-merge library: [![npm](https://img.shields.io/npm/v/openapi-merge?label=openapi-merge&logo=npm)](https://bit.ly/2WnIytF)
