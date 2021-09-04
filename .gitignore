@@ -1,0 +1,14 @@
+# Temp Files
+*.sw[a-p]
+*~
+
+# Node modules
+/node_modules
+
+# Build directories
+/dist
+*.tgz
+/result.swagger.json
+
+# don't lint nyc coverage output
+/coverage
