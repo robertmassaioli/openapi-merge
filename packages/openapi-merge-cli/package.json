@@ -18,13 +18,13 @@
   "author": "Robert Massaioli",
   "license": "MIT",
   "private": false,
-  "homepage": "https://bitbucket.org/echo_rm/openapi-merge-cli",
+  "homepage": "https://github.com/robertmassaioli/openapi-merge",
   "repository": {
     "type": "git",
-    "url": "git@bitbucket.org:echo_rm/openapi-merge-cli.git"
+    "url": "git@github.com:robertmassaioli/openapi-merge.git"
   },
   "bugs": {
-    "url": "https://bitbucket.org/echo_rm/openapi-merge-cli/issues?status=new&status=open"
+    "url": "https://github.com/robertmassaioli/openapi-merge/issues"
   },
   "devDependencies": {
     "@adobe/jsonschema2md": "^4.1.3",

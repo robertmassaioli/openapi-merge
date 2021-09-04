@@ -19,13 +19,13 @@
   },
   "license": "MIT",
   "private": false,
-  "homepage": "https://bitbucket.org/echo_rm/openapi-merge",
+  "homepage": "https://github.com/robertmassaioli/openapi-merge",
   "repository": {
     "type": "git",
-    "url": "git@bitbucket.org:echo_rm/openapi-merge.git"
+    "url": "git@github.com:robertmassaioli/openapi-merge.git"
   },
   "bugs": {
-    "url": "https://bitbucket.org/echo_rm/openapi-merge/issues?status=new&status=open"
+    "url": "https://github.com/robertmassaioli/openapi-merge/issues"
   },
   "scripts": {
     "build": "tsc --project .",
