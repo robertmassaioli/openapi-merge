@@ -42,7 +42,6 @@
     "@typescript-eslint/parser": "^2.31.0",
     "babel-jest": "^26.0.1",
     "eslint": "^7.0.0",
-    "husky": "^4.2.5",
     "jest": "^26.0.1",
     "ts-node": "^8.10.1",
     "typescript": "^3.8.3"
@@ -51,12 +50,6 @@
     "atlassian-openapi": "^1.0.8",
     "lodash": "^4.17.15",
     "ts-is-present": "^1.1.1"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "yarn lint",
-      "pre-push": "yarn test"
-    }
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org"

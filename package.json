@@ -10,7 +10,8 @@
   "scripts": {
     "lint": "bolt ws lint",
     "test": "bolt ws test",
-    "cli": "bolt w openapi-merge-cli run start"
+    "cli": "bolt w openapi-merge-cli run start",
+    "prepare": "husky install"
   },
   "bolt": {
     "workspaces": [
@@ -35,7 +36,7 @@
     "commander": "^5.1.0",
     "es6-promise": "^4.2.8",
     "eslint": "^7.0.0",
-    "husky": "^4.2.5",
+    "husky": "^7.0.2",
     "isomorphic-fetch": "^2.2.1",
     "jest": "^26.0.1",
     "js-yaml": "^3.14.0",

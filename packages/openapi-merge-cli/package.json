@@ -31,7 +31,6 @@
     "@typescript-eslint/eslint-plugin": "^2.31.0",
     "@typescript-eslint/parser": "^2.31.0",
     "eslint": "^7.0.0",
-    "husky": "^4.2.5",
     "ts-node": "^8.10.1",
     "typescript": "^3.8.3",
     "typescript-json-schema": "^0.42.0"
@@ -52,11 +51,6 @@
     "start": "ts-node --project ./tsconfig.json ./src/cli.ts",
     "lint": "yarn eslint src --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
     "gen-docs": "jsonschema2md --input=src"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "yarn lint"
-    }
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org"
