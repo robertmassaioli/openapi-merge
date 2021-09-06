@@ -12,3 +12,6 @@
 
 # don't lint nyc coverage output
 /coverage
+
+# Generated files
+/result.swagger.yaml

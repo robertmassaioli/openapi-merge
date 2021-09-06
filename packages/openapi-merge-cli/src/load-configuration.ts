@@ -2,6 +2,7 @@ import { Configuration } from "./data";
 import Ajv from 'ajv';
 import ConfigurationSchema from './configuration.schema.json';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
+import process from 'process';
 
 async function validateConfiguration(rawData: string): Promise<Configuration | string> {
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -32,6 +33,6 @@ export async function loadConfiguration(configLocation?: string): Promise<Config
 
     return await validateConfiguration(rawData);
   } catch (e) {
-    return `Could not find or read '${configFile}' in the current directory.`
+    return `Could not find or read '${configFile}' in the current directory: ${process.cwd()}`;
   }
 }

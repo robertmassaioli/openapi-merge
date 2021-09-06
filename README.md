@@ -26,11 +26,20 @@ After checking out this repository, you can run the following command to install
 bolt install
 ```
 
-You can then test running the CLI tool by:
+You can then test running the CLI tool by running:
 
 ``` shell
-bolt w openapi-merge-cli run start
+yarn cli
 ```
+
+If you wish to ensure that you can develop on the `openapi-merge` library in parallel to the `openapi-merge-cli` tool
+then you must run the Typescript build for `openapi-merge` in watch mode. You can do this by:
+
+``` shell
+bolt w openapi-merge build -w
+```
+
+This will ensure that the Typescript is compiled into JavaScript so that it can be used by the `openapi-merge-cli` tool.
 
 For the other operations that you wish to perform, please see the package.json of the other packages in this repository.
 

@@ -1,6 +1,6 @@
 {
   "name": "openapi-merge-cli",
-  "version": "1.1.29",
+  "version": "1.2.0",
   "description": "A cli tool for the openapi-merge library.",
   "keywords": [
     "openapi",
@@ -41,7 +41,7 @@
     "es6-promise": "^4.2.8",
     "isomorphic-fetch": "^2.2.1",
     "js-yaml": "^3.14.0",
-    "openapi-merge": "^1.0.22"
+    "openapi-merge": "^1.2.0"
   },
   "scripts": {
     "build": "tsc --project .",

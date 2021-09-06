@@ -26,6 +26,9 @@ called `openapi-merge.json` by default, in your current directory. It should loo
       },
       "operationSelection": {
         "includeTags": ["included"]
+      },
+      "description": {
+        "append": true
       }
     },
     {
@@ -51,6 +54,8 @@ In this configuration you specify your inputs and your output file. For each inp
  * `pathModification.prepend`: When copying over the `paths` from your OpenAPI specification for this input, it will prepend this string to the start of the path if it is found. `prepend` will always run after `stripStart` so that it is deterministic.
  * `operationSelection.includeTags`: Only operations that are tagged with the tags configured here will be extracted from the OpenAPI file and merged with the others. This instruction will not remove other tags from the top level tags definition for this input.
  * `operationSelection.excludeTags`: Only operations that are NOT tagged with the tags configured here will be extracted from the OpenAPI file and merged with the others. Also, these tags will also be removed from the top level `tags` element for this file before being merged. If a single REST API operation has an `includeTags` reference and an `excludeTags` reference then the exclusion rule will take precidence.
+ * `description.append`: All of the inputs with `append: true` will have their `info.description`s merged together, in order, and placed in the output OpenAPI file in the `info.description` section.
+ * `description.title`: An optional field, that lets you spefify a custom heading for this inputs description when it is merged together in the output OpenAPI file.
 
 And then, once you have your Inputs in place and your configuration file you merely run the following in the directory that has your configuration file:
 

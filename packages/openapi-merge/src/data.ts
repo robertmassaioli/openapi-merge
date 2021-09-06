@@ -25,12 +25,48 @@ export type SingleMergeInput = {
    * mentioned in this list will also be excluded from the top level list of tags.
    */
   operationSelection?: OperationSelection;
+
+  /**
+   * This configuration setting lets you configure how the info.description from this OpenAPI file will be merged
+   * into the final resulting OpenAPI file
+   */
+  description?: DescriptionMergeBehaviour;
 };
 
 export type PathModification = {
   stripStart?: string;
   prepend?: string;
-}
+};
+
+export type DescriptionMergeBehaviour = {
+  /**
+   * Wether or not the description for this OpenAPI file will be merged into the description of the final file.
+   */
+  append: boolean;
+
+  /**
+   * You may optionally include a Markdown Title to demarcate this particular section of the merged description files.
+   */
+  title?: DescriptionTitle;
+};
+
+export type DescriptionTitle = {
+  /**
+   * The value of the included title.
+   *
+   * @minLength 1
+   */
+  value: string;
+
+  /**
+   * What heading level this heading will be at: from h1 through to h6. The default value is 1 and will create h1 elements
+   * in Markdown format.
+   *
+   * @minimum 1
+   * @maximum 6
+   */
+  headingLevel?: number;
+};
 
 export type MergeInput = Array<SingleMergeInput>;
 

@@ -1,10 +1,22 @@
 {
   "inputs": [
     {
-      "inputURL": "https://developer.atlassian.com/cloud/jira/platform/swagger-v3.v3.json"
+      "inputURL": "https://developer.atlassian.com/cloud/jira/platform/swagger-v3.v3.json",
+      "description": {
+        "append": true,
+        "title": {
+          "value": "Jira"
+        }
+      }
     },
     {
-      "inputFile": "./confluence.swagger.yaml"
+      "inputFile": "./confluence.swagger.yaml",
+      "description": {
+        "append": true,
+        "title": {
+          "value": "Confluence"
+        }
+      }
     }
   ],
   "output": "./result.swagger.yaml"

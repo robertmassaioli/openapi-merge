@@ -4,6 +4,7 @@ import { mergeTags } from './tags';
 import { mergePathsAndComponents } from './paths-and-components';
 import { mergeExtensions } from './extensions';
 import { Swagger } from 'atlassian-openapi';
+import { mergeInfos } from './info';
 
 export { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection };
 
@@ -27,8 +28,6 @@ export function merge(inputs: MergeInput): MergeResult {
     return { type: 'no-inputs', message: 'You must provide at least one OAS file as an input.' };
   }
 
-  const rootInput = inputs[0];
-
   const pathAndComponentResult = mergePathsAndComponents(inputs);
 
   if (isErrorResult(pathAndComponentResult)) {
@@ -42,7 +41,7 @@ export function merge(inputs: MergeInput): MergeResult {
   const output: Swagger.SwaggerV3 = mergeExtensions(
     {
       openapi: '3.0.3',
-      info: rootInput.oas.info,
+      info: mergeInfos(inputs),
       servers: getFirstMatching(inputs, input => input.oas.servers),
       externalDocs: getFirstMatching(inputs, input => input.oas.externalDocs),
       security: getFirstMatching(inputs, input => input.oas.security),
