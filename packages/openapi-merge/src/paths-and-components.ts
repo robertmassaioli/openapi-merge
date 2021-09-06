@@ -1,9 +1,10 @@
-import { MergeInput, ErrorMergeResult } from "./data";
+import { MergeInput, ErrorMergeResult, Dispute } from "./data";
 import { Swagger, SwaggerLookup } from "atlassian-openapi";
 import { walkAllReferences } from "./reference-walker";
 import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";
 import { deepEquality } from "./component-equivalence";
+import { applyDispute, getDispute } from './dispute';
 
 export type PathAndComponents = {
   paths: Swagger.Paths;
@@ -22,22 +23,24 @@ type Components<A> = { [key: string]: A };
 type Equal<A> = (x: A, y: A) => boolean;
 type AddModRef = (from: string, to: string) => void;
 
-function processComponents<A>(results: Components<A>, components: Components<A>, areEqual: Equal<A>, disputePrefix: string | undefined, addModifiedReference: AddModRef): ErrorMergeResult | undefined {
+function processComponents<A>(results: Components<A>, components: Components<A>, areEqual: Equal<A>, dispute: Dispute | undefined, addModifiedReference: AddModRef): ErrorMergeResult | undefined {
   for (const key in components) {
     /* eslint-disable-next-line no-prototype-builtins */
     if (components.hasOwnProperty(key)) {
       const component = components[key];
 
-      if (results[key] === undefined || areEqual(results[key], component)) {
+      const modifiedKey = applyDispute(dispute, key, 'undisputed');
+
+      if (results[modifiedKey] === undefined || areEqual(results[modifiedKey], component)) {
         // Add the schema
-        results[key] = component;
+        results[modifiedKey] = component;
       } else {
         // Distnguish the name and then add the element
         let schemaPlaced = false;
 
         // Try and use the dispute prefix first
-        if (disputePrefix !== undefined) {
-          const preferredSchemaKey = `${disputePrefix}${key}`;
+        if (dispute !== undefined) {
+          const preferredSchemaKey = applyDispute(dispute, key, 'disputed');
           if (results[preferredSchemaKey] === undefined || areEqual(results[preferredSchemaKey], component)) {
             results[preferredSchemaKey] = component;
             addModifiedReference(key, preferredSchemaKey);
@@ -98,14 +101,14 @@ function dropPathItemsWithNoOperations(originalOas: Swagger.SwaggerV3): Swagger.
   return oas;
 }
 
-function findUniqueOperationId(operationId: string, seenOperationIds: Set<string>, disputePrefix: string | undefined): string | ErrorMergeResult {
+function findUniqueOperationId(operationId: string, seenOperationIds: Set<string>, dispute: Dispute | undefined): string | ErrorMergeResult {
   if (!seenOperationIds.has(operationId)) {
     return operationId;
   }
 
   // Try the dispute prefix
-  if (disputePrefix !== undefined) {
-    const disputeOpId = `${disputePrefix}${operationId}`;
+  if (dispute !== undefined) {
+    const disputeOpId = applyDispute(dispute, operationId, 'disputed');
     if (!seenOperationIds.has(disputeOpId)) {
       return disputeOpId;
     }
@@ -126,9 +129,9 @@ function findUniqueOperationId(operationId: string, seenOperationIds: Set<string
   };
 }
 
-function ensureUniqueOperationId(operation: Swagger.Operation, seenOperationIds: Set<string>, disputePrefix: string | undefined): ErrorMergeResult | undefined {
+function ensureUniqueOperationId(operation: Swagger.Operation, seenOperationIds: Set<string>, dispute: Dispute | undefined): ErrorMergeResult | undefined {
   if (operation.operationId !== undefined) {
-    const opId = findUniqueOperationId(operation.operationId, seenOperationIds, disputePrefix);
+    const opId = findUniqueOperationId(operation.operationId, seenOperationIds, dispute);
     if (typeof opId === 'string') {
       operation.operationId = opId;
       seenOperationIds.add(opId);
@@ -138,7 +141,7 @@ function ensureUniqueOperationId(operation: Swagger.Operation, seenOperationIds:
   }
 }
 
-function ensureUniqueOperationIds(pathItem: Swagger.PathItem, seenOperationIds: Set<string>, disputePrefix: string | undefined): ErrorMergeResult | undefined {
+function ensureUniqueOperationIds(pathItem: Swagger.PathItem, seenOperationIds: Set<string>, dispute: Dispute | undefined): ErrorMergeResult | undefined {
   const operations = [
     pathItem.get,
     pathItem.put,
@@ -154,7 +157,7 @@ function ensureUniqueOperationIds(pathItem: Swagger.PathItem, seenOperationIds: 
     const operation = operations[opIndex];
 
     if (operation !== undefined) {
-      const result = ensureUniqueOperationId(operation, seenOperationIds, disputePrefix);
+      const result = ensureUniqueOperationId(operation, seenOperationIds, dispute);
       if (result !== undefined) {
         return result;
       }
@@ -183,7 +186,8 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
   for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
     const input = inputs[inputIndex];
 
-    const { oas: originalOas, disputePrefix, pathModification, operationSelection } = input;
+    const { oas: originalOas, pathModification, operationSelection } = input;
+    const dispute = getDispute(input);
 
     const oas = dropPathItemsWithNoOperations(runOperationSelection(_.cloneDeep(originalOas), operationSelection));
 
@@ -197,7 +201,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.schemas !== undefined) {
         result.components.schemas = result.components.schemas || {};
 
-        processComponents(result.components.schemas, oas.components.schemas, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.schemas, oas.components.schemas, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
           referenceModification[`#/components/schemas/${from}`] = `#/components/schemas/${to}`;
         });
       }
@@ -205,7 +209,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.responses !== undefined) {
         result.components.responses = result.components.responses || {};
 
-        processComponents(result.components.responses, oas.components.responses, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.responses, oas.components.responses, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
           referenceModification[`#/components/responses/${from}`] = `#/components/responses/${to}`;
         });
       }
@@ -213,7 +217,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.parameters !== undefined) {
         result.components.parameters = result.components.parameters || {};
 
-        processComponents(result.components.parameters, oas.components.parameters, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.parameters, oas.components.parameters, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
           referenceModification[`#/components/parameters/${from}`] = `#/components/parameters/${to}`;
         });
       }
@@ -222,7 +226,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.examples !== undefined) {
         result.components.examples = result.components.examples || {};
 
-        processComponents(result.components.examples, oas.components.examples, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.examples, oas.components.examples, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
           referenceModification[`#/components/examples/${from}`] = `#/components/examples/${to}`;
         });
       }
@@ -231,7 +235,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.requestBodies !== undefined) {
         result.components.requestBodies = result.components.requestBodies || {};
 
-        processComponents(result.components.requestBodies, oas.components.requestBodies, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.requestBodies, oas.components.requestBodies, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
           referenceModification[`#/components/requestBodies/${from}`] = `#/components/requestBodies/${to}`;
         });
       }
@@ -240,7 +244,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.headers !== undefined) {
         result.components.headers = result.components.headers || {};
 
-        processComponents(result.components.headers, oas.components.headers, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.headers, oas.components.headers, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
           referenceModification[`#/components/headers/${from}`] = `#/components/headers/${to}`;
         });
       }
@@ -254,7 +258,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.links !== undefined) {
         result.components.links = result.components.links || {};
 
-        processComponents(result.components.links, oas.components.links, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.links, oas.components.links, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
           referenceModification[`#/components/links/${from}`] = `#/components/links/${to}`;
         });
       }
@@ -263,7 +267,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.callbacks !== undefined) {
         result.components.callbacks = result.components.callbacks || {};
 
-        processComponents(result.components.callbacks, oas.components.callbacks, deepEquality(resultLookup, currentLookup), disputePrefix, (from: string, to: string) => {
+        processComponents(result.components.callbacks, oas.components.callbacks, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
           referenceModification[`#/components/callbacks/${from}`] = `#/components/callbacks/${to}`;
         });
       }
@@ -291,7 +295,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
       const copyPathItem = oas.paths[originalPath];
 
-      ensureUniqueOperationIds(copyPathItem, seenOperationIds, input.disputePrefix);
+      ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
 
       result.paths[newPath] = copyPathItem;
     }

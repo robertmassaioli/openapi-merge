@@ -14,10 +14,33 @@ export type OperationSelection = {
   excludeTags?: string[];
 };
 
-export type SingleMergeInput = {
+export interface DisputeBase {
+  /**
+   * If this is set to true, then this prefix will always be applied to every Schema, even if there is no dispute
+   * for that particular schema. This may prevent the deduplication of common schemas from different OpenApi files.
+   */
+  alwaysApply?: boolean;
+}
+
+export interface DisputePrefix extends DisputeBase {
+  /**
+   * The prefix to use when a schema is in dispute.
+   */
+  disputePrefix: string;
+}
+
+export interface DisputeSuffix extends DisputeBase {
+  /**
+   * The suffix to use when a schema is in dispute.
+   */
+  disputeSuffix: string;
+}
+
+export type Dispute = DisputePrefix | DisputeSuffix;
+
+export interface SingleMergeInputBase {
   oas: Swagger.SwaggerV3;
-  disputePrefix?: string;
-  //referenceOverrides?: { [reference: string]: string };
+
   pathModification?: PathModification;
 
   /**
@@ -31,7 +54,26 @@ export type SingleMergeInput = {
    * into the final resulting OpenAPI file
    */
   description?: DescriptionMergeBehaviour;
-};
+}
+
+/**
+ * The original SingelMergeInput, now deprecated. This is included for backwards compatibility, to prevent a breaking
+ * change and should be removed in the next major version.
+ *
+ * @deprecated
+ */
+export interface SingleMergeInputV1 extends SingleMergeInputBase {
+  disputePrefix?: string;
+}
+
+/**
+ * The current expected format of the SingleMergeInput.
+ */
+export interface SingleMergeInputV2 extends SingleMergeInputBase {
+  dispute?: Dispute;
+}
+
+export type SingleMergeInput = SingleMergeInputV1 | SingleMergeInputV2;
 
 export type PathModification = {
   stripStart?: string;
