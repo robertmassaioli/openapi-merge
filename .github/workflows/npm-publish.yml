@@ -19,7 +19,7 @@ jobs:
     - run: yarn lint
     - run: yarn test
     - name: Publish if version has been updated
-      run: echo "//registry.npmjs.org/:_authToken=${NPM_AUTH_TOKEN}" >> .npmrc && bolt publish
+      run: echo "//registry.npmjs.org/:_authToken=${NPM_AUTH_TOKEN}" >> .npmrc && cp .npmrc packages/openapi-merge && cp .npmrc packages/openapi-merge-cli && bolt publish
       env: # More info about the environment variables in the README
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Leave this as is, it's automatically generated
         NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }} # You need to set this in your repo settings
