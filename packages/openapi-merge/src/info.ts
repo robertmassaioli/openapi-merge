@@ -20,8 +20,6 @@ function getInfoDescriptionWithHeading(mergeInput: SingleMergeInput): string | u
 
   const headingLevel = title.headingLevel || 1;
 
-  console.log('description', trimmedDescription);
-
   return `${'#'.repeat(headingLevel)} ${title.value}\n\n${trimmedDescription}`;
 }
 
