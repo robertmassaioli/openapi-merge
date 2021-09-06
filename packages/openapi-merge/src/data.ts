@@ -26,14 +26,14 @@ export interface DisputePrefix extends DisputeBase {
   /**
    * The prefix to use when a schema is in dispute.
    */
-  disputePrefix: string;
+  prefix: string;
 }
 
 export interface DisputeSuffix extends DisputeBase {
   /**
    * The suffix to use when a schema is in dispute.
    */
-  disputeSuffix: string;
+  suffix: string;
 }
 
 export type Dispute = DisputePrefix | DisputeSuffix;

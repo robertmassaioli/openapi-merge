@@ -30,6 +30,9 @@ function processComponents<A>(results: Components<A>, components: Components<A>,
       const component = components[key];
 
       const modifiedKey = applyDispute(dispute, key, 'undisputed');
+      if (modifiedKey !== key) {
+        addModifiedReference(key, modifiedKey);
+      }
 
       if (results[modifiedKey] === undefined || areEqual(results[modifiedKey], component)) {
         // Add the schema
