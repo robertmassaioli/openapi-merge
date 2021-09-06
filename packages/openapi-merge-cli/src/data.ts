@@ -61,17 +61,57 @@ export type DescriptionTitle = {
   headingLevel?: number;
 };
 
+export type DisputeV1 = {
+  /**
+   * The prefix that will be used in the event of a conflict of two definition names.
+   *
+   * @deprecated
+   * @minLength 1
+   */
+   disputePrefix?: string;
+};
+
+export interface DisputeBase {
+  /**
+   * If this is set to true, then this prefix will always be applied to every Schema, even if there is no dispute
+   * for that particular schema. This may prevent the deduplication of common schemas from different OpenApi files.
+   *
+   * @default false
+   */
+  alwaysApply?: boolean;
+}
+
+export interface DisputePrefix extends DisputeBase {
+  /**
+   * The prefix to use when a schema is in dispute.
+   *
+   * @minLength 1
+   */
+  prefix: string;
+}
+
+export interface DisputeSuffix extends DisputeBase {
+  /**
+   * The suffix to use when a schema is in dispute.
+   *
+   * @minLength 1
+   */
+  suffix: string;
+}
+
+export type Dispute = DisputePrefix | DisputeSuffix;
+
+export type DisputeV2 = {
+  /**
+   * The dispute algorithm that should be used for this input.
+   */
+  dispute?: Dispute;
+};
+
 /**
  * The common configuration properties of an Input.
  */
 export interface ConfigurationInputBase {
-  /**
-   * The prefix that will be used in the event of a conflict of two definition names.
-   *
-   * @minLength 1
-   */
-  disputePrefix?: string;
-
   /**
    * For this input, you can perform these modifications to its paths elements.
    */
@@ -115,9 +155,22 @@ export interface ConfigurationInputFromUrl extends ConfigurationInputBase {
 }
 
 /**
+ * This only exists to support the original form of `disputePrefix`.
+ *
+ * @deprecated
+ */
+export type ConfigurationInputV1 = (ConfigurationInputFromFile | ConfigurationInputFromUrl) & DisputeV1;
+
+/**
+ * When a new major version is released this will become the default way of doing things and the types can simplify
+ * dramatically.
+ */
+export type ConfigurationInputV2 = (ConfigurationInputFromFile | ConfigurationInputFromUrl) & DisputeV2;
+
+/**
  * The multiple types of configuration inputs that are supported.
  */
-export type ConfigurationInput = ConfigurationInputFromFile | ConfigurationInputFromUrl;
+export type ConfigurationInput = ConfigurationInputV1 | ConfigurationInputV2;
 
 export function isConfigurationInputFromFile(input: ConfigurationInput): input is ConfigurationInputFromFile {
   return 'inputFile' in input;

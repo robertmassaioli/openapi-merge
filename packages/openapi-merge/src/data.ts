@@ -63,6 +63,11 @@ export interface SingleMergeInputBase {
  * @deprecated
  */
 export interface SingleMergeInputV1 extends SingleMergeInputBase {
+  /**
+   * The prefix to use in the event of a dispute.
+   *
+   * @deprecated
+   */
   disputePrefix?: string;
 }
 
@@ -70,6 +75,9 @@ export interface SingleMergeInputV1 extends SingleMergeInputBase {
  * The current expected format of the SingleMergeInput.
  */
 export interface SingleMergeInputV2 extends SingleMergeInputBase {
+  /**
+   * This dictates how any disputes will be resolved between similar elements across multiple OpenAPI files.
+   */
   dispute?: Dispute;
 }
 

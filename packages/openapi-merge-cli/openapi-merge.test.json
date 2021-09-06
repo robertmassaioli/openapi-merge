@@ -7,6 +7,10 @@
         "title": {
           "value": "Jira"
         }
+      },
+      "dispute": {
+        "prefix": "Jira",
+        "alwaysApply": true
       }
     },
     {
@@ -16,7 +20,8 @@
         "title": {
           "value": "Confluence"
         }
-      }
+      },
+      "disputePrefix": "Conf"
     }
   ],
   "output": "./result.swagger.yaml"

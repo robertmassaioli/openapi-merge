@@ -72,13 +72,26 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
     try {
       const oas = await loadOasForInput(basePath, input, inputIndex, logger);
 
-      return {
+      const output: SingleMergeInput = {
         oas,
-        disputePrefix: input.disputePrefix,
         pathModification: input.pathModification,
         operationSelection: input.operationSelection,
         description: input.description,
       };
+
+      if ('dispute' in input) {
+        return {
+          ...output,
+          dispute: input.dispute
+        };
+      } else if ('disputePrefix' in input) {
+        return {
+          ...output,
+          disputePrefix: input.disputePrefix
+        };
+      }
+
+      return output;
     } catch (e) {
       return `Input ${inputIndex}: could not load configuration file. ${e}`;
     }
