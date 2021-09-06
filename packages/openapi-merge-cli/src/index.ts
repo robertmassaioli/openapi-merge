@@ -76,7 +76,8 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
         oas,
         disputePrefix: input.disputePrefix,
         pathModification: input.pathModification,
-        operationSelection: input.operationSelection
+        operationSelection: input.operationSelection,
+        description: input.description,
       };
     } catch (e) {
       return `Input ${inputIndex}: could not load configuration file. ${e}`;

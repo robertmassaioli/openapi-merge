@@ -10,15 +10,19 @@ function getInfoDescriptionWithHeading(mergeInput: SingleMergeInput): string | u
     return undefined;
   }
 
+  const trimmedDescription = description.trimEnd();
+
   if (mergeInput.description === undefined || mergeInput.description.title === undefined) {
-    return description;
+    return trimmedDescription;
   }
 
   const { title } = mergeInput.description;
 
   const headingLevel = title.headingLevel || 1;
 
-  return `${'#'.repeat(headingLevel)} ${title.value}\n\n${description.trimEnd()}`;
+  console.log('description', trimmedDescription);
+
+  return `${'#'.repeat(headingLevel)} ${title.value}\n\n${trimmedDescription}`;
 }
 
 export function mergeInfos(mergeInput: MergeInput): Swagger.Info {
