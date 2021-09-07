@@ -49,7 +49,6 @@ export type DescriptionTitle = {
    * The value of the included title.
    *
    * @minLength 1
-   * @example Section Title
    */
   value: string;
 
