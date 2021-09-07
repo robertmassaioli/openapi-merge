@@ -38,6 +38,8 @@ export type DescriptionMergeBehaviour = {
 
   /**
    * You may optionally include a Markdown Title to demarcate this particular section of the merged description files.
+   *
+   * @examples require("./examples-for-schema.ts").DescriptionTitleExamples
    */
   title?: DescriptionTitle;
 };
@@ -61,30 +63,84 @@ export type DescriptionTitle = {
   headingLevel?: number;
 };
 
+export type DisputeV1 = {
+  /**
+   * The prefix that will be used in the event of a conflict of two definition names.
+   *
+   * @deprecated
+   * @minLength 1
+   */
+  disputePrefix?: string;
+};
+
+export interface DisputeBase {
+  /**
+   * If this is set to true, then this prefix will always be applied to every Schema, even if there is no dispute
+   * for that particular schema. This may prevent the deduplication of common schemas from different OpenApi files.
+   *
+   * @default false
+   */
+  alwaysApply?: boolean;
+}
+
+/**
+ * A dispute with a configurable prefix.
+ */
+export interface DisputePrefix extends DisputeBase {
+  /**
+   * The prefix to use when a schema is in dispute.
+   *
+   * @minLength 1
+   */
+  prefix: string;
+}
+
+/**
+ * A dispute with a configurable suffix.
+ */
+export interface DisputeSuffix extends DisputeBase {
+  /**
+   * The suffix to use when a schema is in dispute.
+   *
+   * @minLength 1
+   */
+  suffix: string;
+}
+
+export type Dispute = DisputePrefix | DisputeSuffix;
+
+export type DisputeV2 = {
+  /**
+   * The dispute algorithm that should be used for this input.
+   *
+   * @examples require("./examples-for-schema.ts").DisputeExamples
+   */
+  dispute?: Dispute;
+};
+
 /**
  * The common configuration properties of an Input.
  */
 export interface ConfigurationInputBase {
   /**
-   * The prefix that will be used in the event of a conflict of two definition names.
-   *
-   * @minLength 1
-   */
-  disputePrefix?: string;
-
-  /**
    * For this input, you can perform these modifications to its paths elements.
+   *
+   * @examples @examples require("./examples-for-schema.ts").PathModificationExamples
    */
   pathModification?: PathModification;
 
   /**
    * Choose which OpenAPI Operations should be included from this input.
+   *
+   * @examples require("./examples-for-schema.ts").OperationSelectionExamples
    */
   operationSelection?: OperationSelection;
 
   /**
    * This configuration setting lets you configure how the info.description from this OpenAPI file will be merged
    * into the final resulting OpenAPI file
+   *
+   * @examples require('./examples-for-schema.ts').DescriptionMergeBehaviourExamples
    */
   description?: DescriptionMergeBehaviour;
 }
@@ -115,9 +171,22 @@ export interface ConfigurationInputFromUrl extends ConfigurationInputBase {
 }
 
 /**
+ * This only exists to support the original form of `disputePrefix`.
+ *
+ * @deprecated
+ */
+export type ConfigurationInputV1 = (ConfigurationInputFromFile | ConfigurationInputFromUrl) & DisputeV1;
+
+/**
+ * When a new major version is released this will become the default way of doing things and the types can simplify
+ * dramatically.
+ */
+export type ConfigurationInputV2 = (ConfigurationInputFromFile | ConfigurationInputFromUrl) & DisputeV2;
+
+/**
  * The multiple types of configuration inputs that are supported.
  */
-export type ConfigurationInput = ConfigurationInputFromFile | ConfigurationInputFromUrl;
+export type ConfigurationInput = ConfigurationInputV1 | ConfigurationInputV2;
 
 export function isConfigurationInputFromFile(input: ConfigurationInput): input is ConfigurationInputFromFile {
   return 'inputFile' in input;
@@ -131,6 +200,7 @@ export type Configuration = {
    * The input items for the merge algorithm. You must provide at least one.
    *
    * @minItems 1
+   * @examples require('./examples-for-schema.ts').ConfigurationInputExamples
    */
   inputs: ConfigurationInput[];
 

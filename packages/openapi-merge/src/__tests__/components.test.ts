@@ -281,6 +281,240 @@ describe('OAS Component conflict', () => {
       });
     });
 
+    it('should support a dispute suffix', () => {
+      const first: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            $ref: '#/components/schemas/Example'
+          },
+          Example: {
+            type: 'string'
+          }
+        }
+      });
+
+      const second: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            $ref: '#/components/schemas/Example'
+          },
+          Example: {
+            type: 'number'
+          }
+        }
+      });
+
+      const firstInput: SingleMergeInput = {
+        oas: first,
+        dispute: {
+          suffix: 'First'
+        }
+      };
+
+      const secondInput: SingleMergeInput = {
+        oas: second,
+        dispute: {
+          suffix: 'Second'
+        }
+      };
+
+      const result = merge([firstInput, secondInput]);
+      expectMergeResult(result, {
+        output: toOAS({}, {
+          schemas: {
+            A: {
+              $ref: '#/components/schemas/Example'
+            },
+            ASecond: {
+              $ref: '#/components/schemas/ExampleSecond'
+            },
+            Example: {
+              type: 'string'
+            },
+            ExampleSecond: {
+              type: 'number'
+            }
+          }
+        })
+      });
+    });
+
+    it('if first disputePrefix is always required then the second should miss', () => {
+      const first: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            $ref: '#/components/schemas/Example'
+          },
+          Example: {
+            type: 'string'
+          }
+        }
+      });
+
+      const second: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            $ref: '#/components/schemas/Example'
+          },
+          Example: {
+            type: 'number'
+          }
+        }
+      });
+
+      const firstInput: SingleMergeInput = {
+        oas: first,
+        dispute: {
+          prefix: 'First',
+          alwaysApply: true
+        }
+      };
+
+      const secondInput: SingleMergeInput = {
+        oas: second,
+        disputePrefix: 'Second'
+      };
+
+      const result = merge([firstInput, secondInput]);
+      expectMergeResult(result, {
+        output: toOAS({}, {
+          schemas: {
+            FirstA: {
+              $ref: '#/components/schemas/FirstExample'
+            },
+            A: {
+              $ref: '#/components/schemas/Example'
+            },
+            FirstExample: {
+              type: 'string'
+            },
+            Example: {
+              type: 'number'
+            }
+          }
+        })
+      });
+    });
+
+    it('should support suffixes and prefixes on different elements', () => {
+      const first: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            $ref: '#/components/schemas/Example'
+          },
+          Example: {
+            type: 'string'
+          }
+        }
+      });
+
+      const second: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            $ref: '#/components/schemas/Example'
+          },
+          Example: {
+            type: 'number'
+          }
+        }
+      });
+
+      const firstInput: SingleMergeInput = {
+        oas: first,
+        dispute: {
+          prefix: 'First',
+          alwaysApply: true
+        }
+      };
+
+      const secondInput: SingleMergeInput = {
+        oas: second,
+        dispute: {
+          suffix: 'Second',
+          alwaysApply: true
+        }
+      };
+
+      const result = merge([firstInput, secondInput]);
+      expectMergeResult(result, {
+        output: toOAS({}, {
+          schemas: {
+            FirstA: {
+              $ref: '#/components/schemas/FirstExample'
+            },
+            ASecond: {
+              $ref: '#/components/schemas/ExampleSecond'
+            },
+            FirstExample: {
+              type: 'string'
+            },
+            ExampleSecond: {
+              type: 'number'
+            }
+          }
+        })
+      });
+    });
+
+    it('alwaysApply should break deduplication on identical elements', () => {
+      const first: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            $ref: '#/components/schemas/Example'
+          },
+          Example: {
+            type: 'string'
+          }
+        }
+      });
+
+      const second: Swagger.SwaggerV3 = toOAS({}, {
+        schemas: {
+          A: {
+            $ref: '#/components/schemas/Example'
+          },
+          Example: {
+            type: 'string'
+          }
+        }
+      });
+
+      const firstInput: SingleMergeInput = {
+        oas: first,
+        dispute: {
+          prefix: 'First',
+          alwaysApply: true
+        }
+      };
+
+      const secondInput: SingleMergeInput = {
+        oas: second,
+        dispute: {
+          prefix: 'Second'
+        }
+      };
+
+      const result = merge([firstInput, secondInput]);
+      expectMergeResult(result, {
+        output: toOAS({}, {
+          schemas: {
+            FirstA: {
+              $ref: '#/components/schemas/FirstExample'
+            },
+            A: {
+              $ref: '#/components/schemas/Example'
+            },
+            FirstExample: {
+              type: 'string'
+            },
+            Example: {
+              type: 'string'
+            }
+          }
+        })
+      });
+    });
+
     it('should keep objects separate that are separate and reuse where possible', () => {
       const first: Swagger.SwaggerV3 = toOAS({}, {
         schemas: {
