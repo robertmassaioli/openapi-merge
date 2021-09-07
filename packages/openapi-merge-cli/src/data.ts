@@ -38,6 +38,8 @@ export type DescriptionMergeBehaviour = {
 
   /**
    * You may optionally include a Markdown Title to demarcate this particular section of the merged description files.
+   *
+   * @examples require("./examples-for-schema.ts").DescriptionTitleExamples
    */
   title?: DescriptionTitle;
 };
@@ -47,6 +49,7 @@ export type DescriptionTitle = {
    * The value of the included title.
    *
    * @minLength 1
+   * @example Section Title
    */
   value: string;
 
@@ -68,7 +71,7 @@ export type DisputeV1 = {
    * @deprecated
    * @minLength 1
    */
-   disputePrefix?: string;
+  disputePrefix?: string;
 };
 
 export interface DisputeBase {
@@ -81,6 +84,9 @@ export interface DisputeBase {
   alwaysApply?: boolean;
 }
 
+/**
+ * A dispute with a configurable prefix.
+ */
 export interface DisputePrefix extends DisputeBase {
   /**
    * The prefix to use when a schema is in dispute.
@@ -90,6 +96,9 @@ export interface DisputePrefix extends DisputeBase {
   prefix: string;
 }
 
+/**
+ * A dispute with a configurable suffix.
+ */
 export interface DisputeSuffix extends DisputeBase {
   /**
    * The suffix to use when a schema is in dispute.
@@ -104,6 +113,8 @@ export type Dispute = DisputePrefix | DisputeSuffix;
 export type DisputeV2 = {
   /**
    * The dispute algorithm that should be used for this input.
+   *
+   * @examples require("./examples-for-schema.ts").DisputeExamples
    */
   dispute?: Dispute;
 };
@@ -114,17 +125,23 @@ export type DisputeV2 = {
 export interface ConfigurationInputBase {
   /**
    * For this input, you can perform these modifications to its paths elements.
+   *
+   * @examples @examples require("./examples-for-schema.ts").PathModificationExamples
    */
   pathModification?: PathModification;
 
   /**
    * Choose which OpenAPI Operations should be included from this input.
+   *
+   * @examples require("./examples-for-schema.ts").OperationSelectionExamples
    */
   operationSelection?: OperationSelection;
 
   /**
    * This configuration setting lets you configure how the info.description from this OpenAPI file will be merged
    * into the final resulting OpenAPI file
+   *
+   * @examples require('./examples-for-schema.ts').DescriptionMergeBehaviourExamples
    */
   description?: DescriptionMergeBehaviour;
 }
@@ -184,6 +201,7 @@ export type Configuration = {
    * The input items for the merge algorithm. You must provide at least one.
    *
    * @minItems 1
+   * @examples require('./examples-for-schema.ts').ConfigurationInputExamples
    */
   inputs: ConfigurationInput[];
 
