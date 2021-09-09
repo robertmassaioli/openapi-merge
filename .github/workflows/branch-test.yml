@@ -1,4 +1,4 @@
-name: npm-publish
+name: Branch Lint and Test
 on:
   push:
     branches-ignore:
