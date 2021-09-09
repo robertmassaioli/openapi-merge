@@ -39,7 +39,7 @@
     "ajv": "^6.12.2",
     "commander": "^5.1.0",
     "es6-promise": "^4.2.8",
-    "isomorphic-fetch": "^2.2.1",
+    "isomorphic-fetch": "^3",
     "js-yaml": "^3.14.0",
     "openapi-merge": "^1.2.0"
   },
