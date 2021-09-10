@@ -10,7 +10,7 @@ function getInfoDescriptionWithHeading(mergeInput: SingleMergeInput): string | u
     return undefined;
   }
 
-  const trimmedDescription = description.trimEnd();
+  const trimmedDescription = description.trimRight();
 
   if (mergeInput.description === undefined || mergeInput.description.title === undefined) {
     return trimmedDescription;
