@@ -65,7 +65,7 @@ And then, once you have your Inputs in place and your configuration file you mer
 npx openapi-merge-cli
 ```
 
-For more fine grained details on what `Configuration` options are available to you. [Please read the docs](https://bitbucket.org/echo_rm/openapi-merge-cli/wiki/README).
+For more fine grained details on what `Configuration` options are available to you. [Please read the docs](https://github.com/robertmassaioli/openapi-merge/wiki/README).
 
 If you wish, you may write your configuration file in YAML format and then run:
 
@@ -77,4 +77,4 @@ And the merge should be run and complete! Congratulations and enjoy!
 
 If you experience any issues then please [raise them in the bug tracker][1].
 
- [1]: https://bitbucket.org/echo_rm/openapi-merge-cli/issues?status=new&status=open
+ [1]: https://github.com/robertmassaioli/openapi-merge/issues/new
