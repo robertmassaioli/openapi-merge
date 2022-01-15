@@ -22,7 +22,7 @@ program.version(pjson.version);
 
 program
   .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.')
-  .option('-j, --json-config <json_config>', 'The path to the configuration file for the merge tool.');
+  .option('-j, --json-config <json_config>', 'The configuration as a JSON string to be parsed by the merge tool.');
 
 
 class LogWithMillisDiff {
