@@ -1,0 +1,688 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "DescriptionMergeBehaviour": {
+      "additionalProperties": false,
+      "properties": {
+        "append": {
+          "default": false,
+          "description": "Wether or not the description for this OpenAPI file will be merged into the description of the final file.",
+          "title": "append",
+          "type": "boolean"
+        },
+        "title": {
+          "$ref": "#/definitions/DescriptionTitle",
+          "description": "You may optionally include a Markdown Title to demarcate this particular section of the merged description files.",
+          "examples": [
+            {
+              "value": "Title 1"
+            },
+            {
+              "headingLevel": 2,
+              "value": "Title Level 2"
+            },
+            {
+              "headingLevel": 6,
+              "value": "Inperceptible title"
+            }
+          ],
+          "title": "title"
+        }
+      },
+      "required": [
+        "append"
+      ],
+      "title": "DescriptionMergeBehaviour",
+      "type": "object"
+    },
+    "DescriptionTitle": {
+      "additionalProperties": false,
+      "properties": {
+        "headingLevel": {
+          "default": 1,
+          "description": "What heading level this heading will be at: from h1 through to h6. The default value is 1 and will create h1 elements\nin Markdown format.",
+          "maximum": 6,
+          "minimum": 1,
+          "title": "headingLevel",
+          "type": "number"
+        },
+        "value": {
+          "description": "The value of the included title.",
+          "minLength": 1,
+          "title": "value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "DescriptionTitle",
+      "type": "object"
+    },
+    "Dispute": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/DisputePrefix"
+        },
+        {
+          "$ref": "#/definitions/DisputeSuffix"
+        }
+      ],
+      "title": "Dispute"
+    },
+    "DisputePrefix": {
+      "additionalProperties": false,
+      "description": "A dispute with a configurable prefix.",
+      "properties": {
+        "alwaysApply": {
+          "default": false,
+          "description": "If this is set to true, then this prefix will always be applied to every Schema, even if there is no dispute\nfor that particular schema. This may prevent the deduplication of common schemas from different OpenApi files.",
+          "title": "alwaysApply",
+          "type": "boolean"
+        },
+        "prefix": {
+          "description": "The prefix to use when a schema is in dispute.",
+          "minLength": 1,
+          "title": "prefix",
+          "type": "string"
+        }
+      },
+      "required": [
+        "prefix"
+      ],
+      "title": "DisputePrefix",
+      "type": "object"
+    },
+    "DisputeSuffix": {
+      "additionalProperties": false,
+      "description": "A dispute with a configurable suffix.",
+      "properties": {
+        "alwaysApply": {
+          "default": false,
+          "description": "If this is set to true, then this prefix will always be applied to every Schema, even if there is no dispute\nfor that particular schema. This may prevent the deduplication of common schemas from different OpenApi files.",
+          "title": "alwaysApply",
+          "type": "boolean"
+        },
+        "suffix": {
+          "description": "The suffix to use when a schema is in dispute.",
+          "minLength": 1,
+          "title": "suffix",
+          "type": "string"
+        }
+      },
+      "required": [
+        "suffix"
+      ],
+      "title": "DisputeSuffix",
+      "type": "object"
+    },
+    "OperationSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "excludeTags": {
+          "description": "Any Operation that has any one of these tags will be excluded from the final result. If a single Operation contains\nan includeTag and an excludeTag then it will be excluded; exclusion takes precedence.",
+          "items": {
+            "type": "string"
+          },
+          "title": "excludeTags",
+          "type": "array"
+        },
+        "includeTags": {
+          "description": "Only Operatinos that have these tags will be taken from this OpenAPI file. If a single Operation contains\nan includeTag and an excludeTag then it will be excluded; exclusion takes precedence.",
+          "items": {
+            "type": "string"
+          },
+          "title": "includeTags",
+          "type": "array"
+        },
+        "includePaths": {
+          "description": "Only Operations that have these paths will be taken from this OpenAPI file. If a single Operation contains\nan includeTag and an excludeTag then it will be excluded; exclusion takes precedence.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "title": "includePaths",
+            "properties": {
+              "path": {
+                "description": "path to ignore",
+                "title": "path",
+                "type": "string"
+              },
+              "method": {
+                "description": "method to ignore",
+                "title": "path",
+                "type": "string"
+              }
+            }
+          },
+          "title": "includePaths",
+          "type": "array"
+        },
+        "excludePaths": {
+          "description": "Only Operations that have these paths will be taken from this OpenAPI file. If a single Operation contains\nan includePaths and an excludePaths then it will be excluded; exclusion takes precedence.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "title": "includePaths",
+            "properties": {
+              "path": {
+                "description": "path to ignore",
+                "title": "path",
+                "type": "string"
+              },
+              "method": {
+                "description": "method to ignore",
+                "title": "path",
+                "type": "string"
+              }
+            }
+          },
+          "title": "excludePaths",
+          "type": "array"
+        }
+      },
+      "title": "OperationSelection",
+      "type": "object"
+    },
+    "PathModification": {
+      "additionalProperties": false,
+      "properties": {
+        "prepend": {
+          "description": "Append these characters to the start of the paths for this input. Will run after stripStart.",
+          "minLength": 1,
+          "title": "prepend",
+          "type": "string"
+        },
+        "stripStart": {
+          "description": "If a path starts with these characters, then stip them from the beginning of the path. Will run before prepend.",
+          "minLength": 1,
+          "title": "stripStart",
+          "type": "string"
+        }
+      },
+      "title": "PathModification",
+      "type": "object"
+    }
+  },
+  "description": "The Configuration file for the OpenAPI Merge CLI Tool.",
+  "properties": {
+    "inputs": {
+      "description": "The input items for the merge algorithm. You must provide at least one.",
+      "examples": [
+        [
+          {
+            "inputFile": "./swagger.json"
+          },
+          {
+            "inputURL": "https://developer.atlassian.com/cloud/jira/platform/swagger-v3.v3.json"
+          }
+        ],
+        [
+          {
+            "inputFile": "./swagger.json"
+          },
+          {
+            "inputURL": "https://developer.atlassian.com/cloud/jira/platform/swagger-v3.v3.json"
+          },
+          {
+            "description": {
+              "append": true,
+              "title": {
+                "headingLevel": 1,
+                "value": "My Swagger Description"
+              }
+            },
+            "dispute": {
+              "alwaysApply": true,
+              "suffix": "Model"
+            },
+            "inputFile": "./swagger.json",
+            "operationSelection": {
+              "excludeTags": [
+                "private"
+              ],
+              "includeTags": [
+                "public"
+              ],
+              "excludePaths": [
+                "private"
+              ],
+              "includePaths": [
+                "public"
+              ]
+            },
+            "pathModification": {
+              "prepend": "/jira",
+              "stripStart": "/rest"
+            }
+          }
+        ]
+      ],
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "$ref": "#/definitions/DescriptionMergeBehaviour",
+                "description": "This configuration setting lets you configure how the info.description from this OpenAPI file will be merged\ninto the final resulting OpenAPI file",
+                "examples": [
+                  {
+                    "append": true
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "value": "Title 1"
+                    }
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "headingLevel": 2,
+                      "value": "Title Level 2"
+                    }
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "headingLevel": 6,
+                      "value": "Inperceptible title"
+                    }
+                  }
+                ],
+                "title": "description"
+              },
+              "disputePrefix": {
+                "description": "The prefix that will be used in the event of a conflict of two definition names.",
+                "minLength": 1,
+                "title": "disputePrefix",
+                "type": "string"
+              },
+              "inputFile": {
+                "description": "The path to the input OpenAPI Schema that will be merged.",
+                "minLength": 1,
+                "title": "inputFile",
+                "type": "string"
+              },
+              "operationSelection": {
+                "$ref": "#/definitions/OperationSelection",
+                "description": "Choose which OpenAPI Operations should be included from this input.",
+                "examples": [
+                  {
+                    "includeTags": [
+                      "include-this-tag-only"
+                    ]
+                  },
+                  {
+                    "excludeTags": [
+                      "exclude-these-tags"
+                    ]
+                  },
+                  {
+                    "excludeTags": [
+                      "filter-out-with-this-tag"
+                    ],
+                    "includeTags": [
+                      "select-this-first"
+                    ]
+                  }
+                ],
+                "title": "operationSelection"
+              },
+              "pathModification": {
+                "$ref": "#/definitions/PathModification",
+                "description": "For this input, you can perform these modifications to its paths elements.",
+                "examples": [
+                  {
+                    "stripStart": "Model"
+                  },
+                  {
+                    "prepend": "Model"
+                  },
+                  {
+                    "prepend": "Object",
+                    "stripStart": "Jira"
+                  }
+                ],
+                "title": "pathModification"
+              }
+            },
+            "required": [
+              "inputFile"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "$ref": "#/definitions/DescriptionMergeBehaviour",
+                "description": "This configuration setting lets you configure how the info.description from this OpenAPI file will be merged\ninto the final resulting OpenAPI file",
+                "examples": [
+                  {
+                    "append": true
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "value": "Title 1"
+                    }
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "headingLevel": 2,
+                      "value": "Title Level 2"
+                    }
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "headingLevel": 6,
+                      "value": "Inperceptible title"
+                    }
+                  }
+                ],
+                "title": "description"
+              },
+              "disputePrefix": {
+                "description": "The prefix that will be used in the event of a conflict of two definition names.",
+                "minLength": 1,
+                "title": "disputePrefix",
+                "type": "string"
+              },
+              "inputURL": {
+                "description": "The input url that we should load our configuration file from.",
+                "format": "uri",
+                "pattern": "^https?://",
+                "title": "inputURL",
+                "type": "string"
+              },
+              "operationSelection": {
+                "$ref": "#/definitions/OperationSelection",
+                "description": "Choose which OpenAPI Operations should be included from this input.",
+                "examples": [
+                  {
+                    "includeTags": [
+                      "include-this-tag-only"
+                    ]
+                  },
+                  {
+                    "excludeTags": [
+                      "exclude-these-tags"
+                    ]
+                  },
+                  {
+                    "excludeTags": [
+                      "filter-out-with-this-tag"
+                    ],
+                    "includeTags": [
+                      "select-this-first"
+                    ]
+                  }
+                ],
+                "title": "operationSelection"
+              },
+              "pathModification": {
+                "$ref": "#/definitions/PathModification",
+                "description": "For this input, you can perform these modifications to its paths elements.",
+                "examples": [
+                  {
+                    "stripStart": "Model"
+                  },
+                  {
+                    "prepend": "Model"
+                  },
+                  {
+                    "prepend": "Object",
+                    "stripStart": "Jira"
+                  }
+                ],
+                "title": "pathModification"
+              }
+            },
+            "required": [
+              "inputURL"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "$ref": "#/definitions/DescriptionMergeBehaviour",
+                "description": "This configuration setting lets you configure how the info.description from this OpenAPI file will be merged\ninto the final resulting OpenAPI file",
+                "examples": [
+                  {
+                    "append": true
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "value": "Title 1"
+                    }
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "headingLevel": 2,
+                      "value": "Title Level 2"
+                    }
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "headingLevel": 6,
+                      "value": "Inperceptible title"
+                    }
+                  }
+                ],
+                "title": "description"
+              },
+              "dispute": {
+                "$ref": "#/definitions/Dispute",
+                "description": "The dispute algorithm that should be used for this input.",
+                "examples": [
+                  {
+                    "prefix": "SomePrefix"
+                  },
+                  {
+                    "alwaysApply": true,
+                    "prefix": "SomePrefix"
+                  },
+                  {
+                    "suffix": "Some suffix"
+                  },
+                  {
+                    "alwaysApply": true,
+                    "suffix": "Some suffix"
+                  }
+                ],
+                "title": "dispute"
+              },
+              "inputFile": {
+                "description": "The path to the input OpenAPI Schema that will be merged.",
+                "minLength": 1,
+                "title": "inputFile",
+                "type": "string"
+              },
+              "operationSelection": {
+                "$ref": "#/definitions/OperationSelection",
+                "description": "Choose which OpenAPI Operations should be included from this input.",
+                "examples": [
+                  {
+                    "includeTags": [
+                      "include-this-tag-only"
+                    ]
+                  },
+                  {
+                    "excludeTags": [
+                      "exclude-these-tags"
+                    ]
+                  },
+                  {
+                    "excludeTags": [
+                      "filter-out-with-this-tag"
+                    ],
+                    "includeTags": [
+                      "select-this-first"
+                    ]
+                  }
+                ],
+                "title": "operationSelection"
+              },
+              "pathModification": {
+                "$ref": "#/definitions/PathModification",
+                "description": "For this input, you can perform these modifications to its paths elements.",
+                "examples": [
+                  {
+                    "stripStart": "Model"
+                  },
+                  {
+                    "prepend": "Model"
+                  },
+                  {
+                    "prepend": "Object",
+                    "stripStart": "Jira"
+                  }
+                ],
+                "title": "pathModification"
+              }
+            },
+            "required": [
+              "inputFile"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "$ref": "#/definitions/DescriptionMergeBehaviour",
+                "description": "This configuration setting lets you configure how the info.description from this OpenAPI file will be merged\ninto the final resulting OpenAPI file",
+                "examples": [
+                  {
+                    "append": true
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "value": "Title 1"
+                    }
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "headingLevel": 2,
+                      "value": "Title Level 2"
+                    }
+                  },
+                  {
+                    "append": true,
+                    "title": {
+                      "headingLevel": 6,
+                      "value": "Inperceptible title"
+                    }
+                  }
+                ],
+                "title": "description"
+              },
+              "dispute": {
+                "$ref": "#/definitions/Dispute",
+                "description": "The dispute algorithm that should be used for this input.",
+                "examples": [
+                  {
+                    "prefix": "SomePrefix"
+                  },
+                  {
+                    "alwaysApply": true,
+                    "prefix": "SomePrefix"
+                  },
+                  {
+                    "suffix": "Some suffix"
+                  },
+                  {
+                    "alwaysApply": true,
+                    "suffix": "Some suffix"
+                  }
+                ],
+                "title": "dispute"
+              },
+              "inputURL": {
+                "description": "The input url that we should load our configuration file from.",
+                "format": "uri",
+                "pattern": "^https?://",
+                "title": "inputURL",
+                "type": "string"
+              },
+              "operationSelection": {
+                "$ref": "#/definitions/OperationSelection",
+                "description": "Choose which OpenAPI Operations should be included from this input.",
+                "examples": [
+                  {
+                    "includeTags": [
+                      "include-this-tag-only"
+                    ]
+                  },
+                  {
+                    "excludeTags": [
+                      "exclude-these-tags"
+                    ]
+                  },
+                  {
+                    "excludeTags": [
+                      "filter-out-with-this-tag"
+                    ],
+                    "includeTags": [
+                      "select-this-first"
+                    ]
+                  }
+                ],
+                "title": "operationSelection"
+              },
+              "pathModification": {
+                "$ref": "#/definitions/PathModification",
+                "description": "For this input, you can perform these modifications to its paths elements.",
+                "examples": [
+                  {
+                    "stripStart": "Model"
+                  },
+                  {
+                    "prepend": "Model"
+                  },
+                  {
+                    "prepend": "Object",
+                    "stripStart": "Jira"
+                  }
+                ],
+                "title": "pathModification"
+              }
+            },
+            "required": [
+              "inputURL"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "The multiple types of configuration inputs that are supported."
+      },
+      "minItems": 1,
+      "title": "inputs",
+      "type": "array"
+    },
+    "output": {
+      "description": "The output file to put the results in. If you use the .yml or .yaml extension then the schema will be output\nin YAML format, otherwise, it will be output in JSON format.",
+      "minLength": 1,
+      "title": "output",
+      "type": "string"
+    }
+  },
+  "required": [
+    "inputs",
+    "output"
+  ],
+  "type": "object",
+  "$id": "https://github.com/robertmassaioli/openapi-merge/blob/main/packages/openapi-merge-cli/src/data.ts",
+  "title": "Configuration"
+}
