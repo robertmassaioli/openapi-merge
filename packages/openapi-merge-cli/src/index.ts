@@ -21,7 +21,9 @@ const program = new Command();
 program.version(pjson.version);
 
 program
-  .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.');
+  .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.')
+  .option('-j, --json-config <json_config>', 'The configuration as a JSON string to be parsed by the merge tool.')
+  .option('-y, --yaml-config <yaml_config>', 'The configuration as a YAML string to be parsed by the merge tool.');
 
 
 class LogWithMillisDiff {
@@ -129,7 +131,40 @@ export async function main(): Promise<void> {
   program.parse(process.argv);
   logger.log(`## ${process.argv[0]}: Running v${pjson.version}`);
 
-  const config = await loadConfiguration(program.config);
+  var config
+  if (program.jsonConfig) {
+    try {
+      config = JSON.parse(program.jsonConfig);
+    } catch (e) {
+      // We need to make sure the code does propagate the error to the console!
+      if (e instanceof Error) {
+        config = e.message;
+      } else if (typeof e === 'string' || e instanceof String) {
+        // Make sure it's a string not a String
+        // Not sure i really need this
+        config = e.toString()
+      } else {
+        config = 'There was an error parsing the config'
+      }
+    }
+  } else if (program.yamlConfig) {
+    try {
+      config = yaml.load(program.yamlConfig);
+    } catch (e) {
+      // We need to make sure the code does propagate the error to the console!
+      if (e instanceof Error) {
+        config = e.message;
+      } else if (typeof e === 'string' || e instanceof String) {
+        // Make sure it's a string not a String
+        // Not sure i really need this
+        config = e.toString()
+      } else {
+        config = 'There was an error parsing the config'
+      }
+    }
+  } else {
+    config = await loadConfiguration(program.config);
+  }
 
   if (typeof config === 'string') {
     console.error(config);
