@@ -1,10 +1,10 @@
-import { MergeInput, ErrorMergeResult, Dispute } from "./data";
-import { Swagger, SwaggerLookup } from "atlassian-openapi";
-import { walkAllReferences } from "./reference-walker";
-import _ from "lodash";
-import { runOperationSelection } from "./operation-selection";
-import { deepEquality } from "./component-equivalence";
-import { applyDispute, getDispute } from "./dispute";
+import { MergeInput, ErrorMergeResult, Dispute } from './data';
+import { Swagger, SwaggerLookup } from 'atlassian-openapi';
+import { walkAllReferences } from './reference-walker';
+import _ from 'lodash';
+import { runOperationSelection } from './operation-selection';
+import { deepEquality } from './component-equivalence';
+import { applyDispute, getDispute } from './dispute';
 
 export type PathAndComponents = {
   paths: Swagger.Paths;
@@ -35,7 +35,7 @@ function processComponents<A>(
     if (components.hasOwnProperty(key)) {
       const component = components[key];
 
-      const modifiedKey = applyDispute(dispute, key, "undisputed");
+      const modifiedKey = applyDispute(dispute, key, 'undisputed');
       if (modifiedKey !== key) {
         addModifiedReference(key, modifiedKey);
       }
@@ -49,8 +49,7 @@ function processComponents<A>(
 
         // Try and use the dispute prefix first
         if (dispute !== undefined) {
-          console.log("Dispute is set to", dispute);
-          const preferredSchemaKey = applyDispute(dispute, key, "disputed");
+          const preferredSchemaKey = applyDispute(dispute, key, 'disputed');
           if (results[preferredSchemaKey] === undefined || areEqual(results[preferredSchemaKey], component)) {
             results[preferredSchemaKey] = component;
             addModifiedReference(key, preferredSchemaKey);
@@ -78,7 +77,7 @@ function processComponents<A>(
         // In the unlikely event that we can't find a duplicate, return an error
         if (schemaPlaced === false) {
           return {
-            type: "component-definition-conflict",
+            type: 'component-definition-conflict',
             message: `The "${key}" definition had a duplicate in a previous input and could not be deduplicated.`,
           };
         }
@@ -124,7 +123,7 @@ function findUniqueOperationId(operationId: string, seenOperationIds: Set<string
 
   // Try the dispute prefix
   if (dispute !== undefined) {
-    const disputeOpId = applyDispute(dispute, operationId, "disputed");
+    const disputeOpId = applyDispute(dispute, operationId, 'disputed');
     if (!seenOperationIds.has(disputeOpId)) {
       return disputeOpId;
     }
@@ -140,7 +139,7 @@ function findUniqueOperationId(operationId: string, seenOperationIds: Set<string
 
   // Fail with an error
   return {
-    type: "operation-id-conflict",
+    type: 'operation-id-conflict',
     message: `Could not resolve a conflict for the operationId '${operationId}'`,
   };
 }
@@ -148,7 +147,7 @@ function findUniqueOperationId(operationId: string, seenOperationIds: Set<string
 function ensureUniqueOperationId(operation: Swagger.Operation, seenOperationIds: Set<string>, dispute: Dispute | undefined): ErrorMergeResult | undefined {
   if (operation.operationId !== undefined) {
     const opId = findUniqueOperationId(operation.operationId, seenOperationIds, dispute);
-    if (typeof opId === "string") {
+    if (typeof opId === 'string') {
       operation.operationId = opId;
       seenOperationIds.add(opId);
     } else {
@@ -203,7 +202,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
     // For each component in the original input, place it in the output with deduplicate taking place
     if (oas.components !== undefined) {
-      const resultLookup = new SwaggerLookup.InternalLookup({ openapi: "3.0.1", info: { title: "dummy", version: "0" }, paths: {}, components: result.components });
+      const resultLookup = new SwaggerLookup.InternalLookup({ openapi: '3.0.1', info: { title: 'dummy', version: '0' }, paths: {}, components: result.components });
       const currentLookup = new SwaggerLookup.InternalLookup(oas);
       if (oas.components.schemas !== undefined) {
         result.components.schemas = result.components.schemas || {};
@@ -290,7 +289,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
     for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
       const originalPath = paths[pathIndex];
 
-      const newPath = pathModification === undefined ? originalPath : `${pathModification.prepend || ""}${removeFromStart(originalPath, pathModification.stripStart || "")}`;
+      const newPath = pathModification === undefined ? originalPath : `${pathModification.prepend || ''}${removeFromStart(originalPath, pathModification.stripStart || '')}`;
 
       if (originalPath !== newPath) {
         referenceModification[`#/paths/${originalPath}`] = `#/paths/${newPath}`;
@@ -299,7 +298,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       // TODO perform more advanced matching for an existing path than an equals check
       if (result.paths[newPath] !== undefined) {
         return {
-          type: "duplicate-paths",
+          type: 'duplicate-paths',
           message: `Input ${inputIndex}: The path '${originalPath}' maps to '${newPath}' and this has already been added by another input file`,
         };
       }
