@@ -1,4 +1,4 @@
-import { Swagger } from 'atlassian-openapi';
+import { Swagger } from "atlassian-openapi";
 
 export type OperationSelection = {
   /**
@@ -20,6 +20,7 @@ export interface DisputeBase {
    * for that particular schema. This may prevent the deduplication of common schemas from different OpenApi files.
    */
   alwaysApply?: boolean;
+  mergeDeep?: boolean;
 }
 
 export interface DisputePrefix extends DisputeBase {
@@ -124,7 +125,7 @@ export type SuccessfulMergeResult = {
   output: Swagger.SwaggerV3;
 };
 
-export type ErrorType = 'no-inputs' | 'duplicate-paths' | 'component-definition-conflict' | 'operation-id-conflict';
+export type ErrorType = "no-inputs" | "duplicate-paths" | "component-definition-conflict" | "operation-id-conflict";
 
 export type ErrorMergeResult = {
   type: ErrorType;
@@ -132,7 +133,7 @@ export type ErrorMergeResult = {
 };
 
 export function isErrorResult<A>(t: A | ErrorMergeResult): t is ErrorMergeResult {
-  return 'type' in t && 'message' in t;
+  return "type" in t && "message" in t;
 }
 
 export type MergeResult = SuccessfulMergeResult | ErrorMergeResult;

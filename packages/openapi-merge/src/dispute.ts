@@ -1,25 +1,25 @@
-import { Dispute, DisputePrefix, SingleMergeInput } from './data';
+import { Dispute, DisputePrefix, SingleMergeInput } from "./data";
 
 export function getDispute(input: SingleMergeInput): Dispute | undefined {
-  if ('disputePrefix' in input) {
+  if ("disputePrefix" in input) {
     if (input.disputePrefix !== undefined) {
       return {
-        prefix: input.disputePrefix
+        prefix: input.disputePrefix,
       };
     }
 
     return undefined;
-  } else if ('dispute' in input) {
+  } else if ("dispute" in input) {
     return input.dispute;
   }
 
   return undefined;
 }
 
-export type DisputeStatus = 'disputed' | 'undisputed';
+export type DisputeStatus = "disputed" | "undisputed";
 
 function isDisputePrefix(dispute: Dispute): dispute is DisputePrefix {
-  return 'prefix' in dispute;
+  return "prefix" in dispute;
 }
 
 export function applyDispute(dispute: Dispute | undefined, input: string, status: DisputeStatus): string {
@@ -27,7 +27,7 @@ export function applyDispute(dispute: Dispute | undefined, input: string, status
     return input;
   }
 
-  if (status === 'disputed' || dispute.alwaysApply) {
+  if ((status === "disputed" && !dispute.mergeDeep) || dispute.alwaysApply) {
     return isDisputePrefix(dispute) ? `${dispute.prefix}${input}` : `${input}${dispute.suffix}`;
   }
 
