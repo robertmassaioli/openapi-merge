@@ -72,6 +72,9 @@ export function deepEquality<A>(xLookup: Lookup.Lookup, yLookup: Lookup.Lookup):
 
   function compare<T>(x: T | Swagger.Reference, y: T | Swagger.Reference): boolean {
     // If both are references then look up the references and compare them for equality
+    if (x === null || y === null) {
+      return _.isEqual(x, y);
+    }
     if (TC.isReference(x) && TC.isReference(y)) {
       if (refRecord.checkAndStore(x, y) === 'seen-before') {
         return true;
