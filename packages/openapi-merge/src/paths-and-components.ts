@@ -306,19 +306,32 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
         referenceModification[`#/paths/${originalPath}`] = `#/paths/${newPath}`;
       }
 
-      // TODO perform more advanced matching for an existing path than an equals check
       if (result.paths[newPath] !== undefined) {
-        return {
-          type: 'duplicate-paths',
-          message: `Input ${inputIndex}: The path '${originalPath}' maps to '${newPath}' and this has already been added by another input file`
-        };
+        const Methods = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
+        const newMethods = Object.keys(input.oas.paths[originalPath]).filter((method) => Object.values(Methods).includes(method.toLowerCase()));
+        try {
+          newMethods.forEach((method) => {
+            const pathMethod = method.toLowerCase() as Swagger.Method;
+            if (result.paths[newPath][pathMethod]) {
+              throw {
+                type: 'duplicate-paths',
+                message: `Input ${inputIndex}: The method '${originalPath}:${pathMethod}' is already mapped to '${newPath}:${pathMethod}' and has already been added by another input file`
+              };
+            } else {
+              const copyPathItem: Swagger.PathItem = { [method]: oas.paths[originalPath][pathMethod] };
+              if (!('uniqueOperations' in input && input.uniqueOperations === false)) ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
+              result.paths[newPath][pathMethod] = copyPathItem[pathMethod];
+            }
+          });
+        } catch (err) {
+          return err as any;
+        }
+      } else {
+        const copyPathItem = oas.paths[originalPath];
+        if (!('uniqueOperations' in input && input.uniqueOperations === false)) ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
+
+        result.paths[newPath] = copyPathItem;
       }
-
-      const copyPathItem = oas.paths[originalPath];
-      console.log(input);
-      if (!('uniqueOperations' in input && input.uniqueOperations === false)) ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
-
-      result.paths[newPath] = copyPathItem;
     }
 
     // Update the references to point to the right location

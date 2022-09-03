@@ -141,13 +141,6 @@ describe('OAS Security', () => {
     second.externalDocs = { url: 'second-server-url' };
     second.security = [{ provider: [] }];
 
-    const mergeInputs: SingleMergeInputV2[] = toMergeInputs([first, second]);
-
-    // mergeInputs[1]['dispute'] = {
-    //   mergeDeep: true,
-    //   prefix: ''
-    // };
-
     const output = toOAS(
       {},
       {
@@ -176,7 +169,7 @@ describe('OAS Security', () => {
     output.security = [{ provider: [] }];
     output.tags = undefined;
 
-    expectMergeResult(merge(mergeInputs), {
+    expectMergeResult(merge(toMergeInputs([first, second])), {
       output
     });
   });

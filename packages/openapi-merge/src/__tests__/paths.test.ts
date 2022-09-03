@@ -213,12 +213,61 @@ describe('OAS Path Merge', () => {
     });
   });
 
-  /**
-   * TODO this is simpler logic to implement for now but, ideally, we would merge paths together if we could, if
-   * the HTTP methods do not overlap. I can see a use case for two different services providing different methods
-   * on the same path.
-   */
-  it('should return an error if there are duplicate paths (simple case)', () => {
+  it('should return an error if there are duplicate paths and methods (simple case)', () => {
+    const first = toOAS({
+      '/path/a': {
+        get: {
+          responses: {}
+        }
+      }
+    });
+
+    const second = toOAS({
+      '/path/a': {
+        get: {
+          responses: {}
+        }
+      }
+    });
+
+    expectErrorType(merge(toMergeInputs([first, second])), 'duplicate-paths');
+  });
+
+  it('should return an error if modifying a path would result in a duplicate method', () => {
+    const first = toOAS({
+      '/path/a': {
+        get: {
+          responses: {}
+        }
+      }
+    });
+
+    const second = toOAS({
+      '/service/rest/path/a': {
+        get: {
+          responses: {}
+        }
+      }
+    });
+
+    const firstInput: SingleMergeInput = {
+      oas: first,
+      pathModification: {
+        prepend: '/rest'
+      }
+    };
+
+    const secondInput: SingleMergeInput = {
+      oas: second,
+      pathModification: {
+        stripStart: '/service'
+      }
+    };
+
+    expectErrorType(merge([firstInput, secondInput]), 'duplicate-paths');
+  });
+
+  it('should allow duplicate paths with non-overlapping methods, resulting in a merged path', () => {
     const first = toOAS({
       '/path/a': {
         get: {
@@ -235,10 +284,23 @@ describe('OAS Path Merge', () => {
       }
     });
 
-    expectErrorType(merge(toMergeInputs([first, second])), 'duplicate-paths');
+    const output = toOAS({
+      '/path/a': {
+        get: {
+          responses: {}
+        },
+        post: {
+          responses: {}
+        }
+      }
+    });
+
+    expectMergeResult(merge(toMergeInputs([first, second])), {
+      output
+    });
   });
 
-  it('should return an error if modifying a path would result in a duplicate', () => {
+  it('should allow duplicate path with alternate methods if ther is no conflict', () => {
     const first = toOAS({
       '/path/a': {
         get: {
@@ -269,7 +331,20 @@ describe('OAS Path Merge', () => {
       }
     };
 
-    expectErrorType(merge([firstInput, secondInput]), 'duplicate-paths');
+    const output = toOAS({
+      '/rest/path/a': {
+        get: {
+          responses: {}
+        },
+        post: {
+          responses: {}
+        }
+      }
+    });
+
+    expectMergeResult(merge([firstInput, secondInput]), {
+      output
+    });
   });
 
   describe('Tag Exclusion', () => {
