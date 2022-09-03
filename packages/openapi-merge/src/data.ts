@@ -2,7 +2,7 @@ import { Swagger } from 'atlassian-openapi';
 
 export type OperationSelection = {
   /**
-   * Only Operatinos that have these tags will be taken from this OpenAPI file. If a single Operation contains
+   * Only Operations that have these tags will be taken from this OpenAPI file. If a single Operation contains
    * an includeTag and an excludeTag then it will be excluded; exclusion takes precedence.
    */
   includeTags?: string[];
@@ -20,6 +20,11 @@ export interface DisputeBase {
    * for that particular schema. This may prevent the deduplication of common schemas from different OpenApi files.
    */
   alwaysApply?: boolean;
+  /**
+   * If this is set to true, then this well deep merge components, bringing all keys and values from identically
+   * named components in to the one object
+   */
+  mergeDispute?: boolean;
 }
 
 export interface DisputePrefix extends DisputeBase {
@@ -79,6 +84,11 @@ export interface SingleMergeInputV2 extends SingleMergeInputBase {
    * This dictates how any disputes will be resolved between similar elements across multiple OpenAPI files.
    */
   dispute?: Dispute;
+  /**
+   * When set to false, allows operation IDs to be non-uniqiue. Default behaviour is to force a unique suffix unless
+   * specifically set
+   */
+  uniqueOperations?: boolean;
 }
 
 export type SingleMergeInput = SingleMergeInputV1 | SingleMergeInputV2;
