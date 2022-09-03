@@ -307,8 +307,8 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       }
 
       if (result.paths[newPath] !== undefined) {
-        const Methods = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
-        const newMethods = Object.keys(input.oas.paths[originalPath]).filter((method) => Object.values(Methods).includes(method.toLowerCase()));
+        const operations = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
+        const newMethods = Object.keys(input.oas.paths[originalPath]).filter((method) => Object.values(operations).includes(method.toLowerCase()));
         try {
           newMethods.forEach((method) => {
             const pathMethod = method.toLowerCase() as Swagger.Method;
