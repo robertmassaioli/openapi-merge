@@ -25,11 +25,6 @@ export interface DisputeBase {
    * named components in to the one object
    */
   mergeDispute?: boolean;
-  /**
-   * When set to false, allows operation IDs to be non-uniqiue. Default behaviour is to force a unique suffix unless
-   * specifically set
-   */
-  uniqueOperations?: boolean;
 }
 
 export interface DisputePrefix extends DisputeBase {
@@ -89,6 +84,11 @@ export interface SingleMergeInputV2 extends SingleMergeInputBase {
    * This dictates how any disputes will be resolved between similar elements across multiple OpenAPI files.
    */
   dispute?: Dispute;
+  /**
+   * When set to false, allows operation IDs to be non-uniqiue. Default behaviour is to force a unique suffix unless
+   * specifically set
+   */
+  uniqueOperations?: boolean;
 }
 
 export type SingleMergeInput = SingleMergeInputV1 | SingleMergeInputV2;

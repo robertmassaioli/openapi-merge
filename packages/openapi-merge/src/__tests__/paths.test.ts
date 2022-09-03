@@ -138,11 +138,11 @@ describe('OAS Path Merge', () => {
       }
     });
 
-    const mergeInputs: SingleMergeInputV2[] = toMergeInputs([first, second]);
+    const mergeInputs: SingleMergeInput[] = toMergeInputs([first, second]);
 
-    mergeInputs[1]['dispute'] = {
+    mergeInputs[1] = {
       uniqueOperations: false,
-      prefix: ''
+      ...mergeInputs[1]
     };
 
     expectMergeResult(merge(mergeInputs), {

@@ -4,7 +4,7 @@ export function getDispute(input: SingleMergeInput): Dispute | undefined {
   if ('disputePrefix' in input) {
     if (input.disputePrefix !== undefined) {
       return {
-        prefix: input.disputePrefix,
+        prefix: input.disputePrefix
       };
     }
 
@@ -27,7 +27,7 @@ export function applyDispute(dispute: Dispute | undefined, input: string, status
     return input;
   }
 
-  if ((status === 'disputed' && !dispute.mergeDeep) || dispute.alwaysApply) {
+  if ((status === 'disputed' && !dispute.mergeDispute) || dispute.alwaysApply) {
     return isDisputePrefix(dispute) ? `${dispute.prefix}${input}` : `${input}${dispute.suffix}`;
   }
 

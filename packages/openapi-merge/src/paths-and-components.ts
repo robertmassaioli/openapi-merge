@@ -121,10 +121,6 @@ function findUniqueOperationId(operationId: string, seenOperationIds: Set<string
     return operationId;
   }
 
-  if (dispute?.uniqueOperations === false) {
-    return operationId;
-  }
-
   // Try the dispute prefix
   if (dispute !== undefined) {
     const disputeOpId = applyDispute(dispute, operationId, 'disputed');
@@ -224,59 +220,35 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.responses !== undefined) {
         result.components.responses = result.components.responses || {};
 
-        processComponents(
-          result.components.responses,
-          oas.components.responses,
-          deepEquality(resultLookup, currentLookup),
-          dispute,
-          (from: string, to: string) => {
-            referenceModification[`#/components/responses/${from}`] = `#/components/responses/${to}`;
-          }
-        );
+        processComponents(result.components.responses, oas.components.responses, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
+          referenceModification[`#/components/responses/${from}`] = `#/components/responses/${to}`;
+        });
       }
 
       if (oas.components.parameters !== undefined) {
         result.components.parameters = result.components.parameters || {};
 
-        processComponents(
-          result.components.parameters,
-          oas.components.parameters,
-          deepEquality(resultLookup, currentLookup),
-          dispute,
-          (from: string, to: string) => {
-            referenceModification[`#/components/parameters/${from}`] = `#/components/parameters/${to}`;
-          }
-        );
+        processComponents(result.components.parameters, oas.components.parameters, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
+          referenceModification[`#/components/parameters/${from}`] = `#/components/parameters/${to}`;
+        });
       }
 
       // examples
       if (oas.components.examples !== undefined) {
         result.components.examples = result.components.examples || {};
 
-        processComponents(
-          result.components.examples,
-          oas.components.examples,
-          deepEquality(resultLookup, currentLookup),
-          dispute,
-          (from: string, to: string) => {
-            referenceModification[`#/components/examples/${from}`] = `#/components/examples/${to}`;
-          }
-        );
+        processComponents(result.components.examples, oas.components.examples, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
+          referenceModification[`#/components/examples/${from}`] = `#/components/examples/${to}`;
+        });
       }
 
       // requestBodies
       if (oas.components.requestBodies !== undefined) {
         result.components.requestBodies = result.components.requestBodies || {};
 
-        processComponents(
-          result.components.requestBodies,
-          oas.components.requestBodies,
-          deepEquality(resultLookup, currentLookup),
-          dispute,
-          (from: string, to: string) => {
-            referenceModification[`#/components/requestBodies/${from}`] = `#/components/requestBodies/${to}`;
-          }
-        );
+        processComponents(result.components.requestBodies, oas.components.requestBodies, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
+          referenceModification[`#/components/requestBodies/${from}`] = `#/components/requestBodies/${to}`;
+        });
       }
 
       // headers
@@ -316,15 +288,9 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.callbacks !== undefined) {
         result.components.callbacks = result.components.callbacks || {};
 
-        processComponents(
-          result.components.callbacks,
-          oas.components.callbacks,
-          deepEquality(resultLookup, currentLookup),
-          dispute,
-          (from: string, to: string) => {
-            referenceModification[`#/components/callbacks/${from}`] = `#/components/callbacks/${to}`;
-          }
-        );
+        processComponents(result.components.callbacks, oas.components.callbacks, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
+          referenceModification[`#/components/callbacks/${from}`] = `#/components/callbacks/${to}`;
+        });
       }
     }
 
@@ -334,8 +300,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
     for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
       const originalPath = paths[pathIndex];
 
-      const newPath =
-        pathModification === undefined ? originalPath : `${pathModification.prepend || ''}${removeFromStart(originalPath, pathModification.stripStart || '')}`;
+      const newPath = pathModification === undefined ? originalPath : `${pathModification.prepend || ''}${removeFromStart(originalPath, pathModification.stripStart || '')}`;
 
       if (originalPath !== newPath) {
         referenceModification[`#/paths/${originalPath}`] = `#/paths/${newPath}`;
@@ -351,7 +316,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
       const copyPathItem = oas.paths[originalPath];
 
-      ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
+      if ('uniqueOperations' in input && input.uniqueOperations !== false) ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
 
       result.paths[newPath] = copyPathItem;
     }
