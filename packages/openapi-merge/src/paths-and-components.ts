@@ -315,8 +315,8 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       }
 
       const copyPathItem = oas.paths[originalPath];
-
-      if ('uniqueOperations' in input && input.uniqueOperations !== false) ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
+      console.log(input);
+      if (!('uniqueOperations' in input && input.uniqueOperations === false)) ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
 
       result.paths[newPath] = copyPathItem;
     }

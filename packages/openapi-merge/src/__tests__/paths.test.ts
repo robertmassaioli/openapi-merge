@@ -104,7 +104,7 @@ describe('OAS Path Merge', () => {
     });
   });
 
-  it('should allow duplicate operationIds when flagged', () => {
+  it('should allow duplicate operationIds when flagged to do so', () => {
     const first = toOAS({
       '/path/a': {
         get: {
@@ -138,12 +138,9 @@ describe('OAS Path Merge', () => {
       }
     });
 
-    const mergeInputs: SingleMergeInput[] = toMergeInputs([first, second]);
+    const mergeInputs: SingleMergeInputV2[] = toMergeInputs([first, second]);
 
-    mergeInputs[1] = {
-      uniqueOperations: false,
-      ...mergeInputs[1]
-    };
+    mergeInputs[1]['uniqueOperations'] = false;
 
     expectMergeResult(merge(mergeInputs), {
       output
