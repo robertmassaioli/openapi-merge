@@ -1,7 +1,7 @@
-import { merge } from "..";
-import { toOAS } from "./oas-generation";
-import { expectMergeResult, toMergeInputs, expectErrorType } from "./test-utils";
-import { SingleMergeInput } from "../data";
+import { merge } from '..';
+import { toOAS } from './oas-generation';
+import { expectMergeResult, toMergeInputs, expectErrorType } from './test-utils';
+import { SingleMergeInput, SingleMergeInputV2 } from '../data';
 
 describe('OAS Path Merge', () => {
   it('should merge paths where one paths is null', () => {
@@ -104,6 +104,49 @@ describe('OAS Path Merge', () => {
     });
   });
 
+  it('should allow duplicate operationIds when flagged to do so', () => {
+    const first = toOAS({
+      '/path/a': {
+        get: {
+          operationId: 'same',
+          responses: {}
+        }
+      }
+    });
+
+    const second = toOAS({
+      '/path/b': {
+        post: {
+          operationId: 'same',
+          responses: {}
+        }
+      }
+    });
+
+    const output = toOAS({
+      '/path/a': {
+        get: {
+          operationId: 'same',
+          responses: {}
+        }
+      },
+      '/path/b': {
+        post: {
+          operationId: 'same',
+          responses: {}
+        }
+      }
+    });
+
+    const mergeInputs: SingleMergeInputV2[] = toMergeInputs([first, second]);
+
+    mergeInputs[1]['uniqueOperations'] = false;
+
+    expectMergeResult(merge(mergeInputs), {
+      output
+    });
+  });
+
   it('should prefix paths correctly', () => {
     const first = toOAS({
       '/path/a': {
@@ -121,7 +164,7 @@ describe('OAS Path Merge', () => {
       }
     });
 
-    expectMergeResult(merge([{ oas: first, pathModification: { prepend: '/service'}}]), {
+    expectMergeResult(merge([{ oas: first, pathModification: { prepend: '/service' } }]), {
       output
     });
   });
@@ -143,7 +186,7 @@ describe('OAS Path Merge', () => {
       }
     });
 
-    expectMergeResult(merge([{ oas: first, pathModification: { stripStart: '/rest'}}]), {
+    expectMergeResult(merge([{ oas: first, pathModification: { stripStart: '/rest' } }]), {
       output
     });
   });
@@ -165,17 +208,66 @@ describe('OAS Path Merge', () => {
       }
     });
 
-    expectMergeResult(merge([{ oas: first, pathModification: { stripStart: '/rest', prepend: '/service' }}]), {
+    expectMergeResult(merge([{ oas: first, pathModification: { stripStart: '/rest', prepend: '/service' } }]), {
       output
     });
   });
 
-  /**
-   * TODO this is simpler logic to implement for now but, ideally, we would merge paths together if we could, if
-   * the HTTP methods do not overlap. I can see a use case for two different services providing different methods
-   * on the same path.
-   */
-  it('should return an error if there are duplicate paths (simple case)', () => {
+  it('should return an error if there are duplicate paths and methods (simple case)', () => {
+    const first = toOAS({
+      '/path/a': {
+        get: {
+          responses: {}
+        }
+      }
+    });
+
+    const second = toOAS({
+      '/path/a': {
+        get: {
+          responses: {}
+        }
+      }
+    });
+
+    expectErrorType(merge(toMergeInputs([first, second])), 'duplicate-paths');
+  });
+
+  it('should return an error if modifying a path would result in a duplicate method', () => {
+    const first = toOAS({
+      '/path/a': {
+        get: {
+          responses: {}
+        }
+      }
+    });
+
+    const second = toOAS({
+      '/service/rest/path/a': {
+        get: {
+          responses: {}
+        }
+      }
+    });
+
+    const firstInput: SingleMergeInput = {
+      oas: first,
+      pathModification: {
+        prepend: '/rest'
+      }
+    };
+
+    const secondInput: SingleMergeInput = {
+      oas: second,
+      pathModification: {
+        stripStart: '/service'
+      }
+    };
+
+    expectErrorType(merge([firstInput, secondInput]), 'duplicate-paths');
+  });
+
+  it('should allow duplicate paths with non-overlapping methods, resulting in a merged path', () => {
     const first = toOAS({
       '/path/a': {
         get: {
@@ -192,10 +284,23 @@ describe('OAS Path Merge', () => {
       }
     });
 
-    expectErrorType(merge(toMergeInputs([first, second])), 'duplicate-paths');
+    const output = toOAS({
+      '/path/a': {
+        get: {
+          responses: {}
+        },
+        post: {
+          responses: {}
+        }
+      }
+    });
+
+    expectMergeResult(merge(toMergeInputs([first, second])), {
+      output
+    });
   });
 
-  it('should return an error if modifying a path would result in a duplicate', () => {
+  it('should allow duplicate path with alternate methods if ther is no conflict', () => {
     const first = toOAS({
       '/path/a': {
         get: {
@@ -226,7 +331,20 @@ describe('OAS Path Merge', () => {
       }
     };
 
-    expectErrorType(merge([firstInput, secondInput]), 'duplicate-paths');
+    const output = toOAS({
+      '/rest/path/a': {
+        get: {
+          responses: {}
+        },
+        post: {
+          responses: {}
+        }
+      }
+    });
+
+    expectMergeResult(merge([firstInput, secondInput]), {
+      output
+    });
   });
 
   describe('Tag Exclusion', () => {
@@ -359,7 +477,7 @@ describe('OAS Path Merge', () => {
         }
       });
 
-      expectMergeResult(merge([{ oas: first, operationSelection: { excludeTags: ['excluded'] }}, { oas: second }]), {
+      expectMergeResult(merge([{ oas: first, operationSelection: { excludeTags: ['excluded'] } }, { oas: second }]), {
         output
       });
     });
@@ -428,7 +546,7 @@ describe('OAS Path Merge', () => {
         }
       });
 
-      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'] }}, { oas: second }]), {
+      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'] } }, { oas: second }]), {
         output
       });
     });
@@ -491,7 +609,7 @@ describe('OAS Path Merge', () => {
         }
       });
 
-      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'], excludeTags: ['excluded'] }}, { oas: second }]), {
+      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'], excludeTags: ['excluded'] } }, { oas: second }]), {
         output
       });
     });
@@ -521,16 +639,20 @@ describe('OAS Path Merge', () => {
         }
       });
 
-      first.tags = [{
-        name: 'included',
-        description: 'This tag is included'
-      }, {
-        name: 'excluded',
-        description: 'This tag is excluded'
-      }, {
-        name: 'unused',
-        description: 'This tag is not used'
-      }];
+      first.tags = [
+        {
+          name: 'included',
+          description: 'This tag is included'
+        },
+        {
+          name: 'excluded',
+          description: 'This tag is excluded'
+        },
+        {
+          name: 'unused',
+          description: 'This tag is not used'
+        }
+      ];
 
       const second = toOAS({
         '/path/b': {
@@ -554,13 +676,16 @@ describe('OAS Path Merge', () => {
         }
       });
 
-      output.tags = [{
-        name: 'included',
-        description: 'This tag is included'
-      }, {
-        name: 'unused',
-        description: 'This tag is not used'
-      }];
+      output.tags = [
+        {
+          name: 'included',
+          description: 'This tag is included'
+        },
+        {
+          name: 'unused',
+          description: 'This tag is not used'
+        }
+      ];
 
       expectMergeResult(merge([{ oas: first, operationSelection: { excludeTags: ['excluded'] } }, { oas: second }]), {
         output
