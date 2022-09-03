@@ -143,11 +143,6 @@ describe('OAS Security', () => {
 
     const mergeInputs: SingleMergeInputV2[] = toMergeInputs([first, second]);
 
-    // mergeInputs[1]['dispute'] = {
-    //   mergeDeep: true,
-    //   prefix: ''
-    // };
-
     const output = toOAS(
       {},
       {
