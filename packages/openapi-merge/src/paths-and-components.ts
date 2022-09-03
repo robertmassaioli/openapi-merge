@@ -324,7 +324,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
             }
           });
         } catch (err) {
-          return err as any;
+          return err as ErrorMergeResult;
         }
       } else {
         const copyPathItem = oas.paths[originalPath];

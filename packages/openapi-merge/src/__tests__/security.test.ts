@@ -1,5 +1,4 @@
 import { merge } from '..';
-import { SingleMergeInputV2 } from '../data';
 import { toOAS } from './oas-generation';
 import { expectMergeResult, toMergeInputs } from './test-utils';
 
