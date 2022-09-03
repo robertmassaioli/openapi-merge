@@ -55,8 +55,8 @@ function processComponents<A>(
             addModifiedReference(key, preferredSchemaKey);
             schemaPlaced = true;
           }
-          // Merge deeply if the flag is set in the dispute call
-          else if (dispute.mergeDeep && Object.keys(results).includes(preferredSchemaKey)) {
+          // Merge deeply if the flag is set in the dispute object
+          else if (dispute.mergeDispute && Object.keys(results).includes(preferredSchemaKey)) {
             results[preferredSchemaKey] = _.merge(results[preferredSchemaKey], component);
             addModifiedReference(key, preferredSchemaKey);
             schemaPlaced = true;
@@ -78,7 +78,7 @@ function processComponents<A>(
         if (schemaPlaced === false) {
           return {
             type: 'component-definition-conflict',
-            message: `The "${key}" definition had a duplicate in a previous input and could not be deduplicated.`,
+            message: `The "${key}" definition had a duplicate in a previous input and could not be deduplicated.`
           };
         }
       }
@@ -121,6 +121,10 @@ function findUniqueOperationId(operationId: string, seenOperationIds: Set<string
     return operationId;
   }
 
+  if (dispute?.uniqueOperations === false) {
+    return operationId;
+  }
+
   // Try the dispute prefix
   if (dispute !== undefined) {
     const disputeOpId = applyDispute(dispute, operationId, 'disputed');
@@ -140,7 +144,7 @@ function findUniqueOperationId(operationId: string, seenOperationIds: Set<string
   // Fail with an error
   return {
     type: 'operation-id-conflict',
-    message: `Could not resolve a conflict for the operationId '${operationId}'`,
+    message: `Could not resolve a conflict for the operationId '${operationId}'`
   };
 }
 
@@ -186,7 +190,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
   const result: PathAndComponents = {
     paths: {},
-    components: {},
+    components: {}
   };
 
   for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
@@ -202,7 +206,12 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
     // For each component in the original input, place it in the output with deduplicate taking place
     if (oas.components !== undefined) {
-      const resultLookup = new SwaggerLookup.InternalLookup({ openapi: '3.0.1', info: { title: 'dummy', version: '0' }, paths: {}, components: result.components });
+      const resultLookup = new SwaggerLookup.InternalLookup({
+        openapi: '3.0.1',
+        info: { title: 'dummy', version: '0' },
+        paths: {},
+        components: result.components
+      });
       const currentLookup = new SwaggerLookup.InternalLookup(oas);
       if (oas.components.schemas !== undefined) {
         result.components.schemas = result.components.schemas || {};
@@ -215,35 +224,59 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.responses !== undefined) {
         result.components.responses = result.components.responses || {};
 
-        processComponents(result.components.responses, oas.components.responses, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/responses/${from}`] = `#/components/responses/${to}`;
-        });
+        processComponents(
+          result.components.responses,
+          oas.components.responses,
+          deepEquality(resultLookup, currentLookup),
+          dispute,
+          (from: string, to: string) => {
+            referenceModification[`#/components/responses/${from}`] = `#/components/responses/${to}`;
+          }
+        );
       }
 
       if (oas.components.parameters !== undefined) {
         result.components.parameters = result.components.parameters || {};
 
-        processComponents(result.components.parameters, oas.components.parameters, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/parameters/${from}`] = `#/components/parameters/${to}`;
-        });
+        processComponents(
+          result.components.parameters,
+          oas.components.parameters,
+          deepEquality(resultLookup, currentLookup),
+          dispute,
+          (from: string, to: string) => {
+            referenceModification[`#/components/parameters/${from}`] = `#/components/parameters/${to}`;
+          }
+        );
       }
 
       // examples
       if (oas.components.examples !== undefined) {
         result.components.examples = result.components.examples || {};
 
-        processComponents(result.components.examples, oas.components.examples, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/examples/${from}`] = `#/components/examples/${to}`;
-        });
+        processComponents(
+          result.components.examples,
+          oas.components.examples,
+          deepEquality(resultLookup, currentLookup),
+          dispute,
+          (from: string, to: string) => {
+            referenceModification[`#/components/examples/${from}`] = `#/components/examples/${to}`;
+          }
+        );
       }
 
       // requestBodies
       if (oas.components.requestBodies !== undefined) {
         result.components.requestBodies = result.components.requestBodies || {};
 
-        processComponents(result.components.requestBodies, oas.components.requestBodies, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/requestBodies/${from}`] = `#/components/requestBodies/${to}`;
-        });
+        processComponents(
+          result.components.requestBodies,
+          oas.components.requestBodies,
+          deepEquality(resultLookup, currentLookup),
+          dispute,
+          (from: string, to: string) => {
+            referenceModification[`#/components/requestBodies/${from}`] = `#/components/requestBodies/${to}`;
+          }
+        );
       }
 
       // headers
@@ -259,9 +292,15 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.securitySchemes !== undefined) {
         result.components.securitySchemes = result.components.securitySchemes || {};
 
-        processComponents(result.components.securitySchemes, oas.components.securitySchemes, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/securitySchemes/${from}`] = `#/components/securitySchemes/${to}`;
-        });
+        processComponents(
+          result.components.securitySchemes,
+          oas.components.securitySchemes,
+          deepEquality(resultLookup, currentLookup),
+          { prefix: '', mergeDispute: true, ...dispute }, // security should always be merged
+          (from: string, to: string) => {
+            referenceModification[`#/components/securitySchemes/${from}`] = `#/components/securitySchemes/${to}`;
+          }
+        );
       }
 
       // links
@@ -277,9 +316,15 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (oas.components.callbacks !== undefined) {
         result.components.callbacks = result.components.callbacks || {};
 
-        processComponents(result.components.callbacks, oas.components.callbacks, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/callbacks/${from}`] = `#/components/callbacks/${to}`;
-        });
+        processComponents(
+          result.components.callbacks,
+          oas.components.callbacks,
+          deepEquality(resultLookup, currentLookup),
+          dispute,
+          (from: string, to: string) => {
+            referenceModification[`#/components/callbacks/${from}`] = `#/components/callbacks/${to}`;
+          }
+        );
       }
     }
 
@@ -289,7 +334,8 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
     for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
       const originalPath = paths[pathIndex];
 
-      const newPath = pathModification === undefined ? originalPath : `${pathModification.prepend || ''}${removeFromStart(originalPath, pathModification.stripStart || '')}`;
+      const newPath =
+        pathModification === undefined ? originalPath : `${pathModification.prepend || ''}${removeFromStart(originalPath, pathModification.stripStart || '')}`;
 
       if (originalPath !== newPath) {
         referenceModification[`#/paths/${originalPath}`] = `#/paths/${newPath}`;
@@ -299,7 +345,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       if (result.paths[newPath] !== undefined) {
         return {
           type: 'duplicate-paths',
-          message: `Input ${inputIndex}: The path '${originalPath}' maps to '${newPath}' and this has already been added by another input file`,
+          message: `Input ${inputIndex}: The path '${originalPath}' maps to '${newPath}' and this has already been added by another input file`
         };
       }
 

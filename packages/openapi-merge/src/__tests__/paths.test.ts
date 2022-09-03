@@ -1,7 +1,7 @@
-import { merge } from "..";
-import { toOAS } from "./oas-generation";
-import { expectMergeResult, toMergeInputs, expectErrorType } from "./test-utils";
-import { SingleMergeInput } from "../data";
+import { merge } from '..';
+import { toOAS } from './oas-generation';
+import { expectMergeResult, toMergeInputs, expectErrorType } from './test-utils';
+import { SingleMergeInput, SingleMergeInputV2 } from '../data';
 
 describe('OAS Path Merge', () => {
   it('should merge paths where one paths is null', () => {
@@ -104,6 +104,52 @@ describe('OAS Path Merge', () => {
     });
   });
 
+  it('should allow duplicate operationIds when flagged', () => {
+    const first = toOAS({
+      '/path/a': {
+        get: {
+          operationId: 'same',
+          responses: {}
+        }
+      }
+    });
+
+    const second = toOAS({
+      '/path/b': {
+        post: {
+          operationId: 'same',
+          responses: {}
+        }
+      }
+    });
+
+    const output = toOAS({
+      '/path/a': {
+        get: {
+          operationId: 'same',
+          responses: {}
+        }
+      },
+      '/path/b': {
+        post: {
+          operationId: 'same',
+          responses: {}
+        }
+      }
+    });
+
+    const mergeInputs: SingleMergeInputV2[] = toMergeInputs([first, second]);
+
+    mergeInputs[1]['dispute'] = {
+      uniqueOperations: false,
+      prefix: ''
+    };
+
+    expectMergeResult(merge(mergeInputs), {
+      output
+    });
+  });
+
   it('should prefix paths correctly', () => {
     const first = toOAS({
       '/path/a': {
@@ -121,7 +167,7 @@ describe('OAS Path Merge', () => {
       }
     });
 
-    expectMergeResult(merge([{ oas: first, pathModification: { prepend: '/service'}}]), {
+    expectMergeResult(merge([{ oas: first, pathModification: { prepend: '/service' } }]), {
       output
     });
   });
@@ -143,7 +189,7 @@ describe('OAS Path Merge', () => {
       }
     });
 
-    expectMergeResult(merge([{ oas: first, pathModification: { stripStart: '/rest'}}]), {
+    expectMergeResult(merge([{ oas: first, pathModification: { stripStart: '/rest' } }]), {
       output
     });
   });
@@ -165,7 +211,7 @@ describe('OAS Path Merge', () => {
       }
     });
 
-    expectMergeResult(merge([{ oas: first, pathModification: { stripStart: '/rest', prepend: '/service' }}]), {
+    expectMergeResult(merge([{ oas: first, pathModification: { stripStart: '/rest', prepend: '/service' } }]), {
       output
     });
   });
@@ -359,7 +405,7 @@ describe('OAS Path Merge', () => {
         }
       });
 
-      expectMergeResult(merge([{ oas: first, operationSelection: { excludeTags: ['excluded'] }}, { oas: second }]), {
+      expectMergeResult(merge([{ oas: first, operationSelection: { excludeTags: ['excluded'] } }, { oas: second }]), {
         output
       });
     });
@@ -428,7 +474,7 @@ describe('OAS Path Merge', () => {
         }
       });
 
-      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'] }}, { oas: second }]), {
+      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'] } }, { oas: second }]), {
         output
       });
     });
@@ -491,7 +537,7 @@ describe('OAS Path Merge', () => {
         }
       });
 
-      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'], excludeTags: ['excluded'] }}, { oas: second }]), {
+      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'], excludeTags: ['excluded'] } }, { oas: second }]), {
         output
       });
     });
@@ -521,16 +567,20 @@ describe('OAS Path Merge', () => {
         }
       });
 
-      first.tags = [{
-        name: 'included',
-        description: 'This tag is included'
-      }, {
-        name: 'excluded',
-        description: 'This tag is excluded'
-      }, {
-        name: 'unused',
-        description: 'This tag is not used'
-      }];
+      first.tags = [
+        {
+          name: 'included',
+          description: 'This tag is included'
+        },
+        {
+          name: 'excluded',
+          description: 'This tag is excluded'
+        },
+        {
+          name: 'unused',
+          description: 'This tag is not used'
+        }
+      ];
 
       const second = toOAS({
         '/path/b': {
@@ -554,13 +604,16 @@ describe('OAS Path Merge', () => {
         }
       });
 
-      output.tags = [{
-        name: 'included',
-        description: 'This tag is included'
-      }, {
-        name: 'unused',
-        description: 'This tag is not used'
-      }];
+      output.tags = [
+        {
+          name: 'included',
+          description: 'This tag is included'
+        },
+        {
+          name: 'unused',
+          description: 'This tag is not used'
+        }
+      ];
 
       expectMergeResult(merge([{ oas: first, operationSelection: { excludeTags: ['excluded'] } }, { oas: second }]), {
         output

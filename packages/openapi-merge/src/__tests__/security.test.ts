@@ -16,9 +16,9 @@ describe('OAS Security', () => {
           secondScheme: {
             type: 'apiKey',
             name: 'second scheme',
-            in: 'query',
-          },
-        },
+            in: 'query'
+          }
+        }
       }
     );
 
@@ -29,14 +29,14 @@ describe('OAS Security', () => {
           secondScheme: {
             type: 'apiKey',
             name: 'second scheme',
-            in: 'query',
-          },
-        },
+            in: 'query'
+          }
+        }
       }
     );
 
     expectMergeResult(merge(toMergeInputs([first, second])), {
-      output,
+      output
     });
   });
 
@@ -48,9 +48,9 @@ describe('OAS Security', () => {
           firstScheme: {
             type: 'apiKey',
             name: 'first scheme',
-            in: 'query',
-          },
-        },
+            in: 'query'
+          }
+        }
       }
     );
 
@@ -61,9 +61,9 @@ describe('OAS Security', () => {
           secondScheme: {
             type: 'apiKey',
             name: 'second scheme',
-            in: 'query',
-          },
-        },
+            in: 'query'
+          }
+        }
       }
     );
 
@@ -74,23 +74,23 @@ describe('OAS Security', () => {
           firstScheme: {
             type: 'apiKey',
             name: 'first scheme',
-            in: 'query',
+            in: 'query'
           },
           secondScheme: {
             type: 'apiKey',
             name: 'second scheme',
-            in: 'query',
-          },
-        },
+            in: 'query'
+          }
+        }
       }
     );
 
     expectMergeResult(merge(toMergeInputs([first, second])), {
-      output,
+      output
     });
   });
 
-  it('shoud merge security for identically named schemes when dispute is flagged to deep merge', () => {
+  it('shoud merge security for identically named schemes when dispute is flagged to mergeSecurity', () => {
     const first = toOAS(
       {},
       {
@@ -103,12 +103,12 @@ describe('OAS Security', () => {
                 tokenUrl: '',
                 scopes: {
                   'first-scope-1': '',
-                  'first-scope-2': '',
-                },
-              },
-            },
-          },
-        },
+                  'first-scope-2': ''
+                }
+              }
+            }
+          }
+        }
       }
     );
 
@@ -128,12 +128,12 @@ describe('OAS Security', () => {
                 tokenUrl: '',
                 scopes: {
                   'second-scope-1': '',
-                  'second-scope-2': '',
-                },
-              },
-            },
-          },
-        },
+                  'second-scope-2': ''
+                }
+              }
+            }
+          }
+        }
       }
     );
 
@@ -143,10 +143,10 @@ describe('OAS Security', () => {
 
     const mergeInputs: SingleMergeInputV2[] = toMergeInputs([first, second]);
 
-    mergeInputs[1]['dispute'] = {
-      mergeDeep: true,
-      prefix: '',
-    };
+    // mergeInputs[1]['dispute'] = {
+    //   mergeDeep: true,
+    //   prefix: ''
+    // };
 
     const output = toOAS(
       {},
@@ -162,12 +162,12 @@ describe('OAS Security', () => {
                   'first-scope-1': '',
                   'first-scope-2': '',
                   'second-scope-1': '',
-                  'second-scope-2': '',
-                },
-              },
-            },
-          },
-        },
+                  'second-scope-2': ''
+                }
+              }
+            }
+          }
+        }
       }
     );
 
@@ -177,7 +177,7 @@ describe('OAS Security', () => {
     output.tags = undefined;
 
     expectMergeResult(merge(mergeInputs), {
-      output,
+      output
     });
   });
 
@@ -187,7 +187,7 @@ describe('OAS Security', () => {
     const output = toOAS({});
 
     expectMergeResult(merge(toMergeInputs([first, second])), {
-      output,
+      output
     });
   });
 });
