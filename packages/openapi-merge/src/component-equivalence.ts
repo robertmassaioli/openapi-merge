@@ -76,7 +76,11 @@ export function deepEquality<A>(xLookup: Lookup.Lookup, yLookup: Lookup.Lookup):
       if (refRecord.checkAndStore(x, y) === 'seen-before') {
         return true;
       }
-
+      const isExternalRef = !x.$ref.startsWith('#')
+      if(isExternalRef &&  x.$ref === y.$ref) {
+        // as these refs are merged into a single output, they are going to reference the same external file
+        return true
+      }
       const xResult = isSchemaOrThrowError(x, xLookup.getSchema(x));
       const yResult = isSchemaOrThrowError(y, yLookup.getSchema(y));
       return compare(xResult, yResult);
