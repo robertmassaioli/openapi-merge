@@ -121,6 +121,10 @@ function writeOutput(outputFullPath: string, outputSchema: Swagger.SwaggerV3): v
     ? dumpAsYaml(outputSchema)
     : JSON.stringify(outputSchema, null, 2);
 
+  const outputDir = path.dirname(outputFullPath);
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir);
+  }
   fs.writeFileSync(outputFullPath, fileContents);
 }
 
