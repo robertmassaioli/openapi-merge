@@ -82,7 +82,7 @@ export function deepEquality<A>(xLookup: Lookup.Lookup, yLookup: Lookup.Lookup):
       return compare(xResult, yResult);
     } else if (TC.isReference(x) || TC.isReference(y)) {
       return false;
-    } else if (typeof x === 'object' && typeof y === 'object') {
+    } else if (typeof x === 'object' && typeof y === 'object' && x !== null && y !== null) {
       // If both are objects then they should have all of the same keys and the values of those keys should match
       if (!arraysEquivalent(Object.keys(x), Object.keys(y))) {
         return false;
