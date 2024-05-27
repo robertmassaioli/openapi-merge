@@ -72,7 +72,7 @@ export function deepEquality<A>(xLookup: Lookup.Lookup, yLookup: Lookup.Lookup):
 
   function compare<T>(x: T | Swagger.Reference, y: T | Swagger.Reference): boolean {
     // If both are references then look up the references and compare them for equality
-    if (TC.isReference(x) && TC.isReference(y)) {
+    if (x !== null && y !== null && TC.isReference(x) && TC.isReference(y)) {
       if (refRecord.checkAndStore(x, y) === 'seen-before') {
         return true;
       }
@@ -80,9 +80,9 @@ export function deepEquality<A>(xLookup: Lookup.Lookup, yLookup: Lookup.Lookup):
       const xResult = isSchemaOrThrowError(x, xLookup.getSchema(x));
       const yResult = isSchemaOrThrowError(y, yLookup.getSchema(y));
       return compare(xResult, yResult);
-    } else if (TC.isReference(x) || TC.isReference(y)) {
+    } else if ((x !== null && TC.isReference(x)) || (y !== null && TC.isReference(y))) {
       return false;
-    } else if (typeof x === 'object' && typeof y === 'object') {
+    } else if (x !== null && y !== null && typeof x === 'object' && typeof y === 'object') {
       // If both are objects then they should have all of the same keys and the values of those keys should match
       if (!arraysEquivalent(Object.keys(x), Object.keys(y))) {
         return false;
