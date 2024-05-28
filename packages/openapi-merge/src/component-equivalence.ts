@@ -1,6 +1,7 @@
 import { Modify } from "./reference-walker";
 import { Swagger, SwaggerTypeChecks as TC, SwaggerLookup as Lookup } from 'atlassian-openapi';
 import _ from 'lodash';
+import { isPresent } from 'ts-is-present';
 
 export type ReferenceWalker<A> = (component: A, modify: Modify) => void;
 
@@ -72,24 +73,25 @@ export function deepEquality<A>(xLookup: Lookup.Lookup, yLookup: Lookup.Lookup):
 
   function compare<T>(x: T | Swagger.Reference, y: T | Swagger.Reference): boolean {
     // If both are references then look up the references and compare them for equality
-    if (x !== null && y !== null && TC.isReference(x) && TC.isReference(y)) {
-      if (refRecord.checkAndStore(x, y) === 'seen-before') {
-        return true;
-      }
+    if (isPresent(x) && isPresent(y)) {
+      if (TC.isReference(x) && TC.isReference(y)) {
+        if (refRecord.checkAndStore(x, y) === 'seen-before') {
+          return true;
+        }
 
-      const xResult = isSchemaOrThrowError(x, xLookup.getSchema(x));
-      const yResult = isSchemaOrThrowError(y, yLookup.getSchema(y));
-      return compare(xResult, yResult);
-    } else if ((x !== null && TC.isReference(x)) || (y !== null && TC.isReference(y))) {
-      return false;
-    } else if (x !== null && y !== null && typeof x === 'object' && typeof y === 'object') {
-      // If both are objects then they should have all of the same keys and the values of those keys should match
-      if (!arraysEquivalent(Object.keys(x), Object.keys(y))) {
+        const xResult = isSchemaOrThrowError(x, xLookup.getSchema(x));
+        const yResult = isSchemaOrThrowError(y, yLookup.getSchema(y));
+        return compare(xResult, yResult);
+      } else if (TC.isReference(x) || TC.isReference(y)) {
         return false;
+      } else if (typeof x === 'object' && typeof y === 'object') {
+        // If both are objects then they should have all of the same keys and the values of those keys should match
+        if (!arraysEquivalent(Object.keys(x), Object.keys(y))) {
+          return false;
       }
-
-      const xKeys = Object.keys(x) as Array<keyof T>;
-      return xKeys.every(key => compare(x[key], y[key]));
+        const xKeys = Object.keys(x) as Array<keyof T>;
+        return xKeys.every(key => compare(x[key], y[key]));
+      }
     }
 
     // If they are not objects or references then you can just run a direct equality
