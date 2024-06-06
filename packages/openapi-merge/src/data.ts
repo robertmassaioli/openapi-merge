@@ -1,5 +1,10 @@
 import { Swagger } from 'atlassian-openapi';
 
+export type PathConfig = {
+  path: string;
+  method: Swagger.Method;
+}
+
 export type OperationSelection = {
   /**
    * Only Operatinos that have these tags will be taken from this OpenAPI file. If a single Operation contains
@@ -12,6 +17,10 @@ export type OperationSelection = {
    * an includeTag and an excludeTag then it will be excluded; exclusion takes precedence.
    */
   excludeTags?: string[];
+
+  includePaths?: PathConfig[];
+
+  excludePaths?: PathConfig[];
 };
 
 export interface DisputeBase {
