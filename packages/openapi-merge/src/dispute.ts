@@ -27,7 +27,7 @@ export function applyDispute(dispute: Dispute | undefined, input: string, status
     return input;
   }
 
-  if (status === 'disputed' || dispute.alwaysApply) {
+  if ((status === 'disputed' && !dispute.mergeDispute) || dispute.alwaysApply) {
     return isDisputePrefix(dispute) ? `${dispute.prefix}${input}` : `${input}${dispute.suffix}`;
   }
 

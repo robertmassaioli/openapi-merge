@@ -1,9 +1,9 @@
-import { MergeInput, ErrorMergeResult, Dispute } from "./data";
-import { Swagger, SwaggerLookup } from "atlassian-openapi";
-import { walkAllReferences } from "./reference-walker";
+import { MergeInput, ErrorMergeResult, Dispute } from './data';
+import { Swagger, SwaggerLookup } from 'atlassian-openapi';
+import { walkAllReferences } from './reference-walker';
 import _ from 'lodash';
-import { runOperationSelection } from "./operation-selection";
-import { deepEquality } from "./component-equivalence";
+import { runOperationSelection } from './operation-selection';
+import { deepEquality } from './component-equivalence';
 import { applyDispute, getDispute } from './dispute';
 
 export type PathAndComponents = {
@@ -23,7 +23,13 @@ type Components<A> = { [key: string]: A };
 type Equal<A> = (x: A, y: A) => boolean;
 type AddModRef = (from: string, to: string) => void;
 
-function processComponents<A>(results: Components<A>, components: Components<A>, areEqual: Equal<A>, dispute: Dispute | undefined, addModifiedReference: AddModRef): ErrorMergeResult | undefined {
+function processComponents<A>(
+  results: Components<A>,
+  components: Components<A>,
+  areEqual: Equal<A>,
+  dispute: Dispute | undefined,
+  addModifiedReference: AddModRef
+): ErrorMergeResult | undefined {
   for (const key in components) {
     /* eslint-disable-next-line no-prototype-builtins */
     if (components.hasOwnProperty(key)) {
@@ -49,10 +55,16 @@ function processComponents<A>(results: Components<A>, components: Components<A>,
             addModifiedReference(key, preferredSchemaKey);
             schemaPlaced = true;
           }
+          // Merge deeply if the flag is set in the dispute object
+          else if (dispute.mergeDispute && Object.keys(results).includes(preferredSchemaKey)) {
+            results[preferredSchemaKey] = _.merge(results[preferredSchemaKey], component);
+            addModifiedReference(key, preferredSchemaKey);
+            schemaPlaced = true;
+          }
         }
 
         // Incrementally find the right prefix
-        for(let antiConflict = 1; schemaPlaced === false && antiConflict < 1000; antiConflict++) {
+        for (let antiConflict = 1; schemaPlaced === false && antiConflict < 1000; antiConflict++) {
           const trySchemaKey = `${key}${antiConflict}`;
 
           if (results[trySchemaKey] === undefined) {
@@ -145,16 +157,7 @@ function ensureUniqueOperationId(operation: Swagger.Operation, seenOperationIds:
 }
 
 function ensureUniqueOperationIds(pathItem: Swagger.PathItem, seenOperationIds: Set<string>, dispute: Dispute | undefined): ErrorMergeResult | undefined {
-  const operations = [
-    pathItem.get,
-    pathItem.put,
-    pathItem.post,
-    pathItem.delete,
-    pathItem.patch,
-    pathItem.head,
-    pathItem.trace,
-    pathItem.options
-  ];
+  const operations = [pathItem.get, pathItem.put, pathItem.post, pathItem.delete, pathItem.patch, pathItem.head, pathItem.trace, pathItem.options];
 
   for (let opIndex = 0; opIndex < operations.length; opIndex++) {
     const operation = operations[opIndex];
@@ -183,7 +186,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
   const result: PathAndComponents = {
     paths: {},
-    components: {},
+    components: {}
   };
 
   for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
@@ -197,9 +200,14 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
     // Original references will be transformed to new non-conflicting references
     const referenceModification: { [originalReference: string]: string } = {};
 
-      // For each component in the original input, place it in the output with deduplicate taking place
+    // For each component in the original input, place it in the output with deduplicate taking place
     if (oas.components !== undefined) {
-      const resultLookup = new SwaggerLookup.InternalLookup({ openapi: '3.0.1', info: { title: 'dummy', version: '0' }, paths: {}, components: result.components });
+      const resultLookup = new SwaggerLookup.InternalLookup({
+        openapi: '3.0.1',
+        info: { title: 'dummy', version: '0' },
+        paths: {},
+        components: result.components
+      });
       const currentLookup = new SwaggerLookup.InternalLookup(oas);
       if (oas.components.schemas !== undefined) {
         result.components.schemas = result.components.schemas || {};
@@ -252,9 +260,19 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
         });
       }
 
-      // security schemes are different, we just take the security schemes from the first file that has any
-      if (oas.components.securitySchemes !== undefined && Object.keys(oas.components.securitySchemes).length > 0 && result.components.securitySchemes === undefined) {
-        result.components.securitySchemes = oas.components.securitySchemes;
+      // security schemes
+      if (oas.components.securitySchemes !== undefined) {
+        result.components.securitySchemes = result.components.securitySchemes || {};
+
+        processComponents(
+          result.components.securitySchemes,
+          oas.components.securitySchemes,
+          deepEquality(resultLookup, currentLookup),
+          { prefix: '', mergeDispute: true, ...dispute }, // security should always be merged
+          (from: string, to: string) => {
+            referenceModification[`#/components/securitySchemes/${from}`] = `#/components/securitySchemes/${to}`;
+          }
+        );
       }
 
       // links
@@ -288,29 +306,42 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
         referenceModification[`#/paths/${originalPath}`] = `#/paths/${newPath}`;
       }
 
-      // TODO perform more advanced matching for an existing path than an equals check
       if (result.paths[newPath] !== undefined) {
-        return {
-          type: 'duplicate-paths',
-          message: `Input ${inputIndex}: The path '${originalPath}' maps to '${newPath}' and this has already been added by another input file`
-        };
+        const operations = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
+        const newMethods = Object.keys(input.oas.paths[originalPath]).filter((method) => Object.values(operations).includes(method.toLowerCase()));
+        try {
+          newMethods.forEach((method) => {
+            const pathMethod = method.toLowerCase() as Swagger.Method;
+            if (result.paths[newPath][pathMethod]) {
+              throw {
+                type: 'duplicate-paths',
+                message: `Input ${inputIndex}: The method '${originalPath}:${pathMethod}' is already mapped to '${newPath}:${pathMethod}' and has already been added by another input file`
+              };
+            } else {
+              const copyPathItem: Swagger.PathItem = { [method]: oas.paths[originalPath][pathMethod] };
+              if (!('uniqueOperations' in input && input.uniqueOperations === false)) ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
+              result.paths[newPath][pathMethod] = copyPathItem[pathMethod];
+            }
+          });
+        } catch (err) {
+          return err as ErrorMergeResult;
+        }
+      } else {
+        const copyPathItem = oas.paths[originalPath];
+        if (!('uniqueOperations' in input && input.uniqueOperations === false)) ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
+
+        result.paths[newPath] = copyPathItem;
       }
-
-      const copyPathItem = oas.paths[originalPath];
-
-      ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
-
-      result.paths[newPath] = copyPathItem;
     }
 
     // Update the references to point to the right location
     const modifiedKeys = Object.keys(referenceModification);
-    walkAllReferences(oas, ref => {
+    walkAllReferences(oas, (ref) => {
       if (referenceModification[ref] !== undefined) {
         return referenceModification[ref];
       }
 
-      const matchingKeys = modifiedKeys.filter(key => key.startsWith(`${ref}/`));
+      const matchingKeys = modifiedKeys.filter((key) => key.startsWith(`${ref}/`));
 
       if (matchingKeys.length > 1) {
         throw new Error(`Found more than one matching key for reference '${ref}': ${JSON.stringify(matchingKeys)}`);
