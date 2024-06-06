@@ -88,7 +88,7 @@ export function deepEquality<A>(xLookup: Lookup.Lookup, yLookup: Lookup.Lookup):
         // If both are objects then they should have all of the same keys and the values of those keys should match
         if (!arraysEquivalent(Object.keys(x), Object.keys(y))) {
           return false;
-      }
+        }
         const xKeys = Object.keys(x) as Array<keyof T>;
         return xKeys.every(key => compare(x[key], y[key]));
       }
