@@ -78,6 +78,28 @@ If you wish, you may write your configuration file in YAML format and then run:
 npx openapi-merge-cli --config path/to/openapi-merge.yaml
 ```
 
+You can pass the configuration as a JSON string:
+
+```shell
+npx openapi-merge-cli --json-config '{
+  "inputs": [
+    ...
+  ], 
+  "output": ...
+}
+'
+```
+
+You can pass the configuration as a YAML string:
+
+```shell
+npx openapi-merge-cli --yaml-config '---
+inputs:
+  ...
+output: ...
+'
+```
+
 And the merge should be run and complete! Congratulations and enjoy!
 
 If you experience any issues then please [raise them in the bug tracker][1].
