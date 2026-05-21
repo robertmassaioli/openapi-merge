@@ -55,36 +55,40 @@ Higher is better; ties broken by lower effort first.
 
 ## 2. Quick-Reference Ranked Backlog
 
-| Rank | # | Title | Value | Effort | ROI | Quadrant |
-| ---: | --- | --- | :-: | :-: | :-: | --- |
-| 1 | [#92](https://github.com/robertmassaioli/openapi-merge/issues/92) | Uncaught exception does not set failure status code | 5 | 1 | **9** | Quick Win |
-| 2 | [#115](https://github.com/robertmassaioli/openapi-merge/issues/115) | Out of date dependency (`atlassian-openapi` deprecation) | 5 | 1 | **9** | Quick Win |
-| 3 | [#93](https://github.com/robertmassaioli/openapi-merge/issues/93) | Leading `/` is stripped from output path | 4 | 1 | **7** | Quick Win |
-| 4 | [#76](https://github.com/robertmassaioli/openapi-merge/issues/76) | Fix / configure emitted OpenAPI version | 4 | 1 | **7** | Quick Win |
-| 5 | [#114](https://github.com/robertmassaioli/openapi-merge/issues/114) | Provide tab/space formatting options | 3 | 1 | **5** | Quick Win |
-| 6 | [#111](https://github.com/robertmassaioli/openapi-merge/issues/111) | Support wildcards in include/excludeTags | 4 | 2 | **6** | Quick Win |
-| 7 | [#40](https://github.com/robertmassaioli/openapi-merge/issues/40) | `dispute.alwaysApply` ineffective on `operationId`s | 4 | 2 | **6** | Quick Win |
-| 8 | [#105](https://github.com/robertmassaioli/openapi-merge/issues/105) | Callback `operationId` not included in dispute resolving | 4 | 2 | **6** | Quick Win |
-| 9 | [#106](https://github.com/robertmassaioli/openapi-merge/issues/106) | Discriminator mappings not prefixed under disputes | 4 | 2 | **6** | Quick Win |
-| 10 | [#99](https://github.com/robertmassaioli/openapi-merge/issues/99) | Discriminator mapping not resolved under dispute prefix | 4 | 2 | **6** | Quick Win |
-| 11 | [#102](https://github.com/robertmassaioli/openapi-merge/issues/102) | Global title/description override in config | 3 | 2 | **4** | Quick Win |
-| 12 | [#45](https://github.com/robertmassaioli/openapi-merge/issues/45) | Allow CLI use without a config file | 3 | 2 | **4** | Quick Win |
-| 13 | [#60](https://github.com/robertmassaioli/openapi-merge/issues/60) | `x-tagGroups` only keeps first file's tags | 3 | 2 | **4** | Quick Win |
-| 14 | [#71](https://github.com/robertmassaioli/openapi-merge/issues/71) | Flag to skip duplicate paths | 4 | 3 | **5** | Big Bet (low) |
-| 15 | [#112](https://github.com/robertmassaioli/openapi-merge/issues/112) | Option to merge an input into a tag | 4 | 3 | **5** | Big Bet (low) |
-| 16 | [#100](https://github.com/robertmassaioli/openapi-merge/issues/100) | Merge paths based on specific tags (refinement of `includeTags`) | 3 | 2 | **4** | Quick Win |
-| 17 | [#33](https://github.com/robertmassaioli/openapi-merge/issues/33) | Merge `securitySchemes` across input files | 4 | 3 | **5** | Big Bet (low) |
-| 18 | [#4](https://github.com/robertmassaioli/openapi-merge/issues/4) | Servers array is not concatenated/merged | 3 | 2 | **4** | Quick Win |
-| 19 | [#61](https://github.com/robertmassaioli/openapi-merge/issues/61) | Authorization config for `inputURL` | 3 | 2 | **4** | Quick Win |
-| 20 | [#94](https://github.com/robertmassaioli/openapi-merge/issues/94) | `excludeTags` does not remove unreferenced schemas | 3 | 3 | **3** | Big Bet (low) |
-| 21 | [#75](https://github.com/robertmassaioli/openapi-merge/issues/75) | `atlassian-openapi` types incompatible with `openapi-types` | 3 | 3 | **3** | Big Bet (low) |
-| 22 | [#104](https://github.com/robertmassaioli/openapi-merge/issues/104) | Incorrect `$ref` paths in bundled file | 4 | 4 | **4** | Big Bet |
-| 23 | [#8](https://github.com/robertmassaioli/openapi-merge/issues/8) | Merge duplicate OAS paths using `disputePrefix` | 4 | 4 | **4** | Big Bet |
-| 24 | [#109](https://github.com/robertmassaioli/openapi-merge/issues/109) | Conflict-resolution strategies for duplicate paths | 4 | 4 | **4** | Big Bet |
-| 25 | [#110](https://github.com/robertmassaioli/openapi-merge/issues/110) | Swagger 2 "definitions" not included | 2 | 3 | **1** | Fill-in / Defer |
-| 26 | [#10](https://github.com/robertmassaioli/openapi-merge/issues/10) | Resolve / bundle external `$ref`s | 5 | 5 | **5** | Big Bet |
-| 27 | [#113](https://github.com/robertmassaioli/openapi-merge/issues/113) | Add support for OpenAPI 3.1.x | 5 | 5 | **5** | Big Bet |
-| 28 | [#96](https://github.com/robertmassaioli/openapi-merge/issues/96) | OpenAPI 3.1 `webhook` support | 3 | 4 | **2** | Big Bet |
+> The **Proposal** column links to a detailed implementation proposal in this
+> directory. Status legend in that column: ✅ Fixed and merged to `main`;
+> 📝 Proposal written, awaiting implementation; — no proposal yet.
+
+| Rank | # | Title | Value | Effort | ROI | Quadrant | Proposal |
+| ---: | --- | --- | :-: | :-: | :-: | --- | --- |
+| 1 | [#92](https://github.com/robertmassaioli/openapi-merge/issues/92) | Uncaught exception does not set failure status code | 5 | 1 | **9** | Quick Win | ✅ [proposal-92-exit-code.md](proposal-92-exit-code.md) |
+| 2 | [#115](https://github.com/robertmassaioli/openapi-merge/issues/115) | Out of date dependency (`atlassian-openapi` deprecation) | 5 | 1 | **9** | Quick Win | ✅ [proposal-115-dep-update.md](proposal-115-dep-update.md) |
+| 3 | [#93](https://github.com/robertmassaioli/openapi-merge/issues/93) | Leading `/` is stripped from output path | 4 | 1 | **7** | Quick Win | 📝 [proposal-93-absolute-paths.md](proposal-93-absolute-paths.md) |
+| 4 | [#76](https://github.com/robertmassaioli/openapi-merge/issues/76) | Fix / configure emitted OpenAPI version | 4 | 1 | **7** | Quick Win | 📝 [proposal-76-openapi-version.md](proposal-76-openapi-version.md) |
+| 5 | [#114](https://github.com/robertmassaioli/openapi-merge/issues/114) | Provide tab/space formatting options | 3 | 1 | **5** | Quick Win | 📝 [proposal-114-formatting.md](proposal-114-formatting.md) |
+| 6 | [#111](https://github.com/robertmassaioli/openapi-merge/issues/111) | Support wildcards in include/excludeTags | 4 | 2 | **6** | Quick Win | 📝 [proposal-111-wildcard-tags.md](proposal-111-wildcard-tags.md) |
+| 7 | [#40](https://github.com/robertmassaioli/openapi-merge/issues/40) | `dispute.alwaysApply` ineffective on `operationId`s | 4 | 2 | **6** | Quick Win | 📝 [proposal-40-dispute-operationid.md](proposal-40-dispute-operationid.md) |
+| 8 | [#105](https://github.com/robertmassaioli/openapi-merge/issues/105) | Callback `operationId` not included in dispute resolving | 4 | 2 | **6** | Quick Win | 📝 [proposal-105-callback-operationid.md](proposal-105-callback-operationid.md) |
+| 9 | [#106](https://github.com/robertmassaioli/openapi-merge/issues/106) | Discriminator mappings not prefixed under disputes | 4 | 2 | **6** | Quick Win | 📝 [proposal-106-discriminator-mappings.md](proposal-106-discriminator-mappings.md) |
+| 10 | [#99](https://github.com/robertmassaioli/openapi-merge/issues/99) | Discriminator mapping not resolved under dispute prefix | 4 | 2 | **6** | Quick Win | 📝 [proposal-99-discriminator-mapping-prefix.md](proposal-99-discriminator-mapping-prefix.md) |
+| 11 | [#102](https://github.com/robertmassaioli/openapi-merge/issues/102) | Global title/description override in config | 3 | 2 | **4** | Quick Win | 📝 [proposal-102-global-info-override.md](proposal-102-global-info-override.md) |
+| 12 | [#45](https://github.com/robertmassaioli/openapi-merge/issues/45) | Allow CLI use without a config file | 3 | 2 | **4** | Quick Win | 📝 [proposal-45-no-config.md](proposal-45-no-config.md) |
+| 13 | [#60](https://github.com/robertmassaioli/openapi-merge/issues/60) | `x-tagGroups` only keeps first file's tags | 3 | 2 | **4** | Quick Win | 📝 [proposal-60-x-tag-groups.md](proposal-60-x-tag-groups.md) |
+| 14 | [#71](https://github.com/robertmassaioli/openapi-merge/issues/71) | Flag to skip duplicate paths | 4 | 3 | **5** | Big Bet (low) | 📝 [proposal-71-skip-duplicate-paths.md](proposal-71-skip-duplicate-paths.md) |
+| 15 | [#112](https://github.com/robertmassaioli/openapi-merge/issues/112) | Option to merge an input into a tag | 4 | 3 | **5** | Big Bet (low) | 📝 [proposal-112-merge-into-tag.md](proposal-112-merge-into-tag.md) |
+| 16 | [#100](https://github.com/robertmassaioli/openapi-merge/issues/100) | Merge paths based on specific tags (refinement of `includeTags`) | 3 | 2 | **4** | Quick Win | 📝 [proposal-100-tag-based-path-merge.md](proposal-100-tag-based-path-merge.md) |
+| 17 | [#33](https://github.com/robertmassaioli/openapi-merge/issues/33) | Merge `securitySchemes` across input files | 4 | 3 | **5** | Big Bet (low) | 📝 [proposal-33-security-schemes.md](proposal-33-security-schemes.md) |
+| 18 | [#4](https://github.com/robertmassaioli/openapi-merge/issues/4) | Servers array is not concatenated/merged | 3 | 2 | **4** | Quick Win | 📝 [proposal-4-servers-merge.md](proposal-4-servers-merge.md) |
+| 19 | [#61](https://github.com/robertmassaioli/openapi-merge/issues/61) | Authorization config for `inputURL` | 3 | 2 | **4** | Quick Win | 📝 [proposal-61-input-url-auth.md](proposal-61-input-url-auth.md) |
+| 20 | [#94](https://github.com/robertmassaioli/openapi-merge/issues/94) | `excludeTags` does not remove unreferenced schemas | 3 | 3 | **3** | Big Bet (low) | — |
+| 21 | [#75](https://github.com/robertmassaioli/openapi-merge/issues/75) | `atlassian-openapi` types incompatible with `openapi-types` | 3 | 3 | **3** | Big Bet (low) | — |
+| 22 | [#104](https://github.com/robertmassaioli/openapi-merge/issues/104) | Incorrect `$ref` paths in bundled file | 4 | 4 | **4** | Big Bet | — |
+| 23 | [#8](https://github.com/robertmassaioli/openapi-merge/issues/8) | Merge duplicate OAS paths using `disputePrefix` | 4 | 4 | **4** | Big Bet | — |
+| 24 | [#109](https://github.com/robertmassaioli/openapi-merge/issues/109) | Conflict-resolution strategies for duplicate paths | 4 | 4 | **4** | Big Bet | — |
+| 25 | [#110](https://github.com/robertmassaioli/openapi-merge/issues/110) | Swagger 2 "definitions" not included | 2 | 3 | **1** | Fill-in / Defer | — |
+| 26 | [#10](https://github.com/robertmassaioli/openapi-merge/issues/10) | Resolve / bundle external `$ref`s | 5 | 5 | **5** | Big Bet | — |
+| 27 | [#113](https://github.com/robertmassaioli/openapi-merge/issues/113) | Add support for OpenAPI 3.1.x | 5 | 5 | **5** | Big Bet | — |
+| 28 | [#96](https://github.com/robertmassaioli/openapi-merge/issues/96) | OpenAPI 3.1 `webhook` support | 3 | 4 | **2** | Big Bet | — |
 
 ---
 
@@ -158,7 +162,7 @@ behind the value/effort scores, and a suggested implementation pointer.
 ### Tier 1 — Quick Wins
 
 #### [#92 — Uncaught exception does not set failure status code](https://github.com/robertmassaioli/openapi-merge/issues/92)
-- **Value 5 / Effort 1 / ROI 9**
+- **Value 5 / Effort 1 / ROI 9** — **Status:** ✅ Fixed (see [proposal-92-exit-code.md](proposal-92-exit-code.md))
 - **Why it matters:** CI pipelines that pipe `npx openapi-merge-cli` into
   artifact upload silently succeed even when the merge crashes (the user even
   showed `echo $?` returning 0). This is the single highest-leverage fix.
@@ -168,7 +172,7 @@ behind the value/effort scores, and a suggested implementation pointer.
   (the actual crash in this report).
 
 #### [#115 — Out of date dependency](https://github.com/robertmassaioli/openapi-merge/issues/115)
-- **Value 5 / Effort 1 / ROI 9**
+- **Value 5 / Effort 1 / ROI 9** — **Status:** ✅ Fixed (see [proposal-115-dep-update.md](proposal-115-dep-update.md))
 - **Why it matters:** Every install warns that `atlassian-openapi` has moved
   to `@atlassian/atlassian-openapi`. The deprecation will eventually become an
   install failure.
@@ -176,28 +180,28 @@ behind the value/effort scores, and a suggested implementation pointer.
   version. May need a minor API tweak if the new package's types diverge.
 
 #### [#93 — Leading `/` is stripped from output path](https://github.com/robertmassaioli/openapi-merge/issues/93)
-- **Value 4 / Effort 1 / ROI 7**
+- **Value 4 / Effort 1 / ROI 7** — **Status:** 📝 Proposal: [proposal-93-absolute-paths.md](proposal-93-absolute-paths.md)
 - **Why it matters:** Blocks users writing the merged spec into `/tmp` or
   any absolute path (common in containers/CI).
 - **Pointer:** `cli/src/index.ts`'s `path.join(basePath, config.output)` —
   detect absolute outputs and skip the join.
 
 #### [#76 — Fixing the OpenAPI version](https://github.com/robertmassaioli/openapi-merge/issues/76)
-- **Value 4 / Effort 1 / ROI 7**
+- **Value 4 / Effort 1 / ROI 7** — **Status:** 📝 Proposal: [proposal-76-openapi-version.md](proposal-76-openapi-version.md)
 - **Why it matters:** Tools like Postman fail on `3.0.3` when their imports
   expect `3.0.0`. Today the version is hard-coded.
 - **Pointer:** Add an optional `output.openapiVersion` to the CLI config and
   thread it through `merge()` (or a new param). Default remains `3.0.3`.
 
 #### [#114 — Provide tab and space formatting options](https://github.com/robertmassaioli/openapi-merge/issues/114)
-- **Value 3 / Effort 1 / ROI 5**
+- **Value 3 / Effort 1 / ROI 5** — **Status:** 📝 Proposal: [proposal-114-formatting.md](proposal-114-formatting.md)
 - **Why it matters:** Helps repos that enforce consistent JSON/YAML
   formatting via lint.
 - **Pointer:** Extend `writeOutput` in `cli/src/index.ts` to accept
   `indent` and `useTabs` (or a `formatting` block in config).
 
 #### [#111 — Support wildcards in includeTags / excludeTags](https://github.com/robertmassaioli/openapi-merge/issues/111)
-- **Value 4 / Effort 2 / ROI 6**
+- **Value 4 / Effort 2 / ROI 6** — **Status:** 📝 Proposal: [proposal-111-wildcard-tags.md](proposal-111-wildcard-tags.md)
 - **Why it matters:** Long tag-prefix lists become unmanageable; wildcards
   (or regex) collapse them dramatically.
 - **Pointer:** `operation-selection.ts` — replace `tags.includes(tag)` with a
@@ -205,39 +209,39 @@ behind the value/effort scores, and a suggested implementation pointer.
   remain exact-match.
 
 #### [#40 — `dispute.alwaysApply` not effective on operationIds](https://github.com/robertmassaioli/openapi-merge/issues/40)
-- **Value 4 / Effort 2 / ROI 6**
+- **Value 4 / Effort 2 / ROI 6** — **Status:** 📝 Proposal: [proposal-40-dispute-operationid.md](proposal-40-dispute-operationid.md)
 - **Why it matters:** Users expect `alwaysApply` to be universal; the
   inconsistency creates downstream operation-name collisions.
 - **Pointer:** `paths-and-components.ts` — move the `alwaysApply` short-circuit
   before the conflict check in `findUniqueOperationId`.
 
 #### [#105 — callback operationId not included in dispute resolving](https://github.com/robertmassaioli/openapi-merge/issues/105)
-- **Value 4 / Effort 2 / ROI 6**
+- **Value 4 / Effort 2 / ROI 6** — **Status:** 📝 Proposal: [proposal-105-callback-operationid.md](proposal-105-callback-operationid.md)
 - **Pointer:** Extend `reference-walker.walkCallbackReferences` / operation
   walker to also visit `operationId` for dispute renaming.
 
 #### [#106 — discriminator mappings not prefixed under disputes](https://github.com/robertmassaioli/openapi-merge/issues/106)
-- **Value 4 / Effort 2 / ROI 6**
+- **Value 4 / Effort 2 / ROI 6** — **Status:** 📝 Proposal: [proposal-106-discriminator-mappings.md](proposal-106-discriminator-mappings.md)
 - **Pointer:** `reference-walker.walkSchemaReferences` should also rewrite
   `discriminator.mapping` values. Add a dedicated test.
 
 #### [#99 — Issue on discriminator mapping](https://github.com/robertmassaioli/openapi-merge/issues/99)
-- **Value 4 / Effort 2 / ROI 6**
+- **Value 4 / Effort 2 / ROI 6** — **Status:** 📝 Proposal: [proposal-99-discriminator-mapping-prefix.md](proposal-99-discriminator-mapping-prefix.md)
 - Same family as #106; fix together.
 
 #### [#102 — Global title/description config section](https://github.com/robertmassaioli/openapi-merge/issues/102)
-- **Value 3 / Effort 2 / ROI 4**
+- **Value 3 / Effort 2 / ROI 4** — **Status:** 📝 Proposal: [proposal-102-global-info-override.md](proposal-102-global-info-override.md)
 - **Pointer:** Add an optional `info` block in CLI config that, if present,
   overrides `merge()`'s first-input-wins behaviour for `info.title` and
   `info.description`.
 
 #### [#45 — Use without config files](https://github.com/robertmassaioli/openapi-merge/issues/45)
-- **Value 3 / Effort 2 / ROI 4**
+- **Value 3 / Effort 2 / ROI 4** — **Status:** 📝 Proposal: [proposal-45-no-config.md](proposal-45-no-config.md)
 - **Pointer:** Accept positional file arguments in `commander`; default
   output to `<base>-merged.<ext>`.
 
 #### [#60 — x-tagGroups only keeps first file's tags](https://github.com/robertmassaioli/openapi-merge/issues/60)
-- **Value 3 / Effort 2 / ROI 4**
+- **Value 3 / Effort 2 / ROI 4** — **Status:** 📝 Proposal: [proposal-60-x-tag-groups.md](proposal-60-x-tag-groups.md)
 - **Pointer:** Currently `extensions.ts` does a first-wins merge for all `x-*`
   keys. Add a special case (or a configurable "array-merge" list) so
   `x-tagGroups` arrays concatenate and dedupe.
@@ -245,35 +249,35 @@ behind the value/effort scores, and a suggested implementation pointer.
 ### Tier 2 — Big Bets (low)
 
 #### [#71 — Possible to skip duplicate paths?](https://github.com/robertmassaioli/openapi-merge/issues/71)
-- **Value 4 / Effort 3 / ROI 5**
+- **Value 4 / Effort 3 / ROI 5** — **Status:** 📝 Proposal: [proposal-71-skip-duplicate-paths.md](proposal-71-skip-duplicate-paths.md)
 - **Pointer:** Introduce `onDuplicatePath: 'error' | 'skip-later' | 'prefer-later'`
   on `SingleMergeInput`. Default to `error` to preserve current behaviour.
 
 #### [#112 — Option to merge into a tag](https://github.com/robertmassaioli/openapi-merge/issues/112)
-- **Value 4 / Effort 3 / ROI 5**
+- **Value 4 / Effort 3 / ROI 5** — **Status:** 📝 Proposal: [proposal-112-merge-into-tag.md](proposal-112-merge-into-tag.md)
 - **Pointer:** New per-input option `tag: { name, append?: { description } }`
   that (1) adds the tag to every operation and (2) optionally appends the
   input's `info.description` to that tag's description in the output.
 
 #### [#100 — Merge paths based on specific tags](https://github.com/robertmassaioli/openapi-merge/issues/100)
-- **Value 3 / Effort 2 / ROI 4**
+- **Value 3 / Effort 2 / ROI 4** — **Status:** 📝 Proposal: [proposal-100-tag-based-path-merge.md](proposal-100-tag-based-path-merge.md) (recommends close-as-docs)
 - Largely already possible via `operationSelection.includeTags`; needs
   documentation + a worked example more than code.
 
 #### [#33 — Merge securitySchemes of input files](https://github.com/robertmassaioli/openapi-merge/issues/33)
-- **Value 4 / Effort 3 / ROI 5**
+- **Value 4 / Effort 3 / ROI 5** — **Status:** 📝 Proposal: [proposal-33-security-schemes.md](proposal-33-security-schemes.md)
 - **Pointer:** In `paths-and-components.ts`, when merging `components`,
   treat `securitySchemes` like other component buckets (dedupe by name with
   dispute fallback). Add a per-input `security` override knob if needed.
 
 #### [#4 — Servers array not concatenated/merged](https://github.com/robertmassaioli/openapi-merge/issues/4)
-- **Value 3 / Effort 2 / ROI 4**
+- **Value 3 / Effort 2 / ROI 4** — **Status:** 📝 Proposal: [proposal-4-servers-merge.md](proposal-4-servers-merge.md)
 - **Pointer:** Make the `servers` merge strategy configurable (`first` |
   `concat`). Keep `first` as default to honour the documented API-gateway
   intent.
 
 #### [#61 — Authorization config for InputUrl](https://github.com/robertmassaioli/openapi-merge/issues/61)
-- **Value 3 / Effort 2 / ROI 4**
+- **Value 3 / Effort 2 / ROI 4** — **Status:** 📝 Proposal: [proposal-61-input-url-auth.md](proposal-61-input-url-auth.md)
 - **Pointer:** Extend `ConfigurationInputFromUrl` with optional `headers`
   (preferred; covers bearer + custom headers). Pass through to `fetch()`.
 
