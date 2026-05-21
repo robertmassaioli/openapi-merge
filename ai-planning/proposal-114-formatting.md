@@ -10,7 +10,7 @@
 | Field | Value |
 | --- | --- |
 | Branch | `fix/114-formatting-options` |
-| Implementation commit | (filled in at commit time) |
+| Implementation commit | `1b86caf` |
 | Files added | `packages/openapi-merge-cli/src/formatting.ts`, `packages/openapi-merge-cli/src/__tests__/formatting.test.ts` |
 | Files modified | `packages/openapi-merge-cli/src/data.ts`, `packages/openapi-merge-cli/src/index.ts`, `packages/openapi-merge-cli/src/load-configuration.ts`, `packages/openapi-merge-cli/README.md` |
 | Library tests | 98/98 passing (no regression — pure CLI change) |
