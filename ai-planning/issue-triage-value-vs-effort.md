@@ -63,7 +63,7 @@ Higher is better; ties broken by lower effort first.
 | ---: | --- | --- | :-: | :-: | :-: | --- | --- |
 | 1 | [#92](https://github.com/robertmassaioli/openapi-merge/issues/92) | Uncaught exception does not set failure status code | 5 | 1 | **9** | Quick Win | ✅ [proposal-92-exit-code.md](proposal-92-exit-code.md) |
 | 2 | [#115](https://github.com/robertmassaioli/openapi-merge/issues/115) | Out of date dependency (`atlassian-openapi` deprecation) | 5 | 1 | **9** | Quick Win | ✅ [proposal-115-dep-update.md](proposal-115-dep-update.md) |
-| 3 | [#93](https://github.com/robertmassaioli/openapi-merge/issues/93) | Leading `/` is stripped from output path | 4 | 1 | **7** | Quick Win | 📝 [proposal-93-absolute-paths.md](proposal-93-absolute-paths.md) |
+| 3 | [#93](https://github.com/robertmassaioli/openapi-merge/issues/93) | Leading `/` is stripped from output path | 4 | 1 | **7** | Quick Win | ✅ [proposal-93-absolute-paths.md](proposal-93-absolute-paths.md) |
 | 4 | [#76](https://github.com/robertmassaioli/openapi-merge/issues/76) | Fix / configure emitted OpenAPI version | 4 | 1 | **7** | Quick Win | 📝 [proposal-76-openapi-version.md](proposal-76-openapi-version.md) |
 | 5 | [#114](https://github.com/robertmassaioli/openapi-merge/issues/114) | Provide tab/space formatting options | 3 | 1 | **5** | Quick Win | 📝 [proposal-114-formatting.md](proposal-114-formatting.md) |
 | 6 | [#111](https://github.com/robertmassaioli/openapi-merge/issues/111) | Support wildcards in include/excludeTags | 4 | 2 | **6** | Quick Win | 📝 [proposal-111-wildcard-tags.md](proposal-111-wildcard-tags.md) |
@@ -180,7 +180,7 @@ behind the value/effort scores, and a suggested implementation pointer.
   version. May need a minor API tweak if the new package's types diverge.
 
 #### [#93 — Leading `/` is stripped from output path](https://github.com/robertmassaioli/openapi-merge/issues/93)
-- **Value 4 / Effort 1 / ROI 7** — **Status:** 📝 Proposal: [proposal-93-absolute-paths.md](proposal-93-absolute-paths.md)
+- **Value 4 / Effort 1 / ROI 7** — **Status:** ✅ Fixed (see [proposal-93-absolute-paths.md](proposal-93-absolute-paths.md))
 - **Why it matters:** Blocks users writing the merged spec into `/tmp` or
   any absolute path (common in containers/CI).
 - **Pointer:** `cli/src/index.ts`'s `path.join(basePath, config.output)` —

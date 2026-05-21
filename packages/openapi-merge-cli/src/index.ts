@@ -12,6 +12,7 @@ import fetch from 'isomorphic-fetch';
 import yaml from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
 import { ExitCode } from "./exit-codes";
+import { assertOutputContained, OutputOutsideRootError, resolveConfigPath } from "./path-resolution";
 
 export { ExitCode } from "./exit-codes";
 
@@ -20,7 +21,8 @@ const program = new Command();
 program.version(pjson.version);
 
 program
-  .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.');
+  .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.')
+  .option('--restrict-output-to <dir>', 'Refuse to write output anywhere outside this directory (overrides outputRoot in the config).');
 
 
 class LogWithMillisDiff {
@@ -44,7 +46,7 @@ class LogWithMillisDiff {
 
 async function loadOasForInput(basePath: string, input: ConfigurationInput, inputIndex: number, logger: LogWithMillisDiff): Promise<Swagger.SwaggerV3> {
   if (isConfigurationInputFromFile(input)) {
-    const fullPath = path.join(basePath, input.inputFile);
+    const fullPath = resolveConfigPath(basePath, input.inputFile);
     logger.log(`## Loading input ${inputIndex}: ${fullPath}`);
     return (await readYamlOrJSON(await readFileAsString(fullPath))) as Swagger.SwaggerV3;
   } else {
@@ -158,7 +160,25 @@ export async function main(): Promise<void> {
     return;
   }
 
-  const outputFullPath = path.join(basePath, config.output);
+  const outputFullPath = resolveConfigPath(basePath, config.output);
+
+  // The CLI flag overrides whatever is in the config file. Both are resolved
+  // against the config's directory so that relative `outputRoot` values mean
+  // what a config author would expect.
+  const outputRootRaw: string | undefined = program.restrictOutputTo || config.outputRoot;
+  const outputRoot = outputRootRaw === undefined ? undefined : resolveConfigPath(basePath, outputRootRaw);
+
+  try {
+    assertOutputContained(outputFullPath, outputRoot);
+  } catch (e) {
+    if (e instanceof OutputOutsideRootError) {
+      console.error(e.message);
+      process.exit(ExitCode.ErrorUnsafePath);
+      return;
+    }
+    throw e;
+  }
+
   logger.log(`## Inputs merged, writing the results out to '${outputFullPath}'`);
 
 

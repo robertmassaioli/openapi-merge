@@ -54,7 +54,7 @@ called `openapi-merge.json` by default, in your current directory. It should loo
 
 In this configuration you specify your inputs and your output file. For each input you have the following parameters:
 
-* `inputFile` or `inputURL`: the relative path (or URL), from the `openapi-merge.json`, to the OpenAPI schema file for that input (in JSON or Yaml format).
+* `inputFile` or `inputURL`: the relative or absolute path (or URL), from the `openapi-merge.json`, to the OpenAPI schema file for that input (in JSON or Yaml format). Absolute paths (e.g. `/tmp/spec.yaml`) are honoured as-is.
 * `dispute`: if two inputs both define a component with the same name then, in order to prevent incorrect overlaps, we will attempt to use the dispute prefix or suffix to come up with a unique name for that component. Please [read the documentation for more details on the format](https://github.com/robertmassaioli/openapi-merge/wiki/configuration-definitions-dispute).
 * `pathModification.stripStart`: When copying over the `paths` from your OpenAPI specification for this input, it will strip this string from the start of the path if it is found.
 * `pathModification.prepend`: When copying over the `paths` from your OpenAPI specification for this input, it will prepend this string to the start of the path if it is found. `prepend` will always run after `stripStart` so that it is deterministic.
@@ -79,6 +79,39 @@ npx openapi-merge-cli --config path/to/openapi-merge.yaml
 ```
 
 And the merge should be run and complete! Congratulations and enjoy!
+
+## Paths
+
+Both `inputFile` and `output` accept either relative or absolute paths.
+Relative paths are resolved against the directory that contains the
+configuration file. Absolute paths (e.g. `/tmp/merged.yaml`,
+`C:\build\out.json`) are used as-is. This means you can safely write the
+merged spec into directories like `/tmp` or `/var/build/...` from CI.
+
+## Security
+
+`openapi-merge-cli` reads, merges, and writes files using the paths specified
+in your `openapi-merge.json` (or via `--config`). The tool assumes that this
+configuration file is **trusted**, the same way you trust a `Makefile`,
+`package.json`, or `webpack.config.js` in your repository. Do not run the CLI
+against a configuration file from an untrusted source without restricting the
+output location.
+
+For defence-in-depth in less-trusted contexts (for example a server that
+accepts user-supplied configs), you can restrict where the CLI will write the
+merged output:
+
+* Add `"outputRoot": "/path/to/safe/dir"` to your `openapi-merge.json`, **or**
+* Pass `--restrict-output-to /path/to/safe/dir` on the command line (the flag
+  takes precedence over the config field).
+
+When set, any resolved output path that does not lie under the configured
+root is rejected at config-load time with a clear error message, and the CLI
+exits with code `5` (`ExitCode.ErrorUnsafePath`). Symlink-out-of-jail tricks
+are defeated by realpath-ing the closest existing ancestor of the output.
+
+When unset, the CLI keeps its historical permissive default and writes
+wherever you tell it to.
 
 If you experience any issues then please [raise them in the bug tracker][1].
 

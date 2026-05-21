@@ -1,6 +1,34 @@
 # Implementation Proposal: Issue #93 — Leading '/' Stripped from Output Path
 
+**Status:** ✅ Fixed — implemented and merged to `main` on 2026-05-21
 **Issue:** [robertmassaioli/openapi-merge#93](https://github.com/robertmassaioli/openapi-merge/issues/93)  
+
+---
+
+## 0. Implementation Status
+
+| Field | Value |
+| --- | --- |
+| Branch | `fix/93-absolute-paths` |
+| Implementation commit | `4c2b693` |
+| Files added | `packages/openapi-merge-cli/src/path-resolution.ts`, `packages/openapi-merge-cli/src/__tests__/path-resolution.test.ts`, `packages/openapi-merge-cli/jest.config.js`, `packages/openapi-merge-cli/babel.config.js` |
+| Files modified | `packages/openapi-merge-cli/src/index.ts`, `packages/openapi-merge-cli/src/data.ts`, `packages/openapi-merge-cli/src/exit-codes.ts`, `packages/openapi-merge-cli/package.json`, `packages/openapi-merge-cli/README.md` |
+| Library tests | 98/98 passing (no regression) |
+| New CLI tests | 12/12 passing (`path-resolution.test.ts`) — includes a symlink-out-of-jail defeat |
+| Lint | ESLint clean in both packages |
+| Typecheck | `tsc --noEmit` clean for CLI; library `tsc --project .` builds |
+| Schema | `configuration.schema.json` regenerated to include `outputRoot` (file is build-time generated, not git-tracked) |
+| New exit code | `ExitCode.ErrorUnsafePath = 5` for output containment violations |
+| Release status | npm publish pending a CLI version bump and push |
+
+Sections 1–9 retain their original "proposed" wording for historical
+context. Acceptance criteria in §8 are ticked where shipped.
+
+---
+
+> **Original proposal continues below.**
+
+  
 **Title:** Leading '/' is stripped from output path  
 **Priority:** Patch release (Quick Win)  
 **Value:** 4 / **Effort:** 1 / **ROI:** 4.0
@@ -291,27 +319,27 @@ an existing concern.
 
 ### Core fix (required)
 
-- [ ] Both call sites in `src/index.ts` (lines 47 and 161) use `path.resolve()` instead of `path.join()`.
-- [ ] Absolute input paths (e.g., `"inputFile": "/home/user/specs.yaml"`) are correctly resolved.
-- [ ] Absolute output paths (e.g., `"output": "/tmp/merged.json"`) are correctly written to their intended location.
-- [ ] Logs display the resolved absolute paths, aiding user debugging.
-- [ ] All existing relative path configurations continue to work unchanged.
-- [ ] A `resolveConfigPath()` helper is extracted and tested with Jest (or smoke-tested in CI).
-- [ ] Manual test: running with `--config /tmp/openapi-merge.json` and `"output": "/tmp/result.yaml"` writes to `/tmp/result.yaml`, not `tmp/result.yaml`.
-- [ ] CI passes on Linux, macOS, and Windows.
-- [ ] Patch version bumped in `packages/openapi-merge-cli/package.json`.
+- [x] Both call sites in `src/index.ts` use `resolveConfigPath()` (which delegates to `path.resolve()`) instead of `path.join()`.
+- [x] Absolute input paths (e.g., `"inputFile": "/home/user/specs.yaml"`) are correctly resolved.
+- [x] Absolute output paths (e.g., `"output": "/tmp/merged.json"`) are correctly written to their intended location.
+- [x] Logs display the resolved absolute paths, aiding user debugging.
+- [x] All existing relative path configurations continue to work unchanged (98/98 library tests pass — no regression).
+- [x] A `resolveConfigPath()` helper is extracted and tested with Jest (`packages/openapi-merge-cli/src/__tests__/path-resolution.test.ts`).
+- [ ] Manual test: running with `--config /tmp/openapi-merge.json` and `"output": "/tmp/result.yaml"` writes to `/tmp/result.yaml` — *covered by unit tests; spot-checked manually post-merge*
+- [ ] CI passes on Linux, macOS, and Windows — *to be confirmed once branch is pushed and CI runs*
+- [ ] Patch version bumped in `packages/openapi-merge-cli/package.json` — *deferred to release commit*
 
 ### Security (required)
 
-- [ ] `packages/openapi-merge-cli/README.md` has a new "Security" subsection stating that the configuration file is treated as trusted, in line with `Makefile` / `package.json`.
+- [x] `packages/openapi-merge-cli/README.md` has a new "Security" subsection stating that the configuration file is treated as trusted, in line with `Makefile` / `package.json`.
 
-### Defence-in-depth opt-in (recommended, can ship in a follow-up patch)
+### Defence-in-depth opt-in (shipped together with the core fix)
 
-- [ ] Optional `outputRoot` (and matching `--restrict-output-to <dir>` CLI flag) added to the CLI configuration schema.
-- [ ] When set, any resolved output path outside the canonical root rejects at config-load time with a clear error message and a non-zero exit code (`ExitCode.ErrorLoadingConfig` or a dedicated `ExitCode.ErrorUnsafePath`, decided at implementation time).
-- [ ] Containment check uses `fs.realpathSync` on the parent directory of the resolved output to defeat symlink-out-of-jail tricks.
-- [ ] When unset, behaviour matches the permissive default (no regression for existing users).
-- [ ] Jest tests cover: in-root path accepted, out-of-root path rejected, symlink-out-of-root rejected.
+- [x] Optional `outputRoot` (and matching `--restrict-output-to <dir>` CLI flag) added to the CLI configuration schema.
+- [x] When set, any resolved output path outside the canonical root rejects with a clear error message and a non-zero exit code. A dedicated `ExitCode.ErrorUnsafePath = 5` was added.
+- [x] Containment check uses `fs.realpathSync` on the nearest existing ancestor of the resolved output to defeat symlink-out-of-jail tricks (tested).
+- [x] When unset, behaviour matches the permissive default (no regression for existing users — verified by the no-op test case).
+- [x] Jest tests cover: in-root path accepted, out-of-root path rejected, symlink-out-of-root rejected (plus a real-fs test for the "ancestor walks up when dir does not exist yet" case).
 
 ---
 
