@@ -1,8 +1,27 @@
 # Proposal: Issue #92 — Uncaught Exception Does Not Set Failure Status Code
 
-**Issue Link:** https://github.com/robertmassaioli/openapi-merge/issues/92  
-**Status:** Proposal  
-**Value:** 5 / **Effort:** 1  
+**Issue Link:** https://github.com/robertmassaioli/openapi-merge/issues/92
+**Status:** ✅ **Fixed** — implemented and merged to `main` on 2026-05-21
+**Value:** 5 / **Effort:** 1
+
+---
+
+## 0. Implementation Status
+
+| Field | Value |
+| --- | --- |
+| Status | ✅ **Fixed** |
+| Implemented on branch | `fix/92-uncaught-exit-code` |
+| Merged to `main` in | `1c6695c` (merge commit) |
+| Implementation commit | `d793f0b` — `fix(#92): propagate non-zero exit code on uncaught CLI errors` |
+| Verification | 98/98 Jest tests pass; ESLint clean for both packages; `tsc --noEmit` clean for the CLI |
+| Files touched | `packages/openapi-merge-cli/src/exit-codes.ts` (new), `cli.ts`, `index.ts`, `packages/openapi-merge/src/component-equivalence.ts`, `packages/openapi-merge/src/__tests__/component-equivalence.test.ts` (new) |
+| Released to npm | ❌ Not yet — pending a `version` bump in `package.json` and a push to `origin/main` (CI's `npm-publish.yml` will then publish automatically) |
+
+This proposal is preserved as a record of the design decision. The
+"Proposed" wording in sections 3–9 is retained for historical context;
+all proposed code is now live on `main`. The acceptance checklist in
+section 8 has been updated to reflect what shipped vs. what remains.
 
 ---
 
