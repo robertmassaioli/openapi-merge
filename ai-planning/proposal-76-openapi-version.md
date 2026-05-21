@@ -46,20 +46,20 @@ union. The default keeps today's behaviour (`'3.0.3'`); the others are
 opt-in. The strategy is set globally on `MergeOptions`, not per-input —
 the output document has exactly one `openapi` field.
 
-### Option A: `{ kind: 'fixed', version: string }` — **today's behaviour, the default**
+### Option A: `{ strategy: 'fixed', version: string }` — **today's behaviour, the default**
 - Always emit the given version (default `'3.0.3'`). Exactly what the
   library does today when `version` is unset.
 - **Pros:** Zero surprises, zero churn for existing users.
 - **Cons:** User must remember to update if Postman / other tooling cares.
 
-### Option B: `{ kind: 'first-input' }` — explicit "use input[0]'s declared version"
+### Option B: `{ strategy: 'first-input' }` — explicit "use input[0]'s declared version"
 - Reads `inputs[0].oas.openapi`. If that input has no `openapi` field
   (malformed), falls back to `'3.0.3'` and warns.
 - **Pros:** Aligns with the rest of the library's first-wins philosophy
   (info, servers, security…).
 - **Cons:** Surprising if `input[0]` is a stub at an old version.
 
-### Option C: `{ kind: 'highest-input' }` — pick the highest 3.0.x patch across all inputs (✓ **Recommended for most users**)
+### Option C: `{ strategy: 'highest-input' }` — pick the highest 3.0.x patch across all inputs (✓ **Recommended for most users**)
 - Walks every input's `openapi` field, groups by `major.minor`, and emits
   the highest patch within that line.
 - If inputs span multiple `major.minor` lines (e.g. one 3.0.2, one
@@ -75,20 +75,20 @@ the output document has exactly one `openapi` field.
 
 ### Option D: Combination via the discriminated union (✓ **Recommended overall shape**)
 Expose all three as variants of a single discriminated union. The default
-stays `{ kind: 'fixed', version: '3.0.3' }` so no existing user
+stays `{ strategy: 'fixed', version: '3.0.3' }` so no existing user
 regresses. `'highest-input'` is the recommendation in the README. Users
 who need a hard pin keep using `'fixed'`.
 
 ```ts
 type OutputOpenApiVersion =
-  | { kind: 'fixed'; version: string }
-  | { kind: 'first-input' }
-  | { kind: 'highest-input' };
+  | { strategy: 'fixed'; version: string }
+  | { strategy: 'first-input' }
+  | { strategy: 'highest-input' };
 
 interface MergeOptions {
   /**
    * How to choose the `openapi` field of the merged output. Default:
-   * { kind: 'fixed', version: '3.0.3' } (preserves historical behaviour).
+   * { strategy: 'fixed', version: '3.0.3' } (preserves historical behaviour).
    * 'highest-input' is recommended for most users because it picks the
    * most-conservative version that's still valid for every input.
    */
@@ -96,11 +96,11 @@ interface MergeOptions {
 }
 ```
 
-A nullary tagged object is verbose (`{ kind: 'highest-input' }`) but it
+A nullary tagged object is verbose (`{ strategy: 'highest-input' }`) but it
 keeps every variant on the same shape so an exhaustiveness check via
 `assertNever` is trivial. We pay the four extra characters at config
 sites for compile-time guarantees that any future variant we add (e.g.
-`{ kind: 'lowest-input' }`, `{ kind: 'derived-from-inputs', max: '3.0.x' }`)
+`{ strategy: 'lowest-input' }`, `{ strategy: 'derived-from-inputs', max: '3.0.x' }`)
 gets a compile error at every dispatch site.
 
 ---
@@ -119,14 +119,14 @@ export function merge(inputs: MergeInput): MergeResult
 ```typescript
 // packages/openapi-merge/src/options.ts
 export type OutputOpenApiVersion =
-  | { kind: 'fixed'; version: string }
-  | { kind: 'first-input' }
-  | { kind: 'highest-input' };
+  | { strategy: 'fixed'; version: string }
+  | { strategy: 'first-input' }
+  | { strategy: 'highest-input' };
 
 export interface MergeOptions {
   /**
    * How to choose the `openapi` field of the merged output. Default:
-   * { kind: 'fixed', version: '3.0.3' } (preserves historical behaviour).
+   * { strategy: 'fixed', version: '3.0.3' } (preserves historical behaviour).
    */
   openapiVersion?: OutputOpenApiVersion;
 }
@@ -140,11 +140,11 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult
 ```typescript
 function resolveOpenApiVersion(
   inputs: SingleMergeInput[],
-  strategy: OutputOpenApiVersion = { kind: 'fixed', version: '3.0.3' },
+  chosen: OutputOpenApiVersion = { strategy: 'fixed', version: '3.0.3' },
 ): { kind: 'ok'; version: string } | ErrorMergeResult {
-  switch (strategy.kind) {
+  switch (chosen.strategy) {
     case 'fixed':
-      return validateVersion(strategy.version);
+      return validateVersion(chosen.version);
     case 'first-input': {
       const v = inputs[0]?.oas?.openapi;
       if (!v) {
@@ -156,8 +156,8 @@ function resolveOpenApiVersion(
     case 'highest-input':
       return resolveHighestInput(inputs);
     default: {
-      const _exhaustive: never = strategy;
-      throw new Error(`Unknown openapiVersion.kind: ${String(_exhaustive)}`);
+      const _exhaustive: never = chosen;
+      throw new Error(`Unknown openapiVersion.strategy: ${String(_exhaustive)}`);
     }
   }
 }
@@ -176,13 +176,13 @@ export type Configuration = {
 
   /**
    * Optional. Strategy for choosing the `openapi` field of the merged
-   * output. Default: { "kind": "fixed", "version": "3.0.3" } — preserves
+   * output. Default: { "strategy": "fixed", "version": "3.0.3" } — preserves
    * the historical CLI behaviour.
    *
    * Examples:
-   *   { "kind": "fixed", "version": "3.0.2" }
-   *   { "kind": "first-input" }
-   *   { "kind": "highest-input" }   // recommended for mixed-version inputs
+   *   { "strategy": "fixed", "version": "3.0.2" }
+   *   { "strategy": "first-input" }
+   *   { "strategy": "highest-input" }   // recommended for mixed-version inputs
    */
   openapiVersion?: OutputOpenApiVersion;
 };
@@ -203,8 +203,8 @@ merge(inputs, { openapiVersion: config.openapiVersion });
 The CLI's `configuration.schema.json` (regenerated from `data.ts` via
 `typescript-json-schema`) gives us:
 
-- Tag check on `kind`.
-- `version` is required only when `kind === 'fixed'`.
+- Tag check on `strategy`.
+- `version` is required only when `strategy === 'fixed'`.
 - For the `fixed` variant, validate `version` against the
   `^3\.0\.[0-9]+$` pattern via the JSDoc `@pattern` annotation on the
   field.
@@ -261,7 +261,7 @@ function resolveHighestInput(inputs: SingleMergeInput[]) {
       message:
         `Inputs declare OpenAPI versions on multiple minor lines (${[...minors].join(', ')}). ` +
         `Cannot pick a highest-input version safely. Either align your inputs to a single ` +
-        `3.0.x line, switch to { kind: 'fixed', version: ... }, or upgrade once #113 lands.`,
+        `3.0.x line, switch to { strategy: 'fixed', version: ... }, or upgrade once #113 lands.`,
     };
   }
 
@@ -324,20 +324,20 @@ describe('merge - OpenAPI version handling', () => {
   });
 
   // --- fixed ---
-  it('emits the configured version under { kind: "fixed", version }', () => {
+  it('emits the configured version under { strategy: "fixed", version }', () => {
     const result = merge(
       [{ oas: minimumValidOas }],
-      { openapiVersion: { kind: 'fixed', version: '3.0.0' } },
+      { openapiVersion: { strategy: 'fixed', version: '3.0.0' } },
     );
     expect((result as SuccessfulMergeResult).output.openapi).toBe('3.0.0');
   });
 
   // --- first-input ---
-  it('uses the first input\'s openapi field under { kind: "first-input" }', () => {
+  it('uses the first input\'s openapi field under { strategy: "first-input" }', () => {
     const a = { ...minimumValidOas, openapi: '3.0.1' };
     const b = { ...minimumValidOas, openapi: '3.0.3' };
     const result = merge([{ oas: a }, { oas: b }], {
-      openapiVersion: { kind: 'first-input' },
+      openapiVersion: { strategy: 'first-input' },
     });
     expect((result as SuccessfulMergeResult).output.openapi).toBe('3.0.1');
   });
@@ -346,18 +346,18 @@ describe('merge - OpenAPI version handling', () => {
     const a = { ...minimumValidOas };
     delete (a as any).openapi;
     const result = merge([{ oas: a as any }], {
-      openapiVersion: { kind: 'first-input' },
+      openapiVersion: { strategy: 'first-input' },
     });
     expect((result as SuccessfulMergeResult).output.openapi).toBe('3.0.3');
   });
 
   // --- highest-input (new) ---
-  it('picks the highest 3.0.x patch under { kind: "highest-input" }', () => {
+  it('picks the highest 3.0.x patch under { strategy: "highest-input" }', () => {
     const a = { ...minimumValidOas, openapi: '3.0.0' };
     const b = { ...minimumValidOas, openapi: '3.0.2' };
     const c = { ...minimumValidOas, openapi: '3.0.1' };
     const result = merge([{ oas: a }, { oas: b }, { oas: c }], {
-      openapiVersion: { kind: 'highest-input' },
+      openapiVersion: { strategy: 'highest-input' },
     });
     expect((result as SuccessfulMergeResult).output.openapi).toBe('3.0.2');
   });
@@ -366,7 +366,7 @@ describe('merge - OpenAPI version handling', () => {
     const a = { ...minimumValidOas };
     delete (a as any).openapi;
     const result = merge([{ oas: a as any }], {
-      openapiVersion: { kind: 'highest-input' },
+      openapiVersion: { strategy: 'highest-input' },
     });
     expect((result as SuccessfulMergeResult).output.openapi).toBe('3.0.3');
   });
@@ -375,7 +375,7 @@ describe('merge - OpenAPI version handling', () => {
     const a = { ...minimumValidOas, openapi: '3.0.2' };
     const b = { ...minimumValidOas, openapi: '3.1.0' };
     const result = merge([{ oas: a }, { oas: b }], {
-      openapiVersion: { kind: 'highest-input' },
+      openapiVersion: { strategy: 'highest-input' },
     });
     expect(isErrorResult(result)).toBe(true);
     expect((result as ErrorMergeResult).type).toBe('output-version-conflict');
@@ -386,7 +386,7 @@ describe('merge - OpenAPI version handling', () => {
   // --- validation ---
   it('rejects OpenAPI 2.x with an actionable error', () => {
     const result = merge([{ oas: minimumValidOas }], {
-      openapiVersion: { kind: 'fixed', version: '2.0' },
+      openapiVersion: { strategy: 'fixed', version: '2.0' },
     });
     expect(isErrorResult(result)).toBe(true);
     expect((result as ErrorMergeResult).type).toBe('unsupported-openapi-version');
@@ -395,7 +395,7 @@ describe('merge - OpenAPI version handling', () => {
 
   it('rejects OpenAPI 3.1.x with a pointer to issue #113', () => {
     const result = merge([{ oas: minimumValidOas }], {
-      openapiVersion: { kind: 'fixed', version: '3.1.0' },
+      openapiVersion: { strategy: 'fixed', version: '3.1.0' },
     });
     expect(isErrorResult(result)).toBe(true);
     expect((result as ErrorMergeResult).message).toContain('#113');
@@ -403,7 +403,7 @@ describe('merge - OpenAPI version handling', () => {
 
   it('rejects unsupported 3.0.x patches', () => {
     const result = merge([{ oas: minimumValidOas }], {
-      openapiVersion: { kind: 'fixed', version: '3.0.7' },
+      openapiVersion: { strategy: 'fixed', version: '3.0.7' },
     });
     expect(isErrorResult(result)).toBe(true);
   });
@@ -426,13 +426,13 @@ via the optional second argument to `merge()`:
 import { merge } from 'openapi-merge';
 
 // 1. Hard-pin (today's default).
-merge(inputs, { openapiVersion: { kind: 'fixed', version: '3.0.2' } });
+merge(inputs, { openapiVersion: { strategy: 'fixed', version: '3.0.2' } });
 
 // 2. Inherit from the first input.
-merge(inputs, { openapiVersion: { kind: 'first-input' } });
+merge(inputs, { openapiVersion: { strategy: 'first-input' } });
 
 // 3. Pick the highest version across all inputs (recommended).
-merge(inputs, { openapiVersion: { kind: 'highest-input' } });
+merge(inputs, { openapiVersion: { strategy: 'highest-input' } });
 ```
 
 Supported versions are `3.0.0`, `3.0.1`, `3.0.2`, `3.0.3`. The
@@ -452,16 +452,16 @@ variants of a tagged-object discriminated union:
 
 | Variant                                                | Behaviour                                                                   |
 | ------------------------------------------------------ | --------------------------------------------------------------------------- |
-| `{ "kind": "fixed", "version": "3.0.3" }` *(default)*  | Always emit the given version.                                              |
-| `{ "kind": "first-input" }`                            | Use the first input's `openapi` field; fall back to `3.0.3` if missing.     |
-| `{ "kind": "highest-input" }`                          | Use the highest 3.0.x patch across all inputs (recommended).                |
+| `{ "strategy": "fixed", "version": "3.0.3" }` *(default)*  | Always emit the given version.                                              |
+| `{ "strategy": "first-input" }`                            | Use the first input's `openapi` field; fall back to `3.0.3` if missing.     |
+| `{ "strategy": "highest-input" }`                          | Use the highest 3.0.x patch across all inputs (recommended).                |
 
 Example:
 ```json
 {
   "inputs": [...],
   "output": "./merged.json",
-  "openapiVersion": { "kind": "highest-input" }
+  "openapiVersion": { "strategy": "highest-input" }
 }
 ```
 ```
@@ -471,7 +471,7 @@ Example:
 ## 8. Backwards Compatibility & Versioning
 
 - **Breaking changes:** None. The second parameter is optional; default
-  behaviour is `{ kind: 'fixed', version: '3.0.3' }`, byte-identical to
+  behaviour is `{ strategy: 'fixed', version: '3.0.3' }`, byte-identical to
   today.
 - **Version bumps:** `minor` for both `openapi-merge` and `openapi-merge-cli`.
 - **Deprecation notes:** No deprecations required.
@@ -510,8 +510,8 @@ matches the discriminated-union approach used in #114.
 - [ ] `MergeOptions` and the `OutputOpenApiVersion` discriminated union
       are exported from the library.
 - [ ] `merge()` accepts an optional second `MergeOptions` parameter; the
-      default is `{ kind: 'fixed', version: '3.0.3' }`.
-- [ ] Dispatch on `kind` is exhaustive and protected by an `assertNever`
+      default is `{ strategy: 'fixed', version: '3.0.3' }`.
+- [ ] Dispatch on `strategy` is exhaustive and protected by an `assertNever`
       check.
 - [ ] `'unsupported-openapi-version'` and `'output-version-conflict'`
       are added to `ErrorType`.

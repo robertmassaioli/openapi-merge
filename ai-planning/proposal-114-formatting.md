@@ -23,14 +23,14 @@ Both are hard-coded to 2-space indentation with no user control.
 
 ## 3. Proposed Configuration Schema
 
-Extend the `Configuration` type in `packages/openapi-merge-cli/src/data.ts` with an optional `formatting` block whose `indent` field is a **discriminated union** keyed on `kind`:
+Extend the `Configuration` type in `packages/openapi-merge-cli/src/data.ts` with an optional `formatting` block whose `indent` field is a **discriminated union** keyed on `strategy`:
 
 ```typescript
 /**
  * Indent using a fixed number of space characters per level.
  */
 export type SpaceIndent = {
-  kind: 'spaces';
+  strategy: 'spaces';
   /**
    * Number of space characters per indentation level.
    * Must be an integer between 1 and 8 (typical editor defaults).
@@ -44,11 +44,11 @@ export type SpaceIndent = {
  * Indent using a single tab character per level.
  *
  * Note: This is only valid for JSON output. YAML 1.1 disallows tabs as
- * indentation, so a YAML output combined with `kind: 'tabs'` is rejected
+ * indentation, so a YAML output combined with `strategy: 'tabs'` is rejected
  * at configuration-validation time (see section 6).
  */
 export type TabIndent = {
-  kind: 'tabs';
+  strategy: 'tabs';
 };
 
 export type Indent = SpaceIndent | TabIndent;
@@ -60,7 +60,7 @@ export type OutputFormatting = {
    * the TypeScript compiler / JSON Schema validator can guarantee no
    * contradictory combinations (e.g. tabs + a space width).
    *
-   * @default { kind: 'spaces', width: 2 }
+   * @default { strategy: 'spaces', width: 2 }
    */
   indent?: Indent;
 };
@@ -71,7 +71,7 @@ export type Configuration = {
 
   /**
    * Optional formatting rules for the output (JSON/YAML indentation).
-   * Defaults to `{ indent: { kind: 'spaces', width: 2 } }`, preserving
+   * Defaults to `{ indent: { strategy: 'spaces', width: 2 } }`, preserving
    * the current behaviour.
    */
   formatting?: OutputFormatting;
@@ -82,13 +82,13 @@ export type Configuration = {
 
 ```jsonc
 // Default behaviour — equivalent to omitting `formatting` entirely
-{ "formatting": { "indent": { "kind": "spaces", "width": 2 } } }
+{ "formatting": { "indent": { "strategy": "spaces", "width": 2 } } }
 
 // 4-space indentation
-{ "formatting": { "indent": { "kind": "spaces", "width": 4 } } }
+{ "formatting": { "indent": { "strategy": "spaces", "width": 4 } } }
 
 // Tab indentation (JSON output only)
-{ "formatting": { "indent": { "kind": "tabs" } } }
+{ "formatting": { "indent": { "strategy": "tabs" } } }
 ```
 
 ### Why a discriminated union here
@@ -97,10 +97,10 @@ This shape was chosen over a flat `{ indent: number; useTabs: boolean }` after w
 
 A discriminated union eliminates that ambiguity by construction:
 
-- **Type safety** — TypeScript narrows on `indent.kind` and refuses to read `width` on a `TabIndent`, or to omit `width` on a `SpaceIndent`. Every reachable state is well-defined.
+- **Type safety** — TypeScript narrows on `indent.strategy` and refuses to read `width` on a `TabIndent`, or to omit `width` on a `SpaceIndent`. Every reachable state is well-defined.
 - **No contradictory states** — there is no way to express "tabs of width 4" or "spaces but use tabs". Configuration-load-time validation reduces to checking the `width` range for `SpaceIndent`.
-- **JSON Schema friendly** — Ajv handles tagged-union schemas natively via the `discriminator` keyword (or via a small `oneOf` with `const` on `kind`). Both styles are well-supported by `typescript-json-schema` which we already use.
-- **Future-proof** — adding new indent strategies later (e.g. `{ kind: 'mixed', ... }` for the rare repos that demand it) is a single new variant; no flag explosion.
+- **JSON Schema friendly** — Ajv handles tagged-union schemas natively via the `discriminator` keyword (or via a small `oneOf` with `const` on `strategy`). Both styles are well-supported by `typescript-json-schema` which we already use.
+- **Future-proof** — adding new indent strategies later (e.g. `{ strategy: 'mixed', ... }` for the rare repos that demand it) is a single new variant; no flag explosion.
 
 ### Rejected alternative: flat `{ indent, useTabs }`
 
@@ -140,23 +140,23 @@ Update `packages/openapi-merge-cli/src/data.ts`:
 
 ### Step 2: Centralise the default in one place
 
-Add a `DEFAULT_INDENT` constant so the literal `{ kind: 'spaces', width: 2 }` is never spread across the codebase:
+Add a `DEFAULT_INDENT` constant so the literal `{ strategy: 'spaces', width: 2 }` is never spread across the codebase:
 
 ```typescript
 // packages/openapi-merge-cli/src/data.ts (or a small helpers file)
-export const DEFAULT_INDENT: Indent = { kind: 'spaces', width: 2 };
+export const DEFAULT_INDENT: Indent = { strategy: 'spaces', width: 2 };
 ```
 
 ### Step 3: Update `writeOutput` / `dumpAsYaml`
 
-Modify `packages/openapi-merge-cli/src/index.ts` (lines 113–124). The discriminated union lets us exhaustively switch on `indent.kind`, which the TypeScript compiler enforces (`assertNever` ensures any future variant breaks the build until handled):
+Modify `packages/openapi-merge-cli/src/index.ts` (lines 113–124). The discriminated union lets us exhaustively switch on `indent.strategy`, which the TypeScript compiler enforces (`assertNever` ensures any future variant breaks the build until handled):
 
 ```typescript
 import { Indent, OutputFormatting } from './data';
 import { DEFAULT_INDENT } from './data';
 
 function assertNever(x: never): never {
-  throw new Error(`Unhandled indent kind: ${JSON.stringify(x)}`);
+  throw new Error(`Unhandled indent strategy: ${JSON.stringify(x)}`);
 }
 
 /**
@@ -164,10 +164,10 @@ function assertNever(x: never): never {
  * that JSON.stringify / yaml.safeDump expect for their `space` /
  * `indent` argument. JSON accepts a string (for tabs) or a number;
  * YAML only accepts a number (tabs are rejected upstream by config
- * validation, so the YAML path can assume `kind === 'spaces'`).
+ * validation, so the YAML path can assume `strategy === 'spaces'`).
  */
 function indentToJsonStringifyArg(indent: Indent): string | number {
-  switch (indent.kind) {
+  switch (indent.strategy) {
     case 'spaces': return indent.width;
     case 'tabs':   return '\t';
     default:       return assertNever(indent);
@@ -176,7 +176,7 @@ function indentToJsonStringifyArg(indent: Indent): string | number {
 
 function dumpAsYaml(blob: unknown, formatting?: OutputFormatting): string {
   const indent = formatting?.indent ?? DEFAULT_INDENT;
-  if (indent.kind !== 'spaces') {
+  if (indent.strategy !== 'spaces') {
     // Defensive: configuration validation should have rejected this already.
     throw new Error(
       `Tab indentation is not supported for YAML output (.yaml/.yml); ` +
@@ -220,15 +220,15 @@ This regenerates `src/configuration.schema.json` with validation rules for the n
 
 Enforce at configuration load time (`packages/openapi-merge-cli/src/load-configuration.ts`). Because we use a discriminated union, most of the structural validation is free from the JSON Schema generated by `typescript-json-schema`:
 
-1. **Tag check** (free from the schema): `indent.kind` must be `"spaces"` or `"tabs"`. Anything else is rejected by Ajv before our code runs.
+1. **Tag check** (free from the schema): `indent.strategy` must be `"spaces"` or `"tabs"`. Anything else is rejected by Ajv before our code runs.
 2. **`SpaceIndent.width`** (free from the schema): integer in range `[1, 8]` (inclusive). Typical values: 2, 4. Enforce via `minimum`/`maximum`/`type: integer` in the schema (add `@minimum 1` / `@maximum 8` JSDoc tags so `typescript-json-schema` emits the constraint).
-3. **YAML + tabs conflict** (semantic, enforced in code after the schema check): if `indent.kind === 'tabs'` and the resolved output extension is `.yaml` or `.yml`, reject with a clear error message such as: *"Tab indentation is not supported for YAML output; YAML 1.1 disallows tabs as indentation. Use `{ \"kind\": \"spaces\", \"width\": N }` or output to JSON."* Surface this as `ExitCode.ErrorLoadingConfig`.
-4. **Default**: when `formatting` or `formatting.indent` is omitted, behaviour is exactly today's (`DEFAULT_INDENT === { kind: 'spaces', width: 2 }`).
+3. **YAML + tabs conflict** (semantic, enforced in code after the schema check): if `indent.strategy === 'tabs'` and the resolved output extension is `.yaml` or `.yml`, reject with a clear error message such as: *"Tab indentation is not supported for YAML output; YAML 1.1 disallows tabs as indentation. Use `{ \"strategy\": \"spaces\", \"width\": N }` or output to JSON."* Surface this as `ExitCode.ErrorLoadingConfig`.
+4. **Default**: when `formatting` or `formatting.indent` is omitted, behaviour is exactly today's (`DEFAULT_INDENT === { strategy: 'spaces', width: 2 }`).
 
 Notes:
 
 - A `TabIndent` with no `width` property is unrepresentable by construction, so there is no "tabs of width 4" combination to reject.
-- A `SpaceIndent` with `width` missing is also unrepresentable, so users cannot omit the width and silently fall back. They either omit `formatting.indent` entirely (and get the default) or they specify `{ kind: 'spaces', width: N }` in full.
+- A `SpaceIndent` with `width` missing is also unrepresentable, so users cannot omit the width and silently fall back. They either omit `formatting.indent` entirely (and get the default) or they specify `{ strategy: 'spaces', width: N }` in full.
 
 ---
 
@@ -256,9 +256,9 @@ export function formatOutput(
 import { formatOutput } from '../index';
 import { Indent } from '../data';
 
-const SPACES_2: Indent = { kind: 'spaces', width: 2 };
-const SPACES_4: Indent = { kind: 'spaces', width: 4 };
-const TABS:     Indent = { kind: 'tabs' };
+const SPACES_2: Indent = { strategy: 'spaces', width: 2 };
+const SPACES_4: Indent = { strategy: 'spaces', width: 4 };
+const TABS:     Indent = { strategy: 'tabs' };
 
 describe('formatOutput', () => {
   const mockBlob = { openapi: '3.0.3', info: { title: 'Test' } };
@@ -273,7 +273,7 @@ describe('formatOutput', () => {
     expect(result).toMatch(/\n    "/);
   });
 
-  it('formats JSON with tab indent when indent.kind === "tabs"', () => {
+  it('formats JSON with tab indent when indent.strategy === "tabs"', () => {
     const result = formatOutput(mockBlob, false, { indent: TABS });
     expect(result).toMatch(/\n\t"/);
   });
@@ -304,10 +304,10 @@ describe('formatOutput', () => {
 
 Additional coverage worth adding (load-configuration tests):
 
-- Schema rejects `{ indent: { kind: 'tabs', width: 4 } }` (excess property) — proves the discriminator is enforced.
-- Schema rejects `{ indent: { kind: 'spaces' } }` (missing `width`).
-- Schema rejects `{ indent: { kind: 'something-else' } }` (unknown discriminator).
-- Semantic validation rejects `kind: 'tabs'` when `output` ends in `.yaml` / `.yml`.
+- Schema rejects `{ indent: { strategy: 'tabs', width: 4 } }` (excess property) — proves the discriminator is enforced.
+- Schema rejects `{ indent: { strategy: 'spaces' } }` (missing `width`).
+- Schema rejects `{ indent: { strategy: 'something-else' } }` (unknown discriminator).
+- Semantic validation rejects `strategy: 'tabs'` when `output` ends in `.yaml` / `.yml`.
 
 ---
 
@@ -330,16 +330,16 @@ width) or tabs. Omit `formatting` entirely to keep the default of
   "output": "./merged.json",
   "formatting": {
     // 4 spaces:
-    "indent": { "kind": "spaces", "width": 4 }
+    "indent": { "strategy": "spaces", "width": 4 }
 
     // ...or tabs (JSON only):
-    // "indent": { "kind": "tabs" }
+    // "indent": { "strategy": "tabs" }
   }
 }
 ```
 
-**Note**: Tab indentation (`{ "kind": "tabs" }`) applies to JSON only.
-YAML 1.1 disallows tabs as indentation, so combining `kind: "tabs"`
+**Note**: Tab indentation (`{ "strategy": "tabs" }`) applies to JSON only.
+YAML 1.1 disallows tabs as indentation, so combining `strategy: "tabs"`
 with a `.yaml`/`.yml` output is rejected at configuration-load time.
 ```
 
@@ -372,14 +372,14 @@ union.
 - [ ] `SpaceIndent`, `TabIndent`, `Indent`, and `OutputFormatting` types defined; `DEFAULT_INDENT` constant exported from `cli/src/data.ts`.
 - [ ] `Configuration.formatting?: OutputFormatting` added to `cli/src/data.ts`.
 - [ ] `dumpAsYaml` and `writeOutput` updated to accept the optional `formatting` argument, defaulting to `DEFAULT_INDENT`.
-- [ ] `indentToJsonStringifyArg` helper exhaustively switches on `indent.kind` and uses `assertNever` as a compile-time guard against future variants.
-- [ ] Configuration validation rejects `indent: { kind: 'tabs' }` for `.yaml`/`.yml` outputs with a clear error message and `ExitCode.ErrorLoadingConfig`.
+- [ ] `indentToJsonStringifyArg` helper exhaustively switches on `indent.strategy` and uses `assertNever` as a compile-time guard against future variants.
+- [ ] Configuration validation rejects `indent: { strategy: 'tabs' }` for `.yaml`/`.yml` outputs with a clear error message and `ExitCode.ErrorLoadingConfig`.
 - [ ] `formatting` block is optional; omitting it preserves the current 2-space JSON / 2-space YAML behaviour byte-for-byte.
-- [ ] `yarn gen-schema` regenerates `configuration.schema.json` with the discriminated-union (`oneOf` on `kind`) plus the `SpaceIndent.width` `[1, 8]` constraint.
+- [ ] `yarn gen-schema` regenerates `configuration.schema.json` with the discriminated-union (`oneOf` on `strategy`) plus the `SpaceIndent.width` `[1, 8]` constraint.
 - [ ] Jest tests added for `formatOutput` covering: JSON default, JSON 4-space, JSON tabs, YAML default, YAML 4-space, YAML+tabs rejection, default ≡ explicit `SPACES_2`.
-- [ ] Jest / load-configuration tests added for: schema rejects extra `width` on `kind: 'tabs'`, missing `width` on `kind: 'spaces'`, and unknown `kind` values.
+- [ ] Jest / load-configuration tests added for: schema rejects extra `width` on `strategy: 'tabs'`, missing `width` on `strategy: 'spaces'`, and unknown `strategy` values.
 - [ ] README updated with the new tagged-object syntax and the YAML+tabs limitation note.
-- [ ] E2E test (manual or shell-based) confirms merged output respects `{ kind: 'spaces', width: 4 }` and `{ kind: 'tabs' }` for JSON.
+- [ ] E2E test (manual or shell-based) confirms merged output respects `{ strategy: 'spaces', width: 4 }` and `{ strategy: 'tabs' }` for JSON.
 - [ ] All existing tests pass; no breaking changes to public CLI API.
 - [ ] CLI version bumped to `1.4.0`; library version unchanged.
 
@@ -388,6 +388,6 @@ union.
 ## 12. Risks & Notes
 
 1. **YAML spec limitation**: Clearly document that YAML does not support tab indentation. Reject at config-validation time rather than silently falling back.
-2. **`js-yaml` limitations**: The `yaml.safeDump` API does not expose tab options; indent is always numeric. The discriminated union makes this constraint trivial to enforce: the YAML path can statically narrow to `kind: 'spaces'` after the validation check.
+2. **`js-yaml` limitations**: The `yaml.safeDump` API does not expose tab options; indent is always numeric. The discriminated union makes this constraint trivial to enforce: the YAML path can statically narrow to `strategy: 'spaces'` after the validation check.
 3. **Backwards compatibility**: Fully maintained. Configs without `formatting` block work unchanged because `DEFAULT_INDENT` reproduces the historical behaviour.
-4. **Discriminator key naming**: We chose `kind` over `type` to avoid colliding with OpenAPI's `type` keyword in JSON Schema, which would confuse readers and tooling. Pick once and stick with it across any future variants we introduce.
+4. **Discriminator key naming**: We chose `strategy` over `kind` and `type`. `type` was rejected because it collides with OpenAPI's `type` keyword in JSON Schema, which would confuse readers and tooling. `kind` was rejected because `strategy` more clearly conveys intent at config sites (e.g. `{ "strategy": "tabs" }` reads as "the indentation strategy is tabs", whereas `{ "kind": "tabs" }` reads as a type-tag without the same self-documenting quality). The same key is used across every discriminated union in the public API — see proposal-76 (`OutputOpenApiVersion`) for the precedent — so users learn it once.
