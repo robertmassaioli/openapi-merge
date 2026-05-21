@@ -92,7 +92,7 @@ combinations (e.g. "tabs of width 4") are unrepresentable:
   "output": "./merged.json",
 
   // 4-space indentation (default is 2 spaces; same as today's behaviour).
-  "formatting": { "indent": { "strategy": "spaces", "width": 4 } }
+  "formatting": { "indent": { "style": "spaces", "width": 4 } }
 }
 ```
 
@@ -102,7 +102,7 @@ combinations (e.g. "tabs of width 4") are unrepresentable:
   "output": "./merged.json",
 
   // Tab indentation. JSON only — see note below.
-  "formatting": { "indent": { "strategy": "tabs" } }
+  "formatting": { "indent": { "style": "tabs" } }
 }
 ```
 
@@ -110,7 +110,7 @@ If `formatting` is omitted the output keeps the historical default of
 two-space indentation.
 
 **Note:** YAML 1.1 disallows tab characters as indentation. Combining
-`{ "strategy": "tabs" }` with a `.yaml` or `.yml` output is rejected at
+`{ "style": "tabs" }` with a `.yaml` or `.yml` output is rejected at
 configuration-load time with a clear error message.
 
 ## Paths

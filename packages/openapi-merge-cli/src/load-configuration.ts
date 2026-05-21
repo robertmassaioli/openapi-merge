@@ -14,18 +14,18 @@ const YAML_EXTENSIONS = ['.yaml', '.yml'];
  *
  * Currently:
  * - YAML 1.1 disallows tab characters as indentation. If the output
- *   file extension is `.yaml` or `.yml` AND `formatting.indent.strategy`
+ *   file extension is `.yaml` or `.yml` AND `formatting.indent.style`
  *   is `'tabs'`, reject with a clear, actionable message (issue #114).
  */
 export function validateConfigurationSemantics(config: Configuration): string | undefined {
   const indent = config.formatting?.indent;
-  if (indent && indent.strategy === 'tabs') {
+  if (indent && indent.style === 'tabs') {
     const ext = path.extname(config.output).toLowerCase();
     if (YAML_EXTENSIONS.includes(ext)) {
       return (
         `Tab indentation is not supported for YAML output (output: '${config.output}'). ` +
         `YAML 1.1 disallows tab characters as indentation. Use ` +
-        `{ "strategy": "spaces", "width": N } in formatting.indent, or write to a ` +
+        `{ "style": "spaces", "width": N } in formatting.indent, or write to a ` +
         `.json output.`
       );
     }
