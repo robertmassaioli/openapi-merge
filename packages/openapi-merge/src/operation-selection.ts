@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import { Swagger } from "atlassian-openapi";
+import { Swagger } from "@atlassian/atlassian-openapi";
 import { OperationSelection } from './data';
 
 const allMethods: Swagger.Method[] = [

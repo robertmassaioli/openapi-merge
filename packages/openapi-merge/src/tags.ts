@@ -1,5 +1,5 @@
 import { MergeInput } from './data';
-import { Swagger } from 'atlassian-openapi';
+import { Swagger } from '@atlassian/atlassian-openapi';
 
 function getNonExcludedTags(originalTags: Swagger.Tag[], excludedTagNames: string[]): Swagger.Tag[] {
   if (excludedTagNames.length === 0) {

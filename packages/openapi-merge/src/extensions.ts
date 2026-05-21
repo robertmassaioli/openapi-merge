@@ -1,4 +1,4 @@
-import { Swagger } from "atlassian-openapi";
+import { Swagger } from "@atlassian/atlassian-openapi";
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 type Extensions = { [extensionKey: string]: any };

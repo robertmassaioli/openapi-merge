@@ -1,4 +1,4 @@
-import { Swagger } from 'atlassian-openapi';
+import { Swagger } from '@atlassian/atlassian-openapi';
 
 export function toOAS(paths: Swagger.Paths, components?: Swagger.Components): Swagger.SwaggerV3 {
   return {

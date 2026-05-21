@@ -16,7 +16,7 @@ This library is intended to be used in a JavaScript or Typescript project. Here 
 
 ``` typescript
 import { merge, isErrorResult } from 'openapi-merge';
-import { Swagger } from 'atlassian-openapi';
+import { Swagger } from '@atlassian/atlassian-openapi';
 
 // Does not have to use the 'SwaggerV3' type, the merge function will accept 'any' so long as the underlying object is valid
 const oas1: Swagger.SwaggerV3 = {

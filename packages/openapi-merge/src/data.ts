@@ -1,4 +1,4 @@
-import { Swagger } from 'atlassian-openapi';
+import { Swagger } from '@atlassian/atlassian-openapi';
 
 export type OperationSelection = {
   /**

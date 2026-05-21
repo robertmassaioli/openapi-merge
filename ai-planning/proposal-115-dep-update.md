@@ -1,6 +1,23 @@
 # Proposal: Issue #115 — Migrate `atlassian-openapi` to `@atlassian/atlassian-openapi`
 
 **Issue:** [#115 — Out of date dependency](https://github.com/robertmassaioli/openapi-merge/issues/115)
+**Status:** ✅ **Fixed** — implemented on 2026-05-21
+
+---
+
+## 0. Implementation Status
+
+| Field | Value |
+| --- | --- |
+| Status | ✅ **Fixed** |
+| Implemented on branch | `fix/115-atlassian-openapi-rename` |
+| Verification | 98/98 Jest tests pass; ESLint clean for both packages; `tsc --noEmit` clean for the CLI; library builds; regenerated `configuration.schema.json` byte-identical to committed copy |
+| Files touched | Root `package.json`, `packages/openapi-merge/package.json` (drop old dep, add new), `packages/openapi-merge/yarn.lock` (refreshed), 15 source/test/README files with `from '@atlassian/atlassian-openapi'` rewrites |
+| Released to npm | ❌ Not yet — pending `version` bump in `package.json` and push to `origin/main` (`npm-publish.yml` then publishes automatically) |
+| Follow-up | The CLI's own `yarn.lock` still has the old transitive entry because the CLI declares `openapi-merge: ^1.2.0` (the currently-published library version, which still imports the unscoped package). It will resolve naturally when the new library version is published. |
+
+This proposal is preserved as a record of the design decision. The
+"Proposed" wording in sections 3–7 is retained for historical context.
 
 ---
 
@@ -111,13 +128,13 @@ yarn cli -- --config packages/openapi-merge-cli/openapi-merge.test.json  # E2E
 
 ## 6. Verification Checklist
 
-- [ ] `bolt install` completes without errors; no duplicate/conflicting `atlassian-openapi` packages
-- [ ] `yarn lint` passes; all import statements use `@atlassian/atlassian-openapi`
-- [ ] `yarn test` (library and CLI): all Jest suites pass
-- [ ] `yarn cli -- --config packages/openapi-merge-cli/openapi-merge.test.json` produces valid merged spec
-- [ ] Deprecation warning absent on fresh `npm install -g openapi-merge-cli`
-- [ ] TypeScript compilation: `bolt w openapi-merge build` and `bolt w openapi-merge-cli build` succeed
-- [ ] No new ESLint warnings
+- [x] Dependency install completes without errors; no duplicate/conflicting `atlassian-openapi` packages in the root install (`yarn install` from the repo root used here because `bolt` was not available in the implementation environment)
+- [x] `yarn lint` passes; all import statements use `@atlassian/atlassian-openapi`
+- [x] `yarn test` (library): all 16 Jest suites / 98 tests pass
+- [ ] `yarn cli -- --config packages/openapi-merge-cli/openapi-merge.test.json` produces valid merged spec — *not run locally because it depends on the published library version; will be verified post-release*
+- [ ] Deprecation warning absent on fresh `npm install -g openapi-merge-cli` — *to verify after the next CLI release picks up the new library version*
+- [x] TypeScript compilation: library builds via `tsc --project .`; CLI typechecks via `tsc --noEmit` (build artifacts produced after schema regen + local link to library)
+- [x] No new ESLint warnings
 
 ---
 

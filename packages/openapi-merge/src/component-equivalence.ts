@@ -1,5 +1,5 @@
 import { Modify } from "./reference-walker";
-import { Swagger, SwaggerTypeChecks as TC, SwaggerLookup as Lookup } from 'atlassian-openapi';
+import { Swagger, SwaggerTypeChecks as TC, SwaggerLookup as Lookup } from '@atlassian/atlassian-openapi';
 import _ from 'lodash';
 import { isPresent } from 'ts-is-present';
 

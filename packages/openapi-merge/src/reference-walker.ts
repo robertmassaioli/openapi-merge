@@ -1,5 +1,5 @@
 /* eslint-disable no-prototype-builtins */
-import { Swagger, SwaggerTypeChecks as TC } from "atlassian-openapi";
+import { Swagger, SwaggerTypeChecks as TC } from "@atlassian/atlassian-openapi";
 
 export type Modify = (input: string) => string;
 

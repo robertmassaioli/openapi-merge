@@ -3,7 +3,7 @@ import { MergeInput, MergeResult, isErrorResult, PathModification, OperationSele
 import { mergeTags } from './tags';
 import { mergePathsAndComponents } from './paths-and-components';
 import { mergeExtensions } from './extensions';
-import { Swagger } from 'atlassian-openapi';
+import { Swagger } from '@atlassian/atlassian-openapi';
 import { mergeInfos } from './info';
 
 export { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection };
