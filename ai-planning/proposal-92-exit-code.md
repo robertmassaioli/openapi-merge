@@ -333,16 +333,16 @@ This is an **intentional fix**, not a breaking change to the API. However:
 
 ## 8. Acceptance Criteria
 
-- [ ] `packages/openapi-merge-cli/src/exit-codes.ts` exists and exports a `ExitCode` enum with `Success`, `ErrorLoadingConfig`, `ErrorLoadingInputs`, `ErrorMerging`, and `ErrorUncaught` members
-- [ ] No magic exit-code numbers remain in `cli/src/index.ts` or `cli/src/cli.ts`; all `process.exit(...)` call sites reference `ExitCode.*`
-- [ ] The three legacy `const ERROR_*` declarations in `index.ts` are removed
-- [ ] `cli.ts` `.catch()` handler calls `process.exit(ExitCode.ErrorUncaught)` on any error
-- [ ] `component-equivalence.ts` `compare()` function does not throw on null/undefined inputs (existing `isPresent()` guards suffice)
-- [ ] Jest tests pass; new null-handling tests confirm no exceptions are thrown
-- [ ] Manual e2e test: running the CLI with invalid input returns exit code 4 (not 0)
-- [ ] CI workflows (`branch-test.yml`, `npm-publish.yml`) do not regress
-- [ ] Changelog updated to note the fix (optional but recommended)
-- [ ] Version bumped in `package.json` files (patch bump)
+- [x] `packages/openapi-merge-cli/src/exit-codes.ts` exists and exports a `ExitCode` enum with `Success`, `ErrorLoadingConfig`, `ErrorLoadingInputs`, `ErrorMerging`, and `ErrorUncaught` members
+- [x] No magic exit-code numbers remain in `cli/src/index.ts` or `cli/src/cli.ts`; all `process.exit(...)` call sites reference `ExitCode.*`
+- [x] The three legacy `const ERROR_*` declarations in `index.ts` are removed
+- [x] `cli.ts` `.catch()` handler calls `process.exit(ExitCode.ErrorUncaught)` on any error
+- [x] `component-equivalence.ts` `compare()` / `shallowEquality` do not throw on null/undefined inputs (existing `isPresent()` guards + a new guard in `shallowEquality`)
+- [x] Jest tests pass; new null-handling tests confirm no exceptions are thrown (98/98 suites green locally)
+- [ ] Manual e2e test: running the CLI with invalid input returns exit code 4 (not 0) — *to be verified in CI / by maintainer on a real environment*
+- [ ] CI workflows (`branch-test.yml`, `npm-publish.yml`) do not regress — *pending push*
+- [ ] Changelog updated to note the fix (optional but recommended) — *pending*
+- [ ] Version bumped in `package.json` files (patch bump) — *pending; will trigger npm-publish.yml*
 
 ---
 
