@@ -13,6 +13,8 @@ import yaml from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
 import { ExitCode } from "./exit-codes";
 import { assertOutputContained, OutputOutsideRootError, resolveConfigPath } from "./path-resolution";
+import { indentToJsonStringifyArg, indentToYamlArg } from "./formatting";
+import { DEFAULT_INDENT, Indent } from "./data";
 
 export { ExitCode } from "./exit-codes";
 
@@ -112,15 +114,15 @@ function isYamlExtension(filePath: string): boolean {
   return ['.yaml', '.yml'].includes(extension);
 }
 
-function dumpAsYaml(blob: unknown): string {
+function dumpAsYaml(blob: unknown, indent: Indent = DEFAULT_INDENT): string {
   // Note: The JSON stringify and parse is required to strip the undefined values: https://github.com/nodeca/js-yaml/issues/571
-  return yaml.safeDump(JSON.parse(JSON.stringify(blob)), { indent: 2 });
+  return yaml.safeDump(JSON.parse(JSON.stringify(blob)), { indent: indentToYamlArg(indent) });
 }
 
-function writeOutput(outputFullPath: string, outputSchema: Swagger.SwaggerV3): void {
+function writeOutput(outputFullPath: string, outputSchema: Swagger.SwaggerV3, indent: Indent = DEFAULT_INDENT): void {
   const fileContents = isYamlExtension(outputFullPath)
-    ? dumpAsYaml(outputSchema)
-    : JSON.stringify(outputSchema, null, 2);
+    ? dumpAsYaml(outputSchema, indent)
+    : JSON.stringify(outputSchema, null, indentToJsonStringifyArg(indent));
 
   fs.writeFileSync(outputFullPath, fileContents);
 }
@@ -182,7 +184,7 @@ export async function main(): Promise<void> {
   logger.log(`## Inputs merged, writing the results out to '${outputFullPath}'`);
 
 
-  writeOutput(outputFullPath, mergeResult.output);
+  writeOutput(outputFullPath, mergeResult.output, config.formatting?.indent);
 
   logger.log(`## Finished writing to '${outputFullPath}'`);
 }

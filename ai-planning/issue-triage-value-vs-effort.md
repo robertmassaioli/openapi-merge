@@ -65,7 +65,7 @@ Higher is better; ties broken by lower effort first.
 | 2 | [#115](https://github.com/robertmassaioli/openapi-merge/issues/115) | Out of date dependency (`atlassian-openapi` deprecation) | 5 | 1 | **9** | Quick Win | ✅ [proposal-115-dep-update.md](proposal-115-dep-update.md) |
 | 3 | [#93](https://github.com/robertmassaioli/openapi-merge/issues/93) | Leading `/` is stripped from output path | 4 | 1 | **7** | Quick Win | ✅ [proposal-93-absolute-paths.md](proposal-93-absolute-paths.md) |
 | 4 | [#76](https://github.com/robertmassaioli/openapi-merge/issues/76) | Fix / configure emitted OpenAPI version | 4 | 1 | **7** | Quick Win | 📝 [proposal-76-openapi-version.md](proposal-76-openapi-version.md) |
-| 5 | [#114](https://github.com/robertmassaioli/openapi-merge/issues/114) | Provide tab/space formatting options | 3 | 1 | **5** | Quick Win | 📝 [proposal-114-formatting.md](proposal-114-formatting.md) |
+| 5 | [#114](https://github.com/robertmassaioli/openapi-merge/issues/114) | Provide tab/space formatting options | 3 | 1 | **5** | Quick Win | ✅ [proposal-114-formatting.md](proposal-114-formatting.md) |
 | 6 | [#111](https://github.com/robertmassaioli/openapi-merge/issues/111) | Support wildcards in include/excludeTags | 4 | 2 | **6** | Quick Win | 📝 [proposal-111-wildcard-tags.md](proposal-111-wildcard-tags.md) |
 | 7 | [#40](https://github.com/robertmassaioli/openapi-merge/issues/40) | `dispute.alwaysApply` ineffective on `operationId`s | 4 | 2 | **6** | Quick Win | 📝 [proposal-40-dispute-operationid.md](proposal-40-dispute-operationid.md) |
 | 8 | [#105](https://github.com/robertmassaioli/openapi-merge/issues/105) | Callback `operationId` not included in dispute resolving | 4 | 2 | **6** | Quick Win | 📝 [proposal-105-callback-operationid.md](proposal-105-callback-operationid.md) |
@@ -194,7 +194,7 @@ behind the value/effort scores, and a suggested implementation pointer.
   thread it through `merge()` (or a new param). Default remains `3.0.3`.
 
 #### [#114 — Provide tab and space formatting options](https://github.com/robertmassaioli/openapi-merge/issues/114)
-- **Value 3 / Effort 1 / ROI 5** — **Status:** 📝 Proposal: [proposal-114-formatting.md](proposal-114-formatting.md)
+- **Value 3 / Effort 1 / ROI 5** — **Status:** ✅ Fixed (see [proposal-114-formatting.md](proposal-114-formatting.md))
 - **Why it matters:** Helps repos that enforce consistent JSON/YAML
   formatting via lint.
 - **Pointer:** Extend `writeOutput` in `cli/src/index.ts` to accept
