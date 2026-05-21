@@ -31,7 +31,7 @@
     "@typescript-eslint/eslint-plugin": "^2.31.0",
     "@typescript-eslint/parser": "^2.31.0",
     "ajv": "^6.12.2",
-    "atlassian-openapi": "^1.0.8",
+    "@atlassian/atlassian-openapi": "^1.0.6",
     "babel-jest": "^26.0.1",
     "commander": "^5.1.0",
     "es6-promise": "^4.2.8",

@@ -1,5 +1,5 @@
 import { MergeInput, ErrorMergeResult, Dispute } from "./data";
-import { Swagger, SwaggerLookup } from "atlassian-openapi";
+import { Swagger, SwaggerLookup } from "@atlassian/atlassian-openapi";
 import { walkAllReferences } from "./reference-walker";
 import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";

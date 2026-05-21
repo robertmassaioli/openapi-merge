@@ -1,6 +1,6 @@
 import { MergeResult, MergeInput } from "..";
 import { ErrorType, isErrorResult, SingleMergeInput } from "../data";
-import { Swagger } from "atlassian-openapi";
+import { Swagger } from "@atlassian/atlassian-openapi";
 
 export function expectErrorType(result: MergeResult, type: ErrorType): void {
   if (isErrorResult(result)) {

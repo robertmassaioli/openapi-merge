@@ -2,6 +2,14 @@
 # yarn lockfile v1
 
 
+"@atlassian/atlassian-openapi@^1.0.6":
+  version "1.0.6"
+  resolved "https://packages.atlassian.com/api/npm/atlassian-npm/@atlassian/atlassian-openapi/-/@atlassian/atlassian-openapi-1.0.6.tgz#466350ec2e50828e6806a5a6451f123b4b4fca44"
+  integrity sha512-yy0aoEL9eQNGHYO6seBGnvY6jb9LlAm2y+vngO9Gy/B0OkmBr9GYrRM8ng0SgQz1IFGFQFhvZDcIEklBlD52rQ==
+  dependencies:
+    jsonpointer "^5.0.0"
+    urijs "^1.19.10"
+
 "@babel/code-frame@^7.0.0", "@babel/code-frame@^7.8.3":
   version "7.8.3"
   resolved "https://packages.atlassian.com/api/npm/npm-remote/@babel/code-frame/-/code-frame-7.8.3.tgz#33e25903d7481181534e12ec0a25f16b6fcf419e"
@@ -1601,14 +1609,6 @@ asynckit@^0.4.0:
   version "0.4.0"
   resolved "https://packages.atlassian.com/api/npm/npm-remote/asynckit/-/asynckit-0.4.0.tgz#c79ed97f7f34cb8f2ba1bc9790bcc366474b4b79"
   integrity sha1-x57Zf380y48robyXkLzDZkdLS3k=
-
-atlassian-openapi@^1.0.8:
-  version "1.0.8"
-  resolved "https://packages.atlassian.com/api/npm/npm-remote/atlassian-openapi/-/atlassian-openapi-1.0.8.tgz#aa81a13a68784ed46c3bd708bc3203536d92d8d0"
-  integrity sha1-qoGhOmh4TtRsO9cIvDIDU22S2NA=
-  dependencies:
-    jsonpointer "^4.0.1"
-    urijs "^1.18.10"
 
 atob@^2.1.2:
   version "2.1.2"
@@ -3557,10 +3557,10 @@ json5@^2.1.2:
   dependencies:
     minimist "^1.2.5"
 
-jsonpointer@^4.0.1:
-  version "4.0.1"
-  resolved "https://packages.atlassian.com/api/npm/npm-remote/jsonpointer/-/jsonpointer-4.0.1.tgz#4fd92cb34e0e9db3c89c8622ecf51f9b978c6cb9"
-  integrity sha1-T9kss04OnbPInIYi7PUfm5eMbLk=
+jsonpointer@^5.0.0:
+  version "5.0.1"
+  resolved "https://packages.atlassian.com/api/npm/npm-remote/jsonpointer/-/jsonpointer-5.0.1.tgz#2110e0af0900fd37467b5907ecd13a7884a1b559"
+  integrity sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==
 
 kind-of@^3.0.2, kind-of@^3.0.3, kind-of@^3.2.0:
   version "3.2.2"
@@ -4801,9 +4801,9 @@ uri-js@^4.2.2:
   dependencies:
     punycode "^2.1.0"
 
-urijs@^1.18.10:
+urijs@^1.19.10:
   version "1.19.11"
-  resolved "https://registry.yarnpkg.com/urijs/-/urijs-1.19.11.tgz#204b0d6b605ae80bea54bea39280cdb7c9f923cc"
+  resolved "https://packages.atlassian.com/api/npm/npm-remote/urijs/-/urijs-1.19.11.tgz#204b0d6b605ae80bea54bea39280cdb7c9f923cc"
   integrity sha512-HXgFDgDommxn5/bIv0cnQZsPhHDA90NPHD6+c/v21U5+Sx5hoP8+dP9IZXBU1gIfvdRfhG8cel9QNPeionfcCQ==
 
 urix@^0.1.0:

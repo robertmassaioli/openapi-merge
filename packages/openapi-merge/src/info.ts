@@ -1,4 +1,4 @@
-import { Swagger } from 'atlassian-openapi';
+import { Swagger } from '@atlassian/atlassian-openapi';
 import { MergeInput, SingleMergeInput } from './data';
 import { isPresent } from 'ts-is-present';
 import _ from 'lodash';

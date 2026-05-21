@@ -1,4 +1,4 @@
-import { Swagger, SwaggerLookup } from 'atlassian-openapi';
+import { Swagger, SwaggerLookup } from '@atlassian/atlassian-openapi';
 import { deepEquality, shallowEquality } from '../component-equivalence';
 
 // A minimal Lookup that backs onto a trivially valid empty document; the

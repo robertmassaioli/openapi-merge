@@ -1,5 +1,5 @@
 import { merge } from "..";
-import { Swagger } from "atlassian-openapi";
+import { Swagger } from "@atlassian/atlassian-openapi";
 import { toOAS } from "./oas-generation";
 import { toMergeInputs, expectMergeResult } from "./test-utils";
 import { SingleMergeInput } from "../data";
