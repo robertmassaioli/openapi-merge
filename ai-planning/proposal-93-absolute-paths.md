@@ -189,6 +189,91 @@ yarn cli --config /tmp/config.json
 
 ---
 
+## 6a. Security Considerations
+
+### Question raised
+
+> "Is letting the script put a file anywhere a security issue?"
+
+The short answer is **no for the developer-CLI use case that the tool
+exists for today, but yes in some less common embeddings.** Allowing
+absolute paths does not grant a new capability; it just makes an
+existing one less awkward to use. The CLI process can already write
+anywhere it has filesystem permission to today (relative paths with
+`..` traversal work fine). This section documents the threat model so
+the maintainer and downstream consumers can make an informed call.
+
+### Threat model
+
+| Scenario | New risk from allowing absolute paths? |
+| --- | --- |
+| Developer manually edits `openapi-merge.json` and runs `npx openapi-merge-cli` locally | **No.** They could already `cp` anything they wanted. |
+| CI pipeline reads a config committed to the same repo by trusted maintainers | **No.** Whoever can commit the config can already commit a malicious build step. |
+| CI pipeline runs against a PR from an outside contributor with maintainer-level secrets (`pull_request_target`, etc.) | **Slightly elevated.** Same risk class as any "untrusted PR runs build scripts". Typically mitigated at the CI layer, not in this tool. |
+| Hosted SaaS / web service that lets end-users upload configs and runs the CLI server-side | **Real.** The CLI was never designed for this and should not be used this way without sandboxing. Allowing absolute paths makes the attack one character shorter, but the underlying capability was always there. |
+
+In the hostile-config case, an attacker who controls
+`openapi-merge.json` could direct the output to overwrite
+`~/.ssh/authorized_keys`, drop a file into `/etc/cron.d/`, or replace
+`node_modules/somepkg/index.js`. The same risks exist today via
+`./../../etc/...`-style relative paths; the fix simply removes one
+character of friction. Symlink-following by `fs.writeFileSync` is also
+an existing concern.
+
+### Decisions for this proposal
+
+1. **Document the trust assumption.** This CLI assumes the
+   configuration file is trusted, the same way a `Makefile`, `package.json`,
+   or `webpack.config.js` is trusted. Add a short "Security" subsection
+   to the CLI's `README.md` calling this out explicitly so downstream
+   consumers are not surprised.
+2. **Apply the path-resolution fix to both `inputFile` and `output`.**
+   The bug already affects `inputFile`; leaving it half-fixed would be
+   inconsistent. Reading absolute paths is lower-impact than writing to
+   them (the contents only leak if the attacker also controls the
+   output sink), but consistency matters and the fix is identical.
+3. **Add an opt-in defence-in-depth knob.** Introduce an optional
+   top-level `outputRoot` (and optionally `inputRoot`) config field
+   plus a matching CLI flag (`--restrict-output-to <dir>`). When set,
+   any resolved output path that does not lie under the configured
+   root is rejected at config-validation time with a clear error
+   message and the new `ExitCode.ErrorLoadingConfig` (or a new
+   `ExitCode.ErrorUnsafePath` if we want to distinguish it — defer
+   that decision until implementation). When unset (the default), the
+   behaviour matches today's permissive model so we do not regress
+   developer ergonomics.
+4. **Symlink awareness for the safety knob.** If `outputRoot` is set,
+   the containment check must compare against `fs.realpathSync` of the
+   parent directory of the resolved output path, not just the
+   lexical path string. Otherwise a symlink inside the allowed root
+   can point anywhere on disk.
+5. **Do NOT gate absolute paths behind a flag in the default case.**
+   That would treat users as the threat. Anyone running the CLI on
+   their own machine is the threat actor we cannot defend against, so
+   adding friction there only hurts legitimate users.
+
+### Out of scope
+
+- A full sandboxing/seccomp/jail story. The right place for that is
+  the platform running the CLI (Docker, CI runner, etc.), not inside
+  the merge tool.
+- Reading inputs from arbitrary URLs via `inputURL`. That is its own
+  SSRF discussion (issue #61's auth-headers proposal touches it); not
+  addressed here.
+
+### Suggested README excerpt
+
+> **Security.** `openapi-merge-cli` reads, merges, and writes files
+> using the paths specified in your `openapi-merge.json` (or via
+> `--config`). The tool assumes that this configuration file is
+> trusted, the same way you trust a `Makefile` or `package.json` in
+> your repository. Do not run the CLI against a configuration file
+> from an untrusted source without restricting the output location
+> via the `outputRoot` config option (see the configuration
+> reference).
+
+---
+
 ## 7. Effort Estimate
 
 - **Code change:** ~5 minutes (two `path.join()` → `path.resolve()` replacements).
@@ -204,6 +289,8 @@ yarn cli --config /tmp/config.json
 
 ## 8. Acceptance Criteria
 
+### Core fix (required)
+
 - [ ] Both call sites in `src/index.ts` (lines 47 and 161) use `path.resolve()` instead of `path.join()`.
 - [ ] Absolute input paths (e.g., `"inputFile": "/home/user/specs.yaml"`) are correctly resolved.
 - [ ] Absolute output paths (e.g., `"output": "/tmp/merged.json"`) are correctly written to their intended location.
@@ -213,6 +300,18 @@ yarn cli --config /tmp/config.json
 - [ ] Manual test: running with `--config /tmp/openapi-merge.json` and `"output": "/tmp/result.yaml"` writes to `/tmp/result.yaml`, not `tmp/result.yaml`.
 - [ ] CI passes on Linux, macOS, and Windows.
 - [ ] Patch version bumped in `packages/openapi-merge-cli/package.json`.
+
+### Security (required)
+
+- [ ] `packages/openapi-merge-cli/README.md` has a new "Security" subsection stating that the configuration file is treated as trusted, in line with `Makefile` / `package.json`.
+
+### Defence-in-depth opt-in (recommended, can ship in a follow-up patch)
+
+- [ ] Optional `outputRoot` (and matching `--restrict-output-to <dir>` CLI flag) added to the CLI configuration schema.
+- [ ] When set, any resolved output path outside the canonical root rejects at config-load time with a clear error message and a non-zero exit code (`ExitCode.ErrorLoadingConfig` or a dedicated `ExitCode.ErrorUnsafePath`, decided at implementation time).
+- [ ] Containment check uses `fs.realpathSync` on the parent directory of the resolved output to defeat symlink-out-of-jail tricks.
+- [ ] When unset, behaviour matches the permissive default (no regression for existing users).
+- [ ] Jest tests cover: in-root path accepted, out-of-root path rejected, symlink-out-of-root rejected.
 
 ---
 

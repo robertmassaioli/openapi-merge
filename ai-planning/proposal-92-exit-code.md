@@ -59,12 +59,14 @@ The root issue: `TC.isReference()` uses the `in` operator without null-guarding 
 
 **File:** `packages/openapi-merge-cli/src/cli.ts`
 
-Replace lines 3–5:
+Replace lines 3–5 (and import the new shared enum introduced in Fix C):
 
 ```typescript
+import { ExitCode } from './exit-codes';
+
 main().catch(e => {
   console.error('An uncaught exception was thrown', e);
-  process.exit(4);  // New error code: ERROR_UNCAUGHT
+  process.exit(ExitCode.ErrorUncaught);
 });
 ```
 
@@ -94,30 +96,114 @@ function compare<T>(x: T | Swagger.Reference, y: T | Swagger.Reference): boolean
 
 **Rationale:** The `isPresent()` check already guards both `x` and `y`; if either fails, we skip the reference/object logic and use lodash's safe equality. This prevents `TC.isReference()` from ever receiving `null`.
 
-### Fix C: Add New Exit Code Constant
+### Fix C: Centralise Exit Codes in a Shared TypeScript `enum`
 
-**File:** `packages/openapi-merge-cli/src/index.ts` (lines 14–16)
+Today the CLI declares three loose `const` exit codes at the top of
+`packages/openapi-merge-cli/src/index.ts` (lines 14–16):
 
 ```typescript
 const ERROR_LOADING_CONFIG = 1;
 const ERROR_LOADING_INPUTS = 2;
 const ERROR_MERGING = 3;
-const ERROR_UNCAUGHT = 4;  // New: uncaught exceptions
 ```
+
+These are not exported, are duplicated as magic numbers in any future
+caller (e.g. `cli.ts` itself, which currently does not exit at all), and
+have no compiler help to keep them collision-free. As we add a new code
+for uncaught errors — and any future code for additional failure modes —
+we should replace the loose constants with a single shared **`enum`** so
+every site uses the same source of truth.
+
+**Step 1 — Create a new module `packages/openapi-merge-cli/src/exit-codes.ts`:**
+
+```typescript
+/**
+ * Centralised exit codes for the openapi-merge CLI.
+ *
+ * IMPORTANT: Exit codes are part of the CLI's public contract — CI
+ * pipelines and scripts depend on them. Treat any change to an existing
+ * value as a breaking change. New codes MUST be appended with the next
+ * unused integer; never re-use a retired code.
+ */
+export enum ExitCode {
+  Success            = 0,
+  ErrorLoadingConfig = 1,
+  ErrorLoadingInputs = 2,
+  ErrorMerging       = 3,
+  ErrorUncaught      = 4,
+}
+```
+
+Notes on the choice of `enum`:
+
+- A numeric `enum` is the most natural fit because `process.exit` expects
+  a number, and `enum` members are themselves numbers (no `.valueOf()`
+  ceremony needed).
+- Using an `enum` rather than a `const`-object-with-`as const` lets us
+  type API surfaces as `ExitCode` (e.g. `process.exit(code: ExitCode)`
+  helpers), so the compiler will flag any accidental use of a stray
+  magic number.
+- `ExitCode.Success = 0` is included for completeness even though it is
+  rarely passed explicitly; having it named makes happy-path code (and
+  future tests) self-documenting.
+
+**Step 2 — Replace the loose constants in `cli/src/index.ts`:**
+
+```typescript
+import { ExitCode } from './exit-codes';
+
+// …
+
+process.exit(ExitCode.ErrorLoadingConfig);  // was 1
+process.exit(ExitCode.ErrorLoadingInputs);  // was 2
+process.exit(ExitCode.ErrorMerging);        // was 3
+```
+
+The existing three `const`s should be deleted from `index.ts`.
+
+**Step 3 — Use the same enum in `cli.ts` for the new uncaught-error path:**
+
+```typescript
+import { ExitCode } from './exit-codes';
+
+main().catch(e => {
+  console.error('An uncaught exception was thrown', e);
+  process.exit(ExitCode.ErrorUncaught);
+});
+```
+
+**Step 4 — (Optional) Re-export `ExitCode` from the CLI package entry**
+so downstream callers that script around the CLI (e.g. shell wrappers
+written in TypeScript) can reference the enum directly instead of
+hard-coding integers:
+
+```typescript
+// packages/openapi-merge-cli/src/index.ts
+export { ExitCode } from './exit-codes';
+```
+
+> **Future-proofing rule:** any new failure mode in the CLI should be
+> represented by a new enum member appended to `ExitCode`. The mapping
+> table in section 4 must be updated in the same commit so the docs and
+> code do not drift.
 
 ### Fix D: (Optional) Global Process Error Handlers
 
-Add to `cli.ts` to catch rejections that escape `.catch()`:
+Add to `cli.ts` to catch rejections that escape `.catch()`. These also
+use the shared enum so the exit code for "something escaped" stays
+consistent with the catch-handler above:
 
 ```typescript
+import { ExitCode } from './exit-codes';
+
 process.on('uncaughtException', (err) => {
   console.error('Uncaught exception:', err);
-  process.exit(4);
+  process.exit(ExitCode.ErrorUncaught);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled rejection at:', promise, 'reason:', reason);
-  process.exit(4);
+  process.exit(ExitCode.ErrorUncaught);
 });
 ```
 
@@ -127,13 +213,19 @@ process.on('unhandledRejection', (reason, promise) => {
 
 ## 4. Exit Code Mapping
 
-| Exit Code | Constant              | Meaning                                  |
-|-----------|------------------------|------------------------------------------|
-| `0`       | (implicit success)     | Merge succeeded, output written          |
-| `1`       | `ERROR_LOADING_CONFIG` | Failed to load/parse configuration file  |
-| `2`       | `ERROR_LOADING_INPUTS` | Failed to load one or more input files   |
-| `3`       | `ERROR_MERGING`        | Merge logic failed (conflicts, etc.)     |
-| `4`       | `ERROR_UNCAUGHT`       | Uncaught exception during execution      |
+All values live in the `ExitCode` enum at
+`packages/openapi-merge-cli/src/exit-codes.ts` (see Fix C). The table
+below is the single source of truth for the docs; the enum is the single
+source of truth for the code. When adding a new failure mode, update
+both in the same commit.
+
+| Exit Code | `ExitCode` member       | Meaning                                  |
+|-----------|--------------------------|------------------------------------------|
+| `0`       | `ExitCode.Success`       | Merge succeeded, output written          |
+| `1`       | `ExitCode.ErrorLoadingConfig` | Failed to load/parse configuration file  |
+| `2`       | `ExitCode.ErrorLoadingInputs` | Failed to load one or more input files   |
+| `3`       | `ExitCode.ErrorMerging`  | Merge logic failed (conflicts, etc.)     |
+| `4`       | `ExitCode.ErrorUncaught` | Uncaught exception during execution      |
 
 ---
 
@@ -230,8 +322,9 @@ This is an **intentional fix**, not a breaking change to the API. However:
 
 - **Value:** High. Fixes silent CI failures—a critical defect for automation.
 - **Effort:** Minimal. Changes span only 3–4 lines of source code across two files:
-  - `cli.ts`: add `process.exit(4)` (1 line)
-  - `index.ts`: add `ERROR_UNCAUGHT` constant (1 line)
+  - `exit-codes.ts`: new module with the `ExitCode` enum (~15 lines incl. JSDoc)
+  - `cli.ts`: import the enum and `process.exit(ExitCode.ErrorUncaught)` (2 lines)
+  - `index.ts`: import the enum, delete the three loose `const`s, and reference `ExitCode.*` at each existing `process.exit` site (~5 line diff)
   - `component-equivalence.ts`: no additional guard needed; existing `isPresent()` already covers it
   - Tests: ~30 lines of Jest + optional smoke test
 - **Risk:** Very low. The `isPresent()` check is already in place; we're just ensuring it is relied upon. Exit code addition is safe.
@@ -240,20 +333,28 @@ This is an **intentional fix**, not a breaking change to the API. However:
 
 ## 8. Acceptance Criteria
 
-- [ ] `cli.ts` `.catch()` handler calls `process.exit(4)` on any error
-- [ ] `ERROR_UNCAUGHT = 4` constant defined in `index.ts`
-- [ ] `component-equivalence.ts` `compare()` function does not throw on null/undefined inputs (existing `isPresent()` guards suffice)
-- [ ] Jest tests pass; new null-handling tests confirm no exceptions are thrown
-- [ ] Manual e2e test: running the CLI with invalid input returns exit code 4 (not 0)
-- [ ] CI workflows (`branch-test.yml`, `npm-publish.yml`) do not regress
-- [ ] Changelog updated to note the fix (optional but recommended)
-- [ ] Version bumped in `package.json` files (patch bump)
+- [x] `packages/openapi-merge-cli/src/exit-codes.ts` exists and exports a `ExitCode` enum with `Success`, `ErrorLoadingConfig`, `ErrorLoadingInputs`, `ErrorMerging`, and `ErrorUncaught` members
+- [x] No magic exit-code numbers remain in `cli/src/index.ts` or `cli/src/cli.ts`; all `process.exit(...)` call sites reference `ExitCode.*`
+- [x] The three legacy `const ERROR_*` declarations in `index.ts` are removed
+- [x] `cli.ts` `.catch()` handler calls `process.exit(ExitCode.ErrorUncaught)` on any error
+- [x] `component-equivalence.ts` `compare()` / `shallowEquality` do not throw on null/undefined inputs (existing `isPresent()` guards + a new guard in `shallowEquality`)
+- [x] Jest tests pass; new null-handling tests confirm no exceptions are thrown (98/98 suites green locally)
+- [ ] Manual e2e test: running the CLI with invalid input returns exit code 4 (not 0) — *to be verified in CI / by maintainer on a real environment*
+- [ ] CI workflows (`branch-test.yml`, `npm-publish.yml`) do not regress — *pending push*
+- [ ] Changelog updated to note the fix (optional but recommended) — *pending*
+- [ ] Version bumped in `package.json` files (patch bump) — *pending; will trigger npm-publish.yml*
 
 ---
 
 ## 9. Implementation Notes
 
-1. **No changes to public types** — `ErrorType` enum in `data.ts` does not need expansion (exit codes are CLI-only).
-2. **Global handlers are optional but recommended** — they add robustness with minimal cost.
-3. **Test focus:** library-level tests for null-safety; smoke tests for exit codes in CI.
-4. **Deploy:** bump versions, merge to `main`, and CI will publish both packages to npm.
+1. **Shared enum is the only source of truth for exit codes.** Anyone
+   adding a new failure mode must add a new `ExitCode` member and update
+   the table in section 4 in the same commit. Avoid passing raw integers
+   to `process.exit` anywhere in the CLI codebase.
+2. **No changes to public types** — `ErrorType` enum in the library's
+   `data.ts` does not need expansion (exit codes are CLI-only and live in
+   a separate enum so the two concepts stay decoupled).
+3. **Global handlers are optional but recommended** — they add robustness with minimal cost and reuse the same enum.
+4. **Test focus:** library-level tests for null-safety; smoke tests for exit codes in CI (which can also import `ExitCode` from the compiled CLI bundle).
+5. **Deploy:** bump versions, merge to `main`, and CI will publish both packages to npm.
