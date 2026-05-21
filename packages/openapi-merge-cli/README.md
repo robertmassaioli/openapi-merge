@@ -80,6 +80,39 @@ npx openapi-merge-cli --config path/to/openapi-merge.yaml
 
 And the merge should be run and complete! Congratulations and enjoy!
 
+## Formatting
+
+Control the indentation of the merged output via an optional `formatting`
+block. Indentation is expressed as a discriminated union so contradictory
+combinations (e.g. "tabs of width 4") are unrepresentable:
+
+```jsonc
+{
+  "inputs": [...],
+  "output": "./merged.json",
+
+  // 4-space indentation (default is 2 spaces; same as today's behaviour).
+  "formatting": { "indent": { "strategy": "spaces", "width": 4 } }
+}
+```
+
+```jsonc
+{
+  "inputs": [...],
+  "output": "./merged.json",
+
+  // Tab indentation. JSON only — see note below.
+  "formatting": { "indent": { "strategy": "tabs" } }
+}
+```
+
+If `formatting` is omitted the output keeps the historical default of
+two-space indentation.
+
+**Note:** YAML 1.1 disallows tab characters as indentation. Combining
+`{ "strategy": "tabs" }` with a `.yaml` or `.yml` output is rejected at
+configuration-load time with a clear error message.
+
 ## Paths
 
 Both `inputFile` and `output` accept either relative or absolute paths.

@@ -226,4 +226,65 @@ export type Configuration = {
    * @minLength 1
    */
   outputRoot?: string;
+
+  /**
+   * Optional output-formatting controls (issue #114). When omitted, the
+   * output is formatted with 2 spaces of indentation (the historical
+   * default).
+   */
+  formatting?: OutputFormatting;
 };
+
+/**
+ * Width of one indent step when using spaces. Range chosen to cover every
+ * realistic style (2, 4, 8); larger values are almost certainly a config
+ * error and are rejected at validation time.
+ *
+ * @minimum 1
+ * @maximum 8
+ * @TJS-type integer
+ */
+export type SpaceIndentWidth = number;
+
+/**
+ * Use space characters for indentation, repeated `width` times per level.
+ */
+export interface SpaceIndent {
+  strategy: 'spaces';
+  width: SpaceIndentWidth;
+}
+
+/**
+ * Use tab characters for indentation. JSON only — YAML 1.1 disallows tabs
+ * as indentation, so combining this with a `.yaml` / `.yml` output is
+ * rejected at configuration-load time with a clear error message.
+ */
+export interface TabIndent {
+  strategy: 'tabs';
+}
+
+/**
+ * Discriminated union of indentation strategies. The `strategy` tag is the
+ * single source of truth and is exhaustively dispatched on in
+ * `indentToJsonStringifyArg`.
+ */
+export type Indent = SpaceIndent | TabIndent;
+
+/**
+ * Output formatting controls for the merged document.
+ */
+export interface OutputFormatting {
+  /**
+   * Indentation strategy for the emitted output. Defaults to
+   * `{ strategy: 'spaces', width: 2 }`, which preserves the historical
+   * behaviour.
+   */
+  indent?: Indent;
+}
+
+/**
+ * The historical default that anyone running today's CLI is already
+ * getting; exported so call sites and tests can refer to it by name
+ * instead of duplicating the literal.
+ */
+export const DEFAULT_INDENT: Indent = { strategy: 'spaces', width: 2 };

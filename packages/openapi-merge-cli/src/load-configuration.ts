@@ -1,8 +1,37 @@
+import path from 'path';
 import { Configuration } from "./data";
 import Ajv from 'ajv';
 import ConfigurationSchema from './configuration.schema.json';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
 import process from 'process';
+
+const YAML_EXTENSIONS = ['.yaml', '.yml'];
+
+/**
+ * Cross-field semantic checks that the generated JSON Schema cannot
+ * express on its own. Returns an error message string on failure, or
+ * `undefined` on success.
+ *
+ * Currently:
+ * - YAML 1.1 disallows tab characters as indentation. If the output
+ *   file extension is `.yaml` or `.yml` AND `formatting.indent.strategy`
+ *   is `'tabs'`, reject with a clear, actionable message (issue #114).
+ */
+export function validateConfigurationSemantics(config: Configuration): string | undefined {
+  const indent = config.formatting?.indent;
+  if (indent && indent.strategy === 'tabs') {
+    const ext = path.extname(config.output).toLowerCase();
+    if (YAML_EXTENSIONS.includes(ext)) {
+      return (
+        `Tab indentation is not supported for YAML output (output: '${config.output}'). ` +
+        `YAML 1.1 disallows tab characters as indentation. Use ` +
+        `{ "strategy": "spaces", "width": N } in formatting.indent, or write to a ` +
+        `.json output.`
+      );
+    }
+  }
+  return undefined;
+}
 
 async function validateConfiguration(rawData: string): Promise<Configuration | string> {
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -17,7 +46,13 @@ async function validateConfiguration(rawData: string): Promise<Configuration | s
       return ajv.errorsText(validate.errors);
     }
 
-    return data as Configuration;
+    const config = data as Configuration;
+    const semanticError = validateConfigurationSemantics(config);
+    if (semanticError !== undefined) {
+      return semanticError;
+    }
+
+    return config;
   } catch (e) {
     return `Could not parse configuration: ${e}`;
   }
