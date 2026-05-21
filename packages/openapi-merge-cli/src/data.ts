@@ -250,7 +250,7 @@ export type SpaceIndentWidth = number;
  * Use space characters for indentation, repeated `width` times per level.
  */
 export interface SpaceIndent {
-  strategy: 'spaces';
+  style: 'spaces';
   width: SpaceIndentWidth;
 }
 
@@ -260,11 +260,11 @@ export interface SpaceIndent {
  * rejected at configuration-load time with a clear error message.
  */
 export interface TabIndent {
-  strategy: 'tabs';
+  style: 'tabs';
 }
 
 /**
- * Discriminated union of indentation strategies. The `strategy` tag is the
+ * Discriminated union of indentation strategies. The `style` tag is the
  * single source of truth and is exhaustively dispatched on in
  * `indentToJsonStringifyArg`.
  */
@@ -275,8 +275,8 @@ export type Indent = SpaceIndent | TabIndent;
  */
 export interface OutputFormatting {
   /**
-   * Indentation strategy for the emitted output. Defaults to
-   * `{ strategy: 'spaces', width: 2 }`, which preserves the historical
+   * Indentation style for the emitted output. Defaults to
+   * `{ style: 'spaces', width: 2 }`, which preserves the historical
    * behaviour.
    */
   indent?: Indent;
@@ -287,4 +287,4 @@ export interface OutputFormatting {
  * getting; exported so call sites and tests can refer to it by name
  * instead of duplicating the literal.
  */
-export const DEFAULT_INDENT: Indent = { strategy: 'spaces', width: 2 };
+export const DEFAULT_INDENT: Indent = { style: 'spaces', width: 2 };

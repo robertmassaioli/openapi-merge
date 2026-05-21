@@ -7,7 +7,7 @@ import { DEFAULT_INDENT, Indent } from './data';
  * unhandled variant to `never` and produce a build-time error.
  */
 function assertNever(x: never): never {
-  throw new Error(`Unhandled indent strategy: ${JSON.stringify(x)}`);
+  throw new Error(`Unhandled indent style: ${JSON.stringify(x)}`);
 }
 
 /**
@@ -18,11 +18,11 @@ function assertNever(x: never): never {
  *   - The literal string '\t' for tabs.
  *
  * This is the only place in the codebase that switches on
- * `Indent.strategy`, so the `assertNever` guard above is sufficient to
+ * `Indent.style`, so the `assertNever` guard above is sufficient to
  * keep the dispatch exhaustive across future variants.
  */
 export function indentToJsonStringifyArg(indent: Indent = DEFAULT_INDENT): number | string {
-  switch (indent.strategy) {
+  switch (indent.style) {
     case 'spaces':
       return indent.width;
     case 'tabs':
@@ -41,13 +41,13 @@ export function indentToJsonStringifyArg(indent: Indent = DEFAULT_INDENT): numbe
  * fall back to `DEFAULT_INDENT.width` defensively rather than throwing.
  */
 export function indentToYamlArg(indent: Indent = DEFAULT_INDENT): number {
-  if (indent.strategy === 'spaces') {
+  if (indent.style === 'spaces') {
     return indent.width;
   }
   // Defensive fallback; should be unreachable if load-configuration.ts is
   // doing its job (see validateConfigurationSemantics). We need to narrow
   // DEFAULT_INDENT to the 'spaces' branch before we can read `.width`.
-  if (DEFAULT_INDENT.strategy === 'spaces') {
+  if (DEFAULT_INDENT.style === 'spaces') {
     return DEFAULT_INDENT.width;
   }
   // The DEFAULT_INDENT constant is statically a SpaceIndent, so this is
