@@ -10,7 +10,7 @@
 | Field | Value |
 | --- | --- |
 | Branch | `fix/93-absolute-paths` |
-| Implementation commit | (filled in by commit) |
+| Implementation commit | `4c2b693` |
 | Files added | `packages/openapi-merge-cli/src/path-resolution.ts`, `packages/openapi-merge-cli/src/__tests__/path-resolution.test.ts`, `packages/openapi-merge-cli/jest.config.js`, `packages/openapi-merge-cli/babel.config.js` |
 | Files modified | `packages/openapi-merge-cli/src/index.ts`, `packages/openapi-merge-cli/src/data.ts`, `packages/openapi-merge-cli/src/exit-codes.ts`, `packages/openapi-merge-cli/package.json`, `packages/openapi-merge-cli/README.md` |
 | Library tests | 98/98 passing (no regression) |
@@ -339,7 +339,7 @@ an existing concern.
 - [x] When set, any resolved output path outside the canonical root rejects with a clear error message and a non-zero exit code. A dedicated `ExitCode.ErrorUnsafePath = 5` was added.
 - [x] Containment check uses `fs.realpathSync` on the nearest existing ancestor of the resolved output to defeat symlink-out-of-jail tricks (tested).
 - [x] When unset, behaviour matches the permissive default (no regression for existing users — verified by the no-op test case).
-- [ ] Jest tests cover: in-root path accepted, out-of-root path rejected, symlink-out-of-root rejected.
+- [x] Jest tests cover: in-root path accepted, out-of-root path rejected, symlink-out-of-root rejected (plus a real-fs test for the "ancestor walks up when dir does not exist yet" case).
 
 ---
 

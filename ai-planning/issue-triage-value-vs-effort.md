@@ -180,7 +180,7 @@ behind the value/effort scores, and a suggested implementation pointer.
   version. May need a minor API tweak if the new package's types diverge.
 
 #### [#93 — Leading `/` is stripped from output path](https://github.com/robertmassaioli/openapi-merge/issues/93)
-- **Value 4 / Effort 1 / ROI 7** — **Status:** 📝 Proposal: [proposal-93-absolute-paths.md](proposal-93-absolute-paths.md)
+- **Value 4 / Effort 1 / ROI 7** — **Status:** ✅ Fixed (see [proposal-93-absolute-paths.md](proposal-93-absolute-paths.md))
 - **Why it matters:** Blocks users writing the merged spec into `/tmp` or
   any absolute path (common in containers/CI).
 - **Pointer:** `cli/src/index.ts`'s `path.join(basePath, config.output)` —
