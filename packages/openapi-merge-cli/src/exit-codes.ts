@@ -13,6 +13,7 @@
  * | 2         | ExitCode.ErrorLoadingInputs   | Failed to load one or more input files   |
  * | 3         | ExitCode.ErrorMerging         | Merge logic failed (conflicts, etc.)     |
  * | 4         | ExitCode.ErrorUncaught        | Uncaught exception during execution      |
+ * | 5         | ExitCode.ErrorUnsafePath      | Configured output escaped `outputRoot`   |
  */
 export enum ExitCode {
   Success = 0,
@@ -20,4 +21,5 @@ export enum ExitCode {
   ErrorLoadingInputs = 2,
   ErrorMerging = 3,
   ErrorUncaught = 4,
+  ErrorUnsafePath = 5,
 }

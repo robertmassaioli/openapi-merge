@@ -211,4 +211,19 @@ export type Configuration = {
    * @minLength 1
    */
   output: string;
+
+  /**
+   * Optional defence-in-depth restriction (see issue #93 Security Considerations):
+   * when set, the CLI will refuse to write the merged spec anywhere outside this
+   * directory and will exit with `ExitCode.ErrorUnsafePath` (5). The check
+   * compares the realpath of the resolved output's nearest existing ancestor
+   * against the realpath of this root, so symlinks cannot be used to escape.
+   *
+   * Leave unset to keep the historical permissive default; this option is
+   * intended for embedded / multi-tenant uses of the CLI where the
+   * configuration file may not be fully trusted.
+   *
+   * @minLength 1
+   */
+  outputRoot?: string;
 };
