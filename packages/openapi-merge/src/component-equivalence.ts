@@ -17,6 +17,13 @@ export function shallowEquality<A>(referenceWalker: ReferenceWalker<A>): (x: A |
       return false;
     }
 
+    // Guard against null/undefined before delegating to type-checking helpers
+    // that assume a defined object (see issue #92). If either side is absent
+    // and they were still considered _.isEqual above, treat them as equal.
+    if (!isPresent(x) || !isPresent(y)) {
+      return true;
+    }
+
     if (TC.isReference(x)) {
       return false;
     }

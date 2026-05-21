@@ -11,10 +11,9 @@ import { Swagger } from "atlassian-openapi";
 import fetch from 'isomorphic-fetch';
 import yaml from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
+import { ExitCode } from "./exit-codes";
 
-const ERROR_LOADING_CONFIG = 1;
-const ERROR_LOADING_INPUTS = 2;
-const ERROR_MERGING = 3;
+export { ExitCode } from "./exit-codes";
 
 const program = new Command();
 
@@ -133,7 +132,7 @@ export async function main(): Promise<void> {
 
   if (typeof config === 'string') {
     console.error(config);
-    process.exit(ERROR_LOADING_CONFIG);
+    process.exit(ExitCode.ErrorLoadingConfig);
     return;
   }
 
@@ -145,7 +144,7 @@ export async function main(): Promise<void> {
 
   if ('errors' in inputs) {
     console.error(inputs);
-    process.exit(ERROR_LOADING_INPUTS);
+    process.exit(ExitCode.ErrorLoadingInputs);
     return;
   }
 
@@ -155,7 +154,7 @@ export async function main(): Promise<void> {
 
   if (isErrorResult(mergeResult)) {
     console.error(`Error merging files: ${mergeResult.message} (${mergeResult.type})`);
-    process.exit(ERROR_MERGING);
+    process.exit(ExitCode.ErrorMerging);
     return;
   }
 
