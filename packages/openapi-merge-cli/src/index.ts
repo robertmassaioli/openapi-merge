@@ -124,6 +124,10 @@ function writeOutput(outputFullPath: string, outputSchema: Swagger.SwaggerV3, in
     ? dumpAsYaml(outputSchema, indent)
     : JSON.stringify(outputSchema, null, indentToJsonStringifyArg(indent));
 
+  const outputDir = path.dirname(outputFullPath);
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir);
+  }
   fs.writeFileSync(outputFullPath, fileContents);
 }
 
