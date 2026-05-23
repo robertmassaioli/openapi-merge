@@ -33,7 +33,7 @@ export async function readYamlOrJSON(fileContents: string): Promise<unknown> {
 
   let yamlError: Error;
   try {
-    return yaml.safeLoad(fileContents);
+    return yaml.load(fileContents);
   } catch (e) {
     yamlError = e;
   }
