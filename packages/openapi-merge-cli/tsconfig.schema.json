@@ -1,0 +1,16 @@
+{
+  // Dedicated config for typescript-json-schema (gen-schema). It only needs to
+  // see src/data.ts and must not load the ambient @types packages (bun/node),
+  // which typescript-json-schema's bundled TypeScript cannot parse.
+  "compilerOptions": {
+    "target": "es2021",
+    "module": "commonjs",
+    "strict": true,
+    "strictNullChecks": true,
+    "esModuleInterop": true,
+    "types": []
+  },
+  "files": [
+    "src/data.ts"
+  ]
+}

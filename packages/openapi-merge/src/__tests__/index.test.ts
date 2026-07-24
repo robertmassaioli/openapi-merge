@@ -1,4 +1,3 @@
-import 'jest';
 import { merge } from '..';
 import { expectErrorType, expectMergeResult, toMergeInputs } from './test-utils';
 import { toOAS } from './oas-generation';

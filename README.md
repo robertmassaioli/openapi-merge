@@ -18,29 +18,31 @@ Depending on your use-case, you may wish to use the CLI tool or the library in y
 
 ### Developing on openapi-merge
 
-This project is a multi-package repository and uses the [bolt][1] tool to manage these packages in one development experience.
+This project is a multi-package repository and uses [Bun][1] workspaces to manage these packages in one development
+experience. Packages are compiled with [`tsgo`][2], the Go-based native preview of the TypeScript compiler.
 
 After checking out this repository, you can run the following command to install the required dependencies:
 
 ``` shell
-bolt install
+bun install
 ```
 
 You can then test running the CLI tool by running:
 
 ``` shell
-yarn cli
+bun run cli
 ```
 
 If you wish to ensure that you can develop on the `openapi-merge` library in parallel to the `openapi-merge-cli` tool
 then you must run the Typescript build for `openapi-merge` in watch mode. You can do this by:
 
 ``` shell
-bolt w openapi-merge build -w
+cd packages/openapi-merge && bun run build -- --watch
 ```
 
 This will ensure that the Typescript is compiled into JavaScript so that it can be used by the `openapi-merge-cli` tool.
 
 For the other operations that you wish to perform, please see the package.json of the other packages in this repository.
 
- [1]: https://github.com/boltpkg/bolt
+ [1]: https://bun.sh/
+ [2]: https://github.com/microsoft/typescript-go

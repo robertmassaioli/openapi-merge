@@ -6,7 +6,8 @@ import { mergeExtensions } from './extensions';
 import { Swagger } from '@atlassian/atlassian-openapi';
 import { mergeInfos } from './info';
 
-export { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection };
+export { isErrorResult };
+export type { MergeInput, MergeResult, PathModification, OperationSelection };
 
 function getFirst<A>(inputs: Array<A>): A | undefined {
   if (inputs.length > 0) {

@@ -35,43 +35,56 @@ the **MIT License**. Source is hosted at
 ```
 .
 ├── .github/workflows/        # CI workflows: branch-test, npm-publish, codeql-analysis
-├── .husky/pre-commit         # Husky pre-commit hook (runs `yarn lint`)
-├── .nvmrc                    # Pinned Node major version (14)
+├── .husky/pre-commit         # Husky pre-commit hook (runs `bun run lint`)
+├── scripts/publish-changed.sh # Publishes any workspace package whose version has changed
 ├── LICENSE                   # MIT
 ├── README.md                 # Repository-level README
-├── package.json              # Root package — orchestrates the mono-repo via `bolt`
+├── package.json              # Root package — orchestrates the mono-repo via Bun workspaces
+├── bun.lock                  # Bun lockfile (single lockfile for the whole workspace)
 └── packages/
     ├── openapi-merge/        # Library package (published as `openapi-merge` on npm)
     │   ├── src/              # Library source
-    │   ├── src/__tests__/    # Jest test suites for the library
-    │   ├── jest.config.js
+    │   ├── src/__tests__/    # bun:test suites for the library
+    │   ├── bunfig.toml
     │   ├── tsconfig.json
     │   └── package.json
     └── openapi-merge-cli/    # CLI package (published as `openapi-merge-cli` on npm)
         ├── src/              # CLI source (entrypoint: `cli.ts` → `index.ts`)
         ├── confluence.swagger.yaml   # Example OpenAPI input used for manual testing
         ├── openapi-merge.test.json   # Example merge configuration
-        ├── tsconfig.json
+        ├── bunfig.toml
+        ├── tsconfig.json         # Main project config (includes ambient `bun`/`node` types)
+        ├── tsconfig.schema.json  # Narrow config used only by `typescript-json-schema`
         └── package.json
 ```
 
 ### Package manager / workspace tooling
 
-The mono-repo uses **[bolt](https://github.com/boltpkg/bolt)** (a thin wrapper over
-Yarn) for workspace orchestration. The root `package.json` declares:
+The mono-repo uses **[Bun](https://bun.sh/) workspaces** for workspace orchestration
+and as the JavaScript/TypeScript runtime. The root `package.json` declares:
 
 ```json
-"bolt": { "workspaces": ["packages/*"] }
+"workspaces": ["packages/*"]
 ```
 
-Most root-level scripts are bolt commands that fan out into each package:
+Root-level scripts fan out into each package using Bun's `--filter`:
 
 | Script             | What it does                                                       |
 | ------------------ | ------------------------------------------------------------------ |
-| `yarn lint`        | `bolt ws lint` — runs `lint` in every workspace                    |
-| `yarn test`        | `bolt ws test` — runs `test` in every workspace                    |
-| `yarn cli`         | `bolt w openapi-merge-cli run start` — runs the CLI in dev mode   |
-| `yarn prepare`     | `husky install` — installs the git hooks                           |
+| `bun run lint`     | `bun run --filter '*' lint` — runs `lint` in every workspace        |
+| `bun run test`     | `bun run --filter '*' test` — runs `test` in every workspace        |
+| `bun run build`    | `bun run --filter '*' build` — builds every workspace with `tsgo`   |
+| `bun run cli`      | `bun run --cwd packages/openapi-merge-cli start` — runs the CLI in dev mode |
+| `bun run prepare`  | `husky install` — installs the git hooks                           |
+
+TypeScript is compiled with **[`tsgo`](https://github.com/microsoft/typescript-go)**
+(package `@typescript/native-preview`), the Go-based native port of the TypeScript
+compiler, instead of the classic JS `tsc`. Each package's `build`/`prepare`/
+`prepublishOnly` scripts invoke `tsgo --project .`. `tsgo` behaves like `tsc` for
+this codebase's purposes (same `tsconfig.json`, same CLI flags such as `--watch`),
+but it type-checks somewhat more strictly in a few edge cases around nullable
+`object`/generic types — see `component-equivalence.ts`'s and `data.ts`'s explicit
+`typeof x === 'object' && x !== null` guards, added when migrating off TypeScript 3.8.
 
 ---
 
@@ -147,19 +160,18 @@ import {
 From `packages/openapi-merge`:
 
 ```bash
-yarn build         # tsc --project .       (also runs on `prepare` and `prepublishOnly`)
-yarn test          # jest --collect-coverage --verbose
-yarn lint          # eslint src --ext .js,.jsx,.ts,.tsx --fix
-yarn start         # ts-node src/index.ts  (rarely useful directly)
+bun run build      # tsgo --project .        (also runs on `prepare` and `prepublishOnly`)
+bun run test       # bun test --coverage
+bun run lint       # eslint src --ext .js,.jsx,.ts,.tsx --fix
+bun run start      # bun src/index.ts         (rarely useful directly)
 ```
 
-Jest configuration (`jest.config.js`):
+Tests run under Bun's built-in test runner (`bun:test`), which is Jest-API-compatible
+(`describe`/`it`/`expect` are globals — no import needed). `bunfig.toml` sets
+`[test] root = "src"`; the test glob defaults to `**/*.{test,spec}.{ts,tsx,js,jsx}`,
+matching the existing `__tests__/*.test.ts` layout. Coverage output goes to `coverage/`.
 
-- `testEnvironment: 'node'`.
-- `testMatch: ['**/__tests__/**/(*.)+(spec|test).[tj]s?(x)']`.
-- Coverage output: `coverage/`.
-
-The library is compiled with `tsc` to `dist/`, and the published `main`/`typings`
+The library is compiled with `tsgo` to `dist/`, and the published `main`/`typings`
 both point at `dist/index`. Only `dist/!(__tests__)` (and subtree) are published.
 
 ---
@@ -258,84 +270,91 @@ first to strip `undefined` values (a workaround for
 From `packages/openapi-merge-cli`:
 
 ```bash
-yarn build         # tsc --project .
-yarn gen-schema    # typescript-json-schema src/data.ts Configuration ...
-                   #   then ts-node src/fix-schema.ts
-yarn prepare       # npm run gen-schema && tsc --project .
-yarn prepublishOnly# same as prepare
-yarn start         # ts-node src/cli.ts        (dev mode)
-yarn lint          # eslint src --ext .ts,.tsx --fix
-yarn gen-docs      # jsonschema2md --input=src (regenerate Markdown docs)
+bun run build      # tsgo --project .
+bun run gen-schema # typescript-json-schema against tsconfig.schema.json, then bun ./src/fix-schema.ts
+bun run prepare    # bun run gen-schema && tsgo --project .
+bun run prepublishOnly # same as prepare
+bun run start      # bun ./src/cli.ts           (dev mode)
+bun run lint       # eslint src --ext .ts,.tsx --fix
+bun run gen-docs   # jsonschema2md --input=src  (regenerate Markdown docs)
 ```
 
-The CLI package has **no Jest tests** of its own; functional coverage lives in
-the library package. Manual end-to-end testing uses the example configuration:
+`gen-schema` runs `typescript-json-schema` against a dedicated `tsconfig.schema.json`
+(not the package's main `tsconfig.json`), because `typescript-json-schema` bundles
+its own older TypeScript and cannot parse the ambient `bun`/`node` `@types` the main
+config pulls in. `tsconfig.schema.json` only includes `src/data.ts` and sets `"types": []`.
+
+The CLI package has a **small `bun:test` suite** of its own (`formatting.test.ts`,
+`path-resolution.test.ts`); most functional coverage still lives in the library
+package. Manual end-to-end testing uses the example configuration:
 
 ```bash
-# From the repo root, after `bolt install` and a library build:
-yarn cli -- --config packages/openapi-merge-cli/openapi-merge.test.json
+# From the repo root, after `bun install` and a library build:
+bun run cli -- --config openapi-merge.test.json
 ```
 
 ---
 
 ## 5. Common Developer Workflow
 
-1. **Install Node 14** (matches `.nvmrc`).
-2. Install `bolt`:
+1. **Install Bun** (v1.3.14 or later — see `packageManager` in the root `package.json`):
    ```bash
-   yarn global add bolt
+   curl -fsSL https://bun.sh/install | bash
    ```
-3. Install workspace dependencies:
+2. Install workspace dependencies:
    ```bash
-   bolt install
+   bun install
    ```
-4. (Optional) Run the library compiler in watch mode so the CLI picks up
+3. (Optional) Run the library compiler in watch mode so the CLI picks up
    changes immediately:
    ```bash
-   bolt w openapi-merge build -w
+   cd packages/openapi-merge && bun run build -- --watch
    ```
-5. Run the CLI:
+4. Run the CLI:
    ```bash
-   yarn cli
+   bun run cli
    ```
-6. Run the test suite:
+5. Run the test suite:
    ```bash
-   yarn test
+   bun run test
    ```
-7. Run lint (also runs automatically on `git commit` via Husky):
+6. Run lint (also runs automatically on `git commit` via Husky):
    ```bash
-   yarn lint
+   bun run lint
    ```
 
 ### Pre-commit hook
 
-`.husky/pre-commit` runs `yarn lint` before every commit. If you add new files,
+`.husky/pre-commit` runs `bun run lint` before every commit. If you add new files,
 ensure they pass ESLint with `--fix` cleanly.
 
 ---
 
 ## 6. Continuous Integration & Deployment
 
-All CI runs on **Node 14** on `ubuntu-latest`, and installs bolt globally before
-`bolt install`.
+All CI installs **Bun 1.3.14** via `oven-sh/setup-bun` on `ubuntu-latest`, then runs
+`bun install --frozen-lockfile`.
 
 ### `.github/workflows/branch-test.yml`
 
 Runs on every push to a non-`main` branch. Two parallel jobs:
 
-- **lint**: `bolt install` → `yarn lint`.
-- **test**: `bolt install` → `yarn test`.
+- **lint**: `bun install --frozen-lockfile` → `bun run lint`.
+- **test**: `bun install --frozen-lockfile` → `bun run test`.
 
 ### `.github/workflows/npm-publish.yml`
 
 Runs on every push to `main`:
 
-1. `bolt install`
-2. `yarn lint`
-3. `yarn test`
-4. Writes an `.npmrc` containing `${NPM_AUTH_TOKEN}`, copies it into both
-   package folders, and runs `bolt publish` to publish any package whose
-   `version` was bumped.
+1. `bun install --frozen-lockfile`
+2. `bun run lint`
+3. `bun run test`
+4. `bun run build`
+5. Writes an `.npmrc` containing `${NPM_AUTH_TOKEN}`, then runs
+   `scripts/publish-changed.sh`, which compares each workspace package's local
+   `version` against the version currently on the npm registry (via `npm view`)
+   and runs `bun publish` for any package whose version has changed. This
+   replaces the automatic version-diffing that `bolt publish` used to provide.
 
 Required GitHub secrets:
 
@@ -356,13 +375,15 @@ weekly cron (`28 21 * * 5`).
 
 ## 7. Coding Conventions
 
-- **Language**: TypeScript 3.8, compiling to ES2015 / CommonJS.
+- **Language**: TypeScript, compiled by `tsgo` (`@typescript/native-preview`) to
+  ES2021 / CommonJS.
 - **Strict mode**: `"strict": true` is enabled in both `tsconfig.json`s.
 - **Declarations**: `declaration` and `declarationMap` are on; published packages
   ship `.d.ts` and source maps for them.
 - **Linting**: ESLint (`@typescript-eslint/eslint-plugin`, `parser`). Lint with
   `--fix` is the canonical way to apply style.
-- **Testing**: Jest 27 + Babel (`babel-jest`) for the library only.
+- **Testing**: Bun's built-in test runner (`bun test`), Jest-API-compatible, for
+  both packages.
 - **Imports**: `esModuleInterop` is enabled.
 - **Path conventions**: source under `src/`, output under `dist/`.
 - **No tests in published artifact**: the `files` field publishes
@@ -398,25 +419,30 @@ When editing this repository, please follow these guidelines:
 2. **Preserve backwards compatibility for `SingleMergeInputV1` / `disputePrefix`**.
    These are explicitly marked `@deprecated` but still exercised by the CLI's
    `convertInputs` function and by the example test config.
-3. **Add Jest tests** under `packages/openapi-merge/src/__tests__/` for any
+3. **Add `bun:test` tests** under `packages/openapi-merge/src/__tests__/` for any
    change in merge behaviour. Existing suites cover `components`,
    `external-docs`, `info`, `paths`, `security`, `x-tensions`, and the
    end-to-end `index` flow.
 4. **Regenerate the configuration schema** whenever you change
    `packages/openapi-merge-cli/src/data.ts`:
    ```bash
-   bolt w openapi-merge-cli run gen-schema
+   cd packages/openapi-merge-cli && bun run gen-schema
    ```
    The schema is committed; CI does not regenerate it.
 5. **Keep `openapi: '3.0.3'`** as the emitted version in
    `paths-and-components.ts`/`index.ts` unless explicitly asked to change it.
 6. **Match the existing style** (2-space indent, single quotes, trailing semicolons,
    `interface` for object shapes with extension semantics, `type` aliases
-   otherwise). Run `yarn lint` before committing.
+   otherwise). Run `bun run lint` before committing.
 7. **Do not commit `node_modules` or `dist/`** — both are git-ignored per package.
-8. **`yarn cli` requires a built library** (or a parallel `tsc -w` from
+8. **`bun run cli` requires a built library** (or a parallel `tsgo --watch` from
    `packages/openapi-merge`) because the CLI imports compiled artifacts from
    `openapi-merge/dist/data`.
+9. **`typescript-json-schema` cannot see ambient `bun`/`node` types**, so
+   `gen-schema` points it at `packages/openapi-merge-cli/tsconfig.schema.json`
+   (a minimal config covering only `src/data.ts`) rather than the package's
+   main `tsconfig.json`. If `data.ts` gains a new import, verify `gen-schema`
+   still runs cleanly.
 
 ---
 
@@ -424,18 +450,18 @@ When editing this repository, please follow these guidelines:
 
 | Goal                                       | Command                                                       |
 | ------------------------------------------ | ------------------------------------------------------------- |
-| Install all workspace deps                 | `bolt install`                                                |
-| Lint everything                            | `yarn lint`                                                   |
-| Run the full test suite                    | `yarn test`                                                   |
-| Run only the library tests                 | `bolt w openapi-merge test`                                   |
-| Build the library                          | `bolt w openapi-merge build`                                  |
-| Watch-build the library                    | `bolt w openapi-merge build -w`                               |
-| Build the CLI                              | `bolt w openapi-merge-cli build`                              |
-| Regenerate the CLI JSON Schema             | `bolt w openapi-merge-cli run gen-schema`                     |
-| Regenerate the CLI Markdown docs           | `bolt w openapi-merge-cli run gen-docs`                       |
-| Run the CLI in dev mode                    | `yarn cli` (or `bolt w openapi-merge-cli run start`)          |
-| Run the CLI against the example config     | `yarn cli -- --config packages/openapi-merge-cli/openapi-merge.test.json` |
-| Publish (CI only, on `main`)               | Handled automatically by `npm-publish.yml` after version bump |
+| Install all workspace deps                 | `bun install`                                                 |
+| Lint everything                            | `bun run lint`                                                |
+| Run the full test suite                    | `bun run test`                                                |
+| Run only the library tests                 | `bun run --cwd packages/openapi-merge test`                   |
+| Build the library                          | `bun run --cwd packages/openapi-merge build`                  |
+| Watch-build the library                    | `cd packages/openapi-merge && bun run build -- --watch`       |
+| Build the CLI                              | `bun run --cwd packages/openapi-merge-cli build`               |
+| Regenerate the CLI JSON Schema              | `bun run --cwd packages/openapi-merge-cli gen-schema`          |
+| Regenerate the CLI Markdown docs           | `bun run --cwd packages/openapi-merge-cli gen-docs`            |
+| Run the CLI in dev mode                    | `bun run cli` (or `bun run --cwd packages/openapi-merge-cli start`) |
+| Run the CLI against the example config     | `bun run cli -- --config openapi-merge.test.json` |
+| Publish (CI only, on `main`)               | Handled by `npm-publish.yml` → `scripts/publish-changed.sh` after version bump |
 
 ---
 

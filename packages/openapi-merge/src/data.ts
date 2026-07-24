@@ -132,7 +132,7 @@ export type ErrorMergeResult = {
 };
 
 export function isErrorResult<A>(t: A | ErrorMergeResult): t is ErrorMergeResult {
-  return 'type' in t && 'message' in t;
+  return typeof t === 'object' && t !== null && 'type' in t && 'message' in t;
 }
 
 export type MergeResult = SuccessfulMergeResult | ErrorMergeResult;
