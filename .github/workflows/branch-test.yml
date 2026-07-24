@@ -9,24 +9,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@master
-    - name: Set up Node.js
-      uses: actions/setup-node@master
+      uses: actions/checkout@v4
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
       with:
-        node-version: 14
-    - run: yarn global add bolt
-    - run: bolt install
-    - run: yarn lint
+        bun-version: 1.3.14
+    - run: bun install --frozen-lockfile
+    - run: bun run lint
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@master
-    - name: Set up Node.js
-      uses: actions/setup-node@master
+      uses: actions/checkout@v4
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
       with:
-        node-version: 14
-    - run: yarn global add bolt
-    - run: bolt install
-    - run: yarn test
+        bun-version: 1.3.14
+    - run: bun install --frozen-lockfile
+    - run: bun run test

@@ -23,19 +23,23 @@ export async function readFileAsString(filePath: string): Promise<string> {
   return (await readFilePromise(filePath)).toString('utf-8');
 }
 
+function toError(e: unknown): Error {
+  return e instanceof Error ? e : new Error(String(e));
+}
+
 export async function readYamlOrJSON(fileContents: string): Promise<unknown> {
   let jsonError: Error;
   try {
     return JSON.parse(fileContents);
   } catch (e) {
-    jsonError = e;
+    jsonError = toError(e);
   }
 
   let yamlError: Error;
   try {
     return yaml.safeLoad(fileContents);
   } catch (e) {
-    yamlError = e;
+    yamlError = toError(e);
   }
 
   throw new JsonOrYamlParseError(jsonError, yamlError);

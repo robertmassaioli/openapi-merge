@@ -26,16 +26,17 @@
   "devDependencies": {
     "@adobe/jsonschema2md": "^6",
     "@types/isomorphic-fetch": "^0.0.35",
+    "@types/jest": "^25.2.1",
     "@types/js-yaml": "^3.12.5",
-    "@types/node": "^13.13.5",
+    "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^2.31.0",
     "@typescript-eslint/parser": "^2.31.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "eslint": "^7.0.0",
-    "ts-node": "^8.10.1",
-    "typescript": "^3.8.3",
-    "typescript-json-schema": "^0.50.1"
+    "typescript-json-schema": "^0.65.1"
   },
   "dependencies": {
+    "@atlassian/atlassian-openapi": "^1.0.6",
     "ajv": "^6.12.2",
     "commander": "^5.1.0",
     "es6-promise": "^4.2.8",
@@ -44,13 +45,13 @@
     "openapi-merge": "^1.2.0"
   },
   "scripts": {
-    "build": "tsc --project .",
-    "prepare": "npm run gen-schema && tsc --project .",
-    "prepublishOnly": "npm run gen-schema && tsc --project .",
-    "gen-schema": "typescript-json-schema src/data.ts Configuration --titles --refs --aliasRefs --noExtraProps --required --strictNullChecks --tsNodeRegister -o src/configuration.schema.json && ts-node --project tsconfig.json ./src/fix-schema.ts",
-    "start": "ts-node --project ./tsconfig.json ./src/cli.ts",
-    "test": "jest --collect-coverage --verbose",
-    "lint": "yarn eslint src --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
+    "build": "tsgo --project .",
+    "prepare": "bun run --cwd ../openapi-merge build && bun run gen-schema && tsgo --project .",
+    "prepublishOnly": "bun run --cwd ../openapi-merge build && bun run gen-schema && tsgo --project .",
+    "gen-schema": "bun --bun typescript-json-schema tsconfig.schema.json Configuration --titles --refs --aliasRefs --noExtraProps --required -o src/configuration.schema.json && bun ./src/fix-schema.ts",
+    "start": "bun ./src/cli.ts",
+    "test": "bun test --coverage",
+    "lint": "eslint src --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
     "gen-docs": "jsonschema2md --input=src"
   },
   "publishConfig": {

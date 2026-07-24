@@ -9,17 +9,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@master
-    - name: Set up Node.js
-      uses: actions/setup-node@master
+      uses: actions/checkout@v4
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
       with:
-        node-version: 14
-    - run: yarn global add bolt
-    - run: bolt install
-    - run: yarn lint
-    - run: yarn test
-    - name: Publish if version has been updated
-      run: echo "//registry.npmjs.org/:_authToken=${NPM_AUTH_TOKEN}" >> .npmrc && cp .npmrc packages/openapi-merge && cp .npmrc packages/openapi-merge-cli && bolt publish
+        bun-version: 1.3.14
+    - run: bun install --frozen-lockfile
+    - run: bun run lint
+    - run: bun run test
+    - run: bun run build
+    - name: Publish packages whose version has been updated
+      run: |
+        echo "//registry.npmjs.org/:_authToken=${NPM_AUTH_TOKEN}" >> ~/.npmrc
+        ./scripts/publish-changed.sh
       env: # More info about the environment variables in the README
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Leave this as is, it's automatically generated
         NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }} # You need to set this in your repo settings
