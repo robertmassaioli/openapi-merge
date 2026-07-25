@@ -14,12 +14,13 @@
   "scripts": {
     "lint": "bun run --filter '*' lint",
     "test": "bun run --filter '*' test",
+    "coverage": "bun run test && bun scripts/coverage-summary.ts",
     "build": "bun run --filter '*' build",
     "cli": "bun run --cwd packages/openapi-merge-cli start",
     "prepare": "husky"
   },
   "devDependencies": {
-    "husky": "9"
+    "husky": "^9.1.7"
   },
   "overrides": {
     "fast-uri": "^4.1.1"

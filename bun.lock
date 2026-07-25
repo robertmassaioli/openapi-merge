@@ -5,7 +5,7 @@
     "": {
       "name": "openapi-merge",
       "devDependencies": {
-        "husky": "9",
+        "husky": "^9.1.7",
       },
     },
     "packages/openapi-merge": {
