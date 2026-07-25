@@ -8,7 +8,6 @@ import fs from 'fs';
 import path from 'path';
 import { isErrorResult, SingleMergeInput } from "openapi-merge/dist/data";
 import { Swagger } from "@atlassian/atlassian-openapi";
-import fetch from 'isomorphic-fetch';
 import yaml from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
 import { ExitCode } from "./exit-codes";

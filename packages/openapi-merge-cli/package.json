@@ -17,6 +17,9 @@
   ],
   "author": "Robert Massaioli",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "private": false,
   "homepage": "https://github.com/robertmassaioli/openapi-merge",
   "repository": "github:robertmassaioli/openapi-merge",
@@ -25,7 +28,6 @@
   },
   "devDependencies": {
     "@adobe/jsonschema2md": "^6",
-    "@types/isomorphic-fetch": "^0.0.35",
     "@types/jest": "^25.2.1",
     "@types/js-yaml": "^3.12.5",
     "@types/node": "^22.0.0",
@@ -39,8 +41,6 @@
     "@atlassian/atlassian-openapi": "^1.0.6",
     "ajv": "^6.12.2",
     "commander": "^5.1.0",
-    "es6-promise": "^4.2.8",
-    "isomorphic-fetch": "^3",
     "js-yaml": "^3.14.0",
     "openapi-merge": "^1.2.0"
   },

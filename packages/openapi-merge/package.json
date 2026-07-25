@@ -18,6 +18,9 @@
     "url": "https://rmdir.app/"
   },
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "private": false,
   "homepage": "https://github.com/robertmassaioli/openapi-merge",
   "repository": "github:robertmassaioli/openapi-merge",
