@@ -29,7 +29,7 @@
   "devDependencies": {
     "@adobe/jsonschema2md": "8",
     "@types/jest": "^25.2.1",
-    "@types/js-yaml": "^3.12.5",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^2.31.0",
     "@typescript-eslint/parser": "^2.31.0",
@@ -41,7 +41,7 @@
     "@atlassian/atlassian-openapi": "^1.0.6",
     "ajv": "^6.12.2",
     "commander": "^5.1.0",
-    "js-yaml": "^3.14.0",
+    "js-yaml": "^5.2.2",
     "openapi-merge": "^1.2.0"
   },
   "scripts": {

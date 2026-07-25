@@ -1,5 +1,6 @@
 import fs from 'fs';
-import yaml from 'js-yaml';
+// js-yaml 5 is ESM with named exports only -- there is no default export.
+import { load as loadYaml } from 'js-yaml';
 
 export class JsonOrYamlParseError extends Error {
   constructor(jsonError: Error, yamlError: Error) {
@@ -37,7 +38,9 @@ export async function readYamlOrJSON(fileContents: string): Promise<unknown> {
 
   let yamlError: Error;
   try {
-    return yaml.safeLoad(fileContents);
+    // `load` is the js-yaml 4+ name for what used to be `safeLoad`: it refuses
+    // to instantiate arbitrary types, which is what we want for untrusted specs.
+    return loadYaml(fileContents);
   } catch (e) {
     yamlError = toError(e);
   }

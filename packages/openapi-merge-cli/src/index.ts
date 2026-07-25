@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { isErrorResult, SingleMergeInput } from "openapi-merge/dist/data";
 import { Swagger } from "@atlassian/atlassian-openapi";
-import yaml from 'js-yaml';
+import { dump as dumpYaml } from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
 import { ExitCode } from "./exit-codes";
 import { assertOutputContained, OutputOutsideRootError, resolveConfigPath } from "./path-resolution";
@@ -182,7 +182,7 @@ function isYamlExtension(filePath: string): boolean {
 
 function dumpAsYaml(blob: unknown, indent: Indent = DEFAULT_INDENT): string {
   // Note: The JSON stringify and parse is required to strip the undefined values: https://github.com/nodeca/js-yaml/issues/571
-  return yaml.safeDump(JSON.parse(JSON.stringify(blob)), { indent: indentToYamlArg(indent) });
+  return dumpYaml(JSON.parse(JSON.stringify(blob)), { indent: indentToYamlArg(indent) });
 }
 
 function writeOutput(outputFullPath: string, outputSchema: Swagger.SwaggerV3, indent: Indent = DEFAULT_INDENT): void {

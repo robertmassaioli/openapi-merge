@@ -34,7 +34,7 @@ export function indentToJsonStringifyArg(indent: Indent = DEFAULT_INDENT): numbe
 
 /**
  * Resolve an {@link Indent} into the numeric width expected by
- * `yaml.safeDump({ indent: ... })`. YAML 1.1 does not permit tab
+ * `yaml.dump({ indent: ... })`. YAML 1.1 does not permit tab
  * indentation, so this helper assumes the validator has already rejected
  * a `'tabs'` indent paired with a YAML output. In production, a
  * `'tabs'` value reaching this function indicates a bug elsewhere; we
