@@ -1,6 +1,17 @@
 # Implementation Proposal: Comprehensive Test Coverage for `openapi-merge-cli`
 
-**Status:** 📝 Proposal — awaiting implementation
+**Status:** ⛔ **Superseded** by `ai-planning/proposal-closing-coverage-gaps.md`
+(implemented 2026-07-25). Kept for history only — do not implement from this
+document.
+
+Its scenario matrix and its non-goals (real temp directories, a real in-process
+HTTP server, no `fs`/`fetch` mocking) were sound and are carried forward. Its
+tooling is not: this predates the Bun/tsgo migration, so every reference to
+Jest, `jest.config.js`, `collectCoverageFrom`, `babel-jest`, `tsc`, `yarn` and
+`bolt` is wrong. Its 80%-branches acceptance criterion is unsatisfiable — Bun
+emits no branch data at all. See `proposal-code-coverage.md` §7 for the full
+list of corrections.
+
 **Type:** Cross-cutting infrastructure / quality improvement
 **Scope:** `packages/openapi-merge-cli`
 

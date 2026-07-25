@@ -5,7 +5,7 @@ on:
       - main # Change this to your default branch
 jobs:
   lint:
-    name: Lint
+    name: Lint and Typecheck
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
@@ -15,9 +15,13 @@ jobs:
       with:
         bun-version: 1.3.14
     - run: bun install --frozen-lockfile
+    # `bun run lint` is eslint followed by `bun run typecheck` (tsgo --noEmit).
+    # ESLint does no full type analysis and `bun test` transpiles rather than
+    # typechecks, so the typecheck half is what catches a type error -- including
+    # one in a test file, which nothing used to catch.
     - run: bun run lint
-  test:
-    name: Test
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
@@ -27,4 +31,31 @@ jobs:
       with:
         bun-version: 1.3.14
     - run: bun install --frozen-lockfile
+    # Distinct from the typecheck above: this one actually emits, so it also
+    # covers declaration output and anything that only breaks when writing dist/.
+    - run: bun run build
+  test:
+    name: Test and Coverage
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.3.14
+    - run: bun install --frozen-lockfile
+    # Each package's `test` script is `bun test --coverage`, and its bunfig.toml
+    # sets per-file coverageThreshold values, so a coverage regression fails
+    # this step. The steps below only surface the numbers.
     - run: bun run test
+    - name: Coverage summary
+      if: always()
+      run: bun scripts/coverage-summary.ts
+    - name: Upload coverage
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-lcov
+        path: packages/*/coverage/lcov.info
+        if-no-files-found: error

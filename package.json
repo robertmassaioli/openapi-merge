@@ -12,13 +12,20 @@
     "packages/*"
   ],
   "scripts": {
-    "lint": "bun run --filter '*' lint",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "bun run --filter '*' lint && bun run typecheck",
+    "lint:eslint": "bun run --filter '*' lint",
     "test": "bun run --filter '*' test",
+    "coverage": "bun run test && bun scripts/coverage-summary.ts",
     "build": "bun run --filter '*' build",
     "cli": "bun run --cwd packages/openapi-merge-cli start",
-    "prepare": "husky install"
+    "prepare": "husky"
   },
   "devDependencies": {
-    "husky": "^7.0.2"
+    "husky": "^9.1.7"
+  },
+  "overrides": {
+    "fast-uri": "^4.1.1",
+    "js-yaml": "^4.3.0"
   }
 }

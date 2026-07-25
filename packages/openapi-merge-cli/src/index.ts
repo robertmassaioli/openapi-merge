@@ -1,15 +1,16 @@
 import { ConfigurationInput, isConfigurationInputFromFile } from "./data";
 import { loadConfiguration } from "./load-configuration";
 import { Command } from 'commander';
-/* eslint-disable-next-line @typescript-eslint/no-var-requires */
+// package.json sits outside tsconfig's rootDir, so it cannot be imported as a
+// module without widening the compilation. require() is the pragmatic option.
+/* eslint-disable-next-line @typescript-eslint/no-require-imports */
 const pjson = require('../package.json');
 import { merge, MergeInput } from 'openapi-merge';
 import fs from 'fs';
 import path from 'path';
 import { isErrorResult, SingleMergeInput } from "openapi-merge/dist/data";
 import { Swagger } from "@atlassian/atlassian-openapi";
-import fetch from 'isomorphic-fetch';
-import yaml from 'js-yaml';
+import { dump as dumpYaml } from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
 import { ExitCode } from "./exit-codes";
 import { assertOutputContained, OutputOutsideRootError, resolveConfigPath } from "./path-resolution";
@@ -18,13 +19,34 @@ import { DEFAULT_INDENT, Indent } from "./data";
 
 export { ExitCode } from "./exit-codes";
 
-const program = new Command();
+/**
+ * The parsed command-line options.
+ *
+ * Commander no longer exposes options as properties on the Command instance --
+ * they come from `opts()` -- so this names the shape rather than reaching for
+ * `any`.
+ */
+type CliOptions = {
+  config?: string;
+  restrictOutputTo?: string;
+};
 
-program.version(pjson.version);
+// Built per invocation rather than once at module scope. A Command retains the
+// values from a previous parse, and a later parse does not clear options that
+// are absent from it, so a module-scope singleton leaks state between calls to
+// `main()` -- a second call without `-c` would silently reuse the first call's
+// config file. Covered by the two isolation tests in main-integration.test.ts.
+function buildProgram(): Command {
+  const program = new Command();
 
-program
-  .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.')
-  .option('--restrict-output-to <dir>', 'Refuse to write output anywhere outside this directory (overrides outputRoot in the config).');
+  program.version(pjson.version);
+
+  program
+    .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.')
+    .option('--restrict-output-to <dir>', 'Refuse to write output anywhere outside this directory (overrides outputRoot in the config).');
+
+  return program;
+}
 
 
 class LogWithMillisDiff {
@@ -46,6 +68,42 @@ class LogWithMillisDiff {
   }
 }
 
+/**
+ * Thrown when an `inputURL` responds with a non-2xx status.
+ *
+ * Without this check the response body is fed straight to the YAML parser, and
+ * a body like `not found` is a *valid YAML string scalar* -- so it parses
+ * cleanly, gets cast to SwaggerV3, and the merge silently produces a spec with
+ * no `info` block while exiting 0.
+ */
+export class InputUrlStatusError extends Error {
+  public constructor(
+    public readonly url: string,
+    public readonly status: number,
+    statusText: string,
+  ) {
+    super(`Received HTTP ${status}${statusText ? ` ${statusText}` : ''} when fetching '${url}'`);
+  }
+
+  /**
+   * Which exit code this status maps to.
+   *
+   * The split is by responsibility, because that is what a caller can act on:
+   * a 4xx is the request's fault and will fail again identically, a 5xx is the
+   * server's and may not. Anything else gets its own code rather than being
+   * forced into whichever neighbour is closest.
+   */
+  public get exitCode(): ExitCode {
+    if (this.status >= 400 && this.status < 500) {
+      return ExitCode.ErrorInputUrlClientStatus;
+    }
+    if (this.status >= 500 && this.status < 600) {
+      return ExitCode.ErrorInputUrlServerStatus;
+    }
+    return ExitCode.ErrorInputUrlUnexpectedStatus;
+  }
+}
+
 async function loadOasForInput(basePath: string, input: ConfigurationInput, inputIndex: number, logger: LogWithMillisDiff): Promise<Swagger.SwaggerV3> {
   if (isConfigurationInputFromFile(input)) {
     const fullPath = resolveConfigPath(basePath, input.inputFile);
@@ -53,25 +111,35 @@ async function loadOasForInput(basePath: string, input: ConfigurationInput, inpu
     return (await readYamlOrJSON(await readFileAsString(fullPath))) as Swagger.SwaggerV3;
   } else {
     logger.log(`## Loading input ${inputIndex} from URL: ${input.inputURL}`);
-    const inputContents = await fetch(input.inputURL).then(rsp => rsp.text());
+    const response = await fetch(input.inputURL);
+    if (!response.ok) {
+      throw new InputUrlStatusError(input.inputURL, response.status, response.statusText);
+    }
+    const inputContents = await response.text();
     return (await readYamlOrJSON(inputContents)) as Swagger.SwaggerV3;
   }
 }
 
-type InputConversionErrors = {
-  errors: string[];
+type InputConversionError = {
+  message: string;
+  exitCode: ExitCode;
 };
 
-function isString<A extends object>(s: A | string): s is string {
-  return typeof s === 'string';
+type InputConversionErrors = {
+  errors: string[];
+  exitCode: ExitCode;
+};
+
+function isConversionError(s: SingleMergeInput | InputConversionError): s is InputConversionError {
+  return 'message' in s && 'exitCode' in s;
 }
 
-function isSingleMergeInput(i: SingleMergeInput | string): i is SingleMergeInput {
-  return typeof i !== 'string';
+function isSingleMergeInput(i: SingleMergeInput | InputConversionError): i is SingleMergeInput {
+  return !isConversionError(i);
 }
 
 async function convertInputs(basePath: string, configInputs: ConfigurationInput[], logger: LogWithMillisDiff): Promise<MergeInput | InputConversionErrors> {
-  const results = await Promise.all(configInputs.map<Promise<SingleMergeInput | string>>(async (input, inputIndex) => {
+  const results = await Promise.all(configInputs.map<Promise<SingleMergeInput | InputConversionError>>(async (input, inputIndex) => {
     try {
       const oas = await loadOasForInput(basePath, input, inputIndex, logger);
 
@@ -96,14 +164,22 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
 
       return output;
     } catch (e) {
-      return `Input ${inputIndex}: could not load configuration file. ${e}`;
+      return {
+        message: `Input ${inputIndex}: could not load configuration file. ${e}`,
+        exitCode: e instanceof InputUrlStatusError
+          ? e.exitCode
+          : ExitCode.ErrorLoadingInputs,
+      };
     }
   }));
 
-  const errors = results.filter(isString);
+  const errors = results.filter(isConversionError);
 
   if (errors.length > 0) {
-    return { errors };
+    // `Promise.all` preserves the order of `configInputs`, so "the first input
+    // that failed" is deterministic. When inputs fail for different reasons we
+    // report that first failure's code rather than trying to rank them.
+    return { errors: errors.map(e => e.message), exitCode: errors[0].exitCode };
   }
 
   return results.filter(isSingleMergeInput);
@@ -116,7 +192,7 @@ function isYamlExtension(filePath: string): boolean {
 
 function dumpAsYaml(blob: unknown, indent: Indent = DEFAULT_INDENT): string {
   // Note: The JSON stringify and parse is required to strip the undefined values: https://github.com/nodeca/js-yaml/issues/571
-  return yaml.safeDump(JSON.parse(JSON.stringify(blob)), { indent: indentToYamlArg(indent) });
+  return dumpYaml(JSON.parse(JSON.stringify(blob)), { indent: indentToYamlArg(indent) });
 }
 
 function writeOutput(outputFullPath: string, outputSchema: Swagger.SwaggerV3, indent: Indent = DEFAULT_INDENT): void {
@@ -129,10 +205,12 @@ function writeOutput(outputFullPath: string, outputSchema: Swagger.SwaggerV3, in
 
 export async function main(): Promise<void> {
   const logger = new LogWithMillisDiff();
+  const program = buildProgram();
   program.parse(process.argv);
+  const options = program.opts<CliOptions>();
   logger.log(`## ${process.argv[0]}: Running v${pjson.version}`);
 
-  const config = await loadConfiguration(program.config);
+  const config = await loadConfiguration(options.config);
 
   if (typeof config === 'string') {
     console.error(config);
@@ -142,13 +220,13 @@ export async function main(): Promise<void> {
 
   logger.log(`## Loaded the configuration: ${config.inputs.length} inputs`);
 
-  const basePath = path.dirname(program.config || './');
+  const basePath = path.dirname(options.config || './');
 
   const inputs = await convertInputs(basePath, config.inputs, logger);
 
   if ('errors' in inputs) {
-    console.error(inputs);
-    process.exit(ExitCode.ErrorLoadingInputs);
+    inputs.errors.forEach(error => console.error(error));
+    process.exit(inputs.exitCode);
     return;
   }
 
@@ -167,7 +245,7 @@ export async function main(): Promise<void> {
   // The CLI flag overrides whatever is in the config file. Both are resolved
   // against the config's directory so that relative `outputRoot` values mean
   // what a config author would expect.
-  const outputRootRaw: string | undefined = program.restrictOutputTo || config.outputRoot;
+  const outputRootRaw: string | undefined = options.restrictOutputTo || config.outputRoot;
   const outputRoot = outputRootRaw === undefined ? undefined : resolveConfigPath(basePath, outputRootRaw);
 
   try {

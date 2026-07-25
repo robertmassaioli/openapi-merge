@@ -17,6 +17,9 @@
   ],
   "author": "Robert Massaioli",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "private": false,
   "homepage": "https://github.com/robertmassaioli/openapi-merge",
   "repository": "github:robertmassaioli/openapi-merge",
@@ -24,34 +27,35 @@
     "url": "https://github.com/robertmassaioli/openapi-merge/issues"
   },
   "devDependencies": {
-    "@adobe/jsonschema2md": "^6",
-    "@types/isomorphic-fetch": "^0.0.35",
-    "@types/jest": "^25.2.1",
-    "@types/js-yaml": "^3.12.5",
-    "@types/node": "^22.0.0",
-    "@typescript-eslint/eslint-plugin": "^2.31.0",
-    "@typescript-eslint/parser": "^2.31.0",
+    "@adobe/jsonschema2md": "8",
+    "@eslint/js": "^10.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^26.1.1",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
-    "eslint": "^7.0.0",
-    "typescript-json-schema": "^0.65.1"
+    "eslint": "^10.0.0",
+    "eslint-formatter-visualstudio": "^9.0.1",
+    "globals": "^17.7.0",
+    "typescript-eslint": "^8.65.0",
+    "typescript-json-schema": "^0.68.0"
   },
   "dependencies": {
     "@atlassian/atlassian-openapi": "^1.0.6",
-    "ajv": "^6.12.2",
-    "commander": "^5.1.0",
-    "es6-promise": "^4.2.8",
-    "isomorphic-fetch": "^3",
-    "js-yaml": "^3.14.0",
+    "ajv": "8",
+    "ajv-formats": "^3.0.1",
+    "commander": "^15.0.0",
+    "js-yaml": "^5.2.2",
     "openapi-merge": "^1.2.0"
   },
   "scripts": {
     "build": "tsgo --project .",
+    "typecheck": "tsgo --project . --noEmit",
     "prepare": "bun run --cwd ../openapi-merge build && bun run gen-schema && tsgo --project .",
     "prepublishOnly": "bun run --cwd ../openapi-merge build && bun run gen-schema && tsgo --project .",
     "gen-schema": "bun --bun typescript-json-schema tsconfig.schema.json Configuration --titles --refs --aliasRefs --noExtraProps --required -o src/configuration.schema.json && bun ./src/fix-schema.ts",
     "start": "bun ./src/cli.ts",
     "test": "bun test --coverage",
-    "lint": "eslint src --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
+    "lint": "eslint src --fix --format=visualstudio",
     "gen-docs": "jsonschema2md --input=src"
   },
   "publishConfig": {

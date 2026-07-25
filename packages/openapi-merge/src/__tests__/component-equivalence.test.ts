@@ -1,5 +1,6 @@
 import { Swagger, SwaggerLookup } from '@atlassian/atlassian-openapi';
 import { deepEquality, shallowEquality } from '../component-equivalence';
+import { walkSchemaReferences } from '../reference-walker';
 
 // A minimal Lookup that backs onto a trivially valid empty document; the
 // tests below never produce $ref objects so the lookup is never consulted.
@@ -66,5 +67,36 @@ describe('component-equivalence: null and undefined handling (issue #92)', () =>
       expect(() => compare(null as unknown as Swagger.Schema, obj)).not.toThrow();
       expect(compare(null as unknown as Swagger.Schema, obj)).toBe(false);
     });
+  });
+});
+
+describe('shallowEquality: reference counting', () => {
+  it('treats two identical reference-free schemas as equal', () => {
+    // Reaches referenceCount: equal, present, not a Reference, zero refs found.
+    const compare = shallowEquality<Swagger.Schema>(walkSchemaReferences);
+
+    expect(compare({ type: 'string' }, { type: 'string' })).toBe(true);
+  });
+
+  it('treats two identical schemas that contain a reference as NOT equal', () => {
+    // Identical, but referenceCount > 0: shallow equality cannot know whether
+    // the two $refs resolve to the same thing, so it must decline.
+    const compare = shallowEquality<Swagger.Schema>(walkSchemaReferences);
+    const withRef = (): Swagger.Schema => ({ properties: { a: { $ref: '#/components/schemas/A' } } });
+
+    expect(compare(withRef(), withRef())).toBe(false);
+  });
+
+  it('returns false when the two values differ', () => {
+    const compare = shallowEquality<Swagger.Schema>(walkSchemaReferences);
+
+    expect(compare({ type: 'string' }, { type: 'number' })).toBe(false);
+  });
+
+  it('returns false when both sides are the same reference', () => {
+    const compare = shallowEquality<Swagger.Schema>(walkSchemaReferences);
+    const ref: Swagger.Reference = { $ref: '#/components/schemas/A' };
+
+    expect(compare(ref, { ...ref })).toBe(false);
   });
 });

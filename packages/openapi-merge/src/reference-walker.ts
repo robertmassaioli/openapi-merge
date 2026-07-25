@@ -170,7 +170,6 @@ export function walkCallbackReferences(callback: Swagger.Callback | Swagger.Refe
     for (const pathItemKey in callback) {
       if (callback.hasOwnProperty(pathItemKey)) {
         const pathItem = callback[pathItemKey];
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
         walkPathItemReferences(pathItem, modify);
       }
     }

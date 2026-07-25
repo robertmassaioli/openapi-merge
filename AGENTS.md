@@ -35,7 +35,7 @@ the **MIT License**. Source is hosted at
 ```
 .
 ├── .github/workflows/        # CI workflows: branch-test, npm-publish, codeql-analysis
-├── .husky/pre-commit         # Husky pre-commit hook (runs `bun run lint`)
+├── .husky/pre-commit         # Husky pre-commit hook (runs `bun run lint`: eslint + typecheck)
 ├── scripts/publish-changed.sh # Publishes any workspace package whose version has changed
 ├── LICENSE                   # MIT
 ├── README.md                 # Repository-level README
@@ -71,11 +71,14 @@ Root-level scripts fan out into each package using Bun's `--filter`:
 
 | Script             | What it does                                                       |
 | ------------------ | ------------------------------------------------------------------ |
-| `bun run lint`     | `bun run --filter '*' lint` — runs `lint` in every workspace        |
-| `bun run test`     | `bun run --filter '*' test` — runs `test` in every workspace        |
-| `bun run build`    | `bun run --filter '*' build` — builds every workspace with `tsgo`   |
+| `bun run lint`      | eslint in every workspace, **then** `bun run typecheck`             |
+| `bun run typecheck` | `tsgo --project . --noEmit` in every workspace (~0.6s, no output)    |
+| `bun run lint:eslint` | eslint only, skipping the typecheck                              |
+| `bun run test`      | `bun run --filter '*' test` — runs `test` in every workspace        |
+| `bun run coverage`  | `bun run test`, then prints a weighted coverage table               |
+| `bun run build`     | `bun run --filter '*' build` — builds every workspace with `tsgo`   |
 | `bun run cli`      | `bun run --cwd packages/openapi-merge-cli start` — runs the CLI in dev mode |
-| `bun run prepare`  | `husky install` — installs the git hooks                           |
+| `bun run prepare`   | `husky` — installs the git hooks                                   |
 
 TypeScript is compiled with **[`tsgo`](https://github.com/microsoft/typescript-go)**
 (package `@typescript/native-preview`), the Go-based native port of the TypeScript
@@ -162,14 +165,16 @@ From `packages/openapi-merge`:
 ```bash
 bun run build      # tsgo --project .        (also runs on `prepare` and `prepublishOnly`)
 bun run test       # bun test --coverage
-bun run lint       # eslint src --ext .js,.jsx,.ts,.tsx --fix
+bun run lint       # eslint src --fix
+bun run typecheck  # tsgo --project . --noEmit
 bun run start      # bun src/index.ts         (rarely useful directly)
 ```
 
 Tests run under Bun's built-in test runner (`bun:test`), which is Jest-API-compatible
 (`describe`/`it`/`expect` are globals — no import needed). `bunfig.toml` sets
 `[test] root = "src"`; the test glob defaults to `**/*.{test,spec}.{ts,tsx,js,jsx}`,
-matching the existing `__tests__/*.test.ts` layout. Coverage output goes to `coverage/`.
+matching the existing `__tests__/*.test.ts` layout. Coverage output goes to `coverage/`
+(gitignored); see **§5 → Code coverage** for the coverage conventions and their traps.
 
 The library is compiled with `tsgo` to `dist/`, and the published `main`/`typings`
 both point at `dist/index`. Only `dist/!(__tests__)` (and subtree) are published.
@@ -258,12 +263,30 @@ first to strip `undefined` values (a workaround for
 
 ### Exit codes
 
-| Code | Meaning                              |
-| ---- | ------------------------------------ |
-| `0`  | Success                              |
-| `1`  | `ERROR_LOADING_CONFIG`               |
-| `2`  | `ERROR_LOADING_INPUTS`               |
-| `3`  | `ERROR_MERGING`                      |
+Defined in `src/exit-codes.ts`, whose header table is the source of truth.
+`src/__tests__/exit-codes.test.ts` pins every value, so renumbering a member
+fails the build rather than someone's pipeline.
+
+| Code | `ExitCode` member      | Meaning                                        |
+| ---- | ---------------------- | ---------------------------------------------- |
+| `0`  | `Success`              | Merge succeeded, output written                |
+| `1`  | `ErrorLoadingConfig`   | Failed to load/parse the configuration file    |
+| `2`  | `ErrorLoadingInputs`   | An input could not be obtained or parsed       |
+| `3`  | `ErrorMerging`         | Merge logic failed (conflicts, etc.)           |
+| `4`  | `ErrorUncaught`        | Uncaught exception during execution            |
+| `5`  | `ErrorUnsafePath`      | Output escaped `outputRoot`                    |
+| `6`  | `ErrorInputUrlClientStatus` | An `inputURL` returned a 4xx status       |
+| `7`  | `ErrorInputUrlServerStatus` | An `inputURL` returned a 5xx status       |
+| `8`  | `ErrorInputUrlUnexpectedStatus` | `inputURL` non-2xx, neither 4xx nor 5xx |
+
+The three URL-status codes are split by **responsibility**, so callers can
+branch on retryability: 4xx will fail identically on retry, 5xx may not. A
+transport-level failure (DNS, refused connection) is `2`, not these — the
+distinction is whether the server answered at all.
+
+Adding a code means: append the next unused integer (never re-use a retired
+one), add a row to the table in `exit-codes.ts`, add it to the `documented`
+list in `exit-codes.test.ts`, and update the tables here and in the CLI README.
 
 ### Build / Test / Lint / Generate
 
@@ -275,7 +298,8 @@ bun run gen-schema # typescript-json-schema against tsconfig.schema.json, then b
 bun run prepare    # bun run gen-schema && tsgo --project .
 bun run prepublishOnly # same as prepare
 bun run start      # bun ./src/cli.ts           (dev mode)
-bun run lint       # eslint src --ext .ts,.tsx --fix
+bun run lint       # eslint src --fix
+bun run typecheck  # tsgo --project . --noEmit
 bun run gen-docs   # jsonschema2md --input=src  (regenerate Markdown docs)
 ```
 
@@ -325,8 +349,75 @@ bun run cli -- --config openapi-merge.test.json
 
 ### Pre-commit hook
 
-`.husky/pre-commit` runs `bun run lint` before every commit. If you add new files,
-ensure they pass ESLint with `--fix` cleanly.
+`.husky/pre-commit` runs `bun run lint` before every commit, which is eslint
+**and** a full `tsgo --noEmit` typecheck of both packages. New files must pass
+ESLint with `--fix` cleanly and must typecheck.
+
+Note what this closed: ESLint does no full type analysis and `bun test`
+transpiles rather than typechecks, so before the typecheck was folded into
+`lint`, a type error -- including one in a test file -- passed the hook and only
+surfaced later as a confusing failure in the CLI's `prepare` script. The whole
+typecheck takes about 0.6s, which is why it is affordable on every commit.
+
+Use `bun run lint:eslint` if you deliberately want the lint half alone.
+
+### Code coverage
+
+Both packages run `bun test --coverage` as their `test` script, so coverage is
+collected on every local run and in CI. Configuration lives in each package's
+`bunfig.toml`. Full background, including the measurements behind every number
+here, is in `ai-planning/proposal-code-coverage.md`.
+
+**If you add a source file to `openapi-merge-cli`, add an import line to
+`src/__tests__/_coverage-preload.ts`.** Bun's coverage is runtime-instrumented:
+a module that no test imports contributes *nothing* to the report — not even a
+0% row — so the reported percentage would silently be computed over a subset of
+the source. The preload file exists solely to force every module to load. It is
+deliberately a hand-curated list rather than a glob, because two files execute
+real work at module scope and must never be imported by it:
+
+- `cli.ts` calls `main()` at module scope — importing it runs the CLI inside the
+  test process.
+- `fix-schema.ts` is a build script whose module body **writes**
+  `src/configuration.schema.json`.
+
+Those two are therefore absent from the CLI's coverage report by design. If you
+ever see `configuration.schema.json` dirty in `git status` after a test run,
+suspect the preload file before suspecting `gen-schema`.
+
+One consequence worth knowing: because the preload imports `src/index.ts`, which
+imports the sibling library (`openapi-merge`, resolved via its `dist/`), **the
+CLI test suite now requires `packages/openapi-merge/dist/` to exist.** Before the
+preload it did not, since no CLI test reached that far. `bun install` builds it
+via the CLI's `prepare` script, so CI and fresh clones are fine — but after
+`rm -rf packages/*/dist`, `bun test` in the CLI fails with a module-resolution
+error that looks nothing like a coverage problem. Run `bun run build` first.
+
+**`coverageThreshold` is enforced per-file, not as a package average.** A
+threshold is capped by the *weakest* file in the package, so it functions as a
+ratchet against the worst module rather than a coverage guarantee. The library's
+current floor sits just under `reference-walker.ts`; raise it as that file gains
+tests, and never lower one to make a build pass.
+
+Three traps, all of which fail **silently** — Bun prints nothing when a
+threshold trips, and names neither the file nor the metric:
+
+1. Both `lines` and `functions` are mandatory. Specifying only one makes the
+   other default to 100%, so the run fails unconditionally.
+2. Keys are plural. A `line`/`function` typo is not an error — it silently
+   disables the threshold, leaving you gated in name only.
+3. Because of (1) and (2), **verify any threshold change in both directions**:
+   set it deliberately high and confirm a red build, then set it to the real
+   value and confirm green.
+
+**Bun's `All files` row is an unweighted mean of the per-file percentages**, not
+covered ÷ total, so file size is ignored — a one-line file at 100% offsets a
+189-line file at 22%. Treat per-file numbers as the real signal and the total as
+indicative only.
+
+**Bun collects no branch coverage** (its lcov output contains no `BR*` records)
+and none from subprocesses. Do not write acceptance criteria that require
+either.
 
 ---
 

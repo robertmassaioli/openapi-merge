@@ -146,6 +146,49 @@ are defeated by realpath-ing the closest existing ancestor of the output.
 When unset, the CLI keeps its historical permissive default and writes
 wherever you tell it to.
 
+## Exit codes
+
+The CLI's exit codes are part of its contract; scripts and CI pipelines can
+branch on them.
+
+| Code | Meaning |
+| ---- | ------- |
+| `0` | Success — the merge completed and the output was written |
+| `1` | Failed to load or parse the configuration file |
+| `2` | Failed to load one or more inputs (missing file, unreachable URL, unparseable content) |
+| `3` | The merge itself failed (duplicate paths, unresolvable `operationId` conflicts, …) |
+| `4` | An uncaught exception escaped the CLI |
+| `5` | The resolved output path escaped `outputRoot` / `--restrict-output-to` |
+| `6` | An `inputURL` responded with a **4xx** status |
+| `7` | An `inputURL` responded with a **5xx** status |
+| `8` | An `inputURL` responded with some other non-2xx status |
+
+Codes `6`–`8` are separate from `2` on purpose. `2` means an input could not be
+obtained at all — a missing file, an unreachable host, content that parses as
+neither JSON nor YAML. `6`–`8` mean the server answered and refused.
+
+They are separate from each other so that CI can branch on **retryability**:
+
+* `6` (4xx) is the request's fault — a stale URL, missing credentials, a
+  retired endpoint. Retrying changes nothing; the config needs to change.
+* `7` (5xx) is the server's fault and is plausibly transient. If you merge
+  specs published by other teams, you will see this during their deploys, and
+  a retry is usually the right response.
+* `8` is anything else outside the 2xx range. Ordinary redirects are followed
+  automatically and never surface; in practice this is a `304 Not Modified`
+  from a caching proxy. Read the printed status.
+
+For example, retrying only on a server-side failure:
+
+```bash
+openapi-merge-cli
+case $? in
+  0) echo "merged" ;;
+  7) echo "upstream is down, retrying later"; exit 75 ;;  # EX_TEMPFAIL
+  *) echo "merge failed permanently"; exit 1 ;;
+esac
+```
+
 If you experience any issues then please [raise them in the bug tracker][1].
 
  [1]: https://github.com/robertmassaioli/openapi-merge/issues/new

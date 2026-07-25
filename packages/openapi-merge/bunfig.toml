@@ -1,2 +1,21 @@
 [test]
 root = "src"
+
+# Exclude test helpers (`oas-generation.ts`, `test-utils.ts`). Bun auto-excludes
+# `*.test.ts` by name, but non-`.test.` modules under `__tests__/` would
+# otherwise be counted as production source.
+coveragePathIgnorePatterns = ["**/__tests__/**"]
+
+coverageReporter = ["text", "lcov"]
+
+# Per-file floors, NOT a package average. Bun enforces coverageThreshold against
+# every file individually, so this is capped by the weakest file. The weakest are
+# now component-equivalence.ts (90.91% funcs) and dispute.ts (90.91% lines);
+# 0.85 leaves a little headroom for incidental churn. Raise as coverage improves.
+#
+# Both keys are mandatory: omitting one makes the omitted metric default to 100%
+# and the run fails unconditionally. A misspelled key (`line`/`function`)
+# silently disables the threshold instead. Both failure modes are silent, so
+# verify any change in both directions -- set it high, confirm red; set it to the
+# real value, confirm green.
+coverageThreshold = { lines = 0.85, functions = 0.85 }

@@ -109,3 +109,14 @@ describe('validateConfigurationSemantics', () => {
     expect(validateConfigurationSemantics(config)).toContain('YAML');
   });
 });
+
+describe('indentToJsonStringifyArg exhaustiveness guard', () => {
+  it('throws on an indent style outside the union', () => {
+    // TypeScript makes this unreachable, so the cast is the only way to reach
+    // the assertNever guard. A future Indent variant added without updating
+    // the switch would land here at runtime instead of failing silently.
+    const bogus = { style: 'underscores', width: 3 } as unknown as Indent;
+
+    expect(() => indentToJsonStringifyArg(bogus)).toThrow('Unhandled indent style');
+  });
+});
