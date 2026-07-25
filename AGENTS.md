@@ -169,7 +169,8 @@ bun run start      # bun src/index.ts         (rarely useful directly)
 Tests run under Bun's built-in test runner (`bun:test`), which is Jest-API-compatible
 (`describe`/`it`/`expect` are globals — no import needed). `bunfig.toml` sets
 `[test] root = "src"`; the test glob defaults to `**/*.{test,spec}.{ts,tsx,js,jsx}`,
-matching the existing `__tests__/*.test.ts` layout. Coverage output goes to `coverage/`.
+matching the existing `__tests__/*.test.ts` layout. Coverage output goes to `coverage/`
+(gitignored); see **§5 → Code coverage** for the coverage conventions and their traps.
 
 The library is compiled with `tsgo` to `dist/`, and the published `main`/`typings`
 both point at `dist/index`. Only `dist/!(__tests__)` (and subtree) are published.
@@ -327,6 +328,64 @@ bun run cli -- --config openapi-merge.test.json
 
 `.husky/pre-commit` runs `bun run lint` before every commit. If you add new files,
 ensure they pass ESLint with `--fix` cleanly.
+
+### Code coverage
+
+Both packages run `bun test --coverage` as their `test` script, so coverage is
+collected on every local run and in CI. Configuration lives in each package's
+`bunfig.toml`. Full background, including the measurements behind every number
+here, is in `ai-planning/proposal-code-coverage.md`.
+
+**If you add a source file to `openapi-merge-cli`, add an import line to
+`src/__tests__/_coverage-preload.ts`.** Bun's coverage is runtime-instrumented:
+a module that no test imports contributes *nothing* to the report — not even a
+0% row — so the reported percentage would silently be computed over a subset of
+the source. The preload file exists solely to force every module to load. It is
+deliberately a hand-curated list rather than a glob, because two files execute
+real work at module scope and must never be imported by it:
+
+- `cli.ts` calls `main()` at module scope — importing it runs the CLI inside the
+  test process.
+- `fix-schema.ts` is a build script whose module body **writes**
+  `src/configuration.schema.json`.
+
+Those two are therefore absent from the CLI's coverage report by design. If you
+ever see `configuration.schema.json` dirty in `git status` after a test run,
+suspect the preload file before suspecting `gen-schema`.
+
+One consequence worth knowing: because the preload imports `src/index.ts`, which
+imports the sibling library (`openapi-merge`, resolved via its `dist/`), **the
+CLI test suite now requires `packages/openapi-merge/dist/` to exist.** Before the
+preload it did not, since no CLI test reached that far. `bun install` builds it
+via the CLI's `prepare` script, so CI and fresh clones are fine — but after
+`rm -rf packages/*/dist`, `bun test` in the CLI fails with a module-resolution
+error that looks nothing like a coverage problem. Run `bun run build` first.
+
+**`coverageThreshold` is enforced per-file, not as a package average.** A
+threshold is capped by the *weakest* file in the package, so it functions as a
+ratchet against the worst module rather than a coverage guarantee. The library's
+current floor sits just under `reference-walker.ts`; raise it as that file gains
+tests, and never lower one to make a build pass.
+
+Three traps, all of which fail **silently** — Bun prints nothing when a
+threshold trips, and names neither the file nor the metric:
+
+1. Both `lines` and `functions` are mandatory. Specifying only one makes the
+   other default to 100%, so the run fails unconditionally.
+2. Keys are plural. A `line`/`function` typo is not an error — it silently
+   disables the threshold, leaving you gated in name only.
+3. Because of (1) and (2), **verify any threshold change in both directions**:
+   set it deliberately high and confirm a red build, then set it to the real
+   value and confirm green.
+
+**Bun's `All files` row is an unweighted mean of the per-file percentages**, not
+covered ÷ total, so file size is ignored — a one-line file at 100% offsets a
+189-line file at 22%. Treat per-file numbers as the real signal and the total as
+indicative only.
+
+**Bun collects no branch coverage** (its lcov output contains no `BR*` records)
+and none from subprocesses. Do not write acceptance criteria that require
+either.
 
 ---
 

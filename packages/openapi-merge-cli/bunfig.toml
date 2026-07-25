@@ -1,2 +1,21 @@
 [test]
 root = "src"
+
+# Force every loadable source module into the coverage report. Without this,
+# Bun omits never-imported files entirely and the total is measured over
+# whichever files the tests happened to touch. See the file itself for why
+# cli.ts and fix-schema.ts are not in it.
+preload = ["./src/__tests__/_coverage-preload.ts"]
+
+# `**/__tests__/**` also covers the preload module above, which would otherwise
+# appear at 100% and inflate the total.
+# `**/dist/**` keeps the sibling library's compiled output (imported via the
+# workspace-linked `openapi-merge` package) out of this package's report.
+coveragePathIgnorePatterns = ["**/__tests__/**", "**/dist/**"]
+
+coverageReporter = ["text", "lcov"]
+
+# No coverageThreshold yet, deliberately. data.ts and file-loading.ts are both at
+# 0.00% funcs, and Bun enforces thresholds per-file, so any functions floor above
+# zero fails on arrival. Add one once the CLI test suite lands -- see
+# ai-planning/proposal-cli-test-coverage.md.
