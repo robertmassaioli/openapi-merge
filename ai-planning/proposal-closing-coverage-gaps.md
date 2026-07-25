@@ -319,6 +319,14 @@ const inputContents = await rsp.text();
 `convertInputs` already wraps `loadOasForInput` in a `try`/`catch` that turns a
 throw into an `ErrorLoadingInputs` exit, so the throw is all that is needed.
 
+**Update — fixed on `fix/input-url-http-status`.** The fix landed with a
+*distinct* exit code rather than reusing `ErrorLoadingInputs`: a status failure
+means the server answered and refused, which is a different remedy from an input
+that could not be obtained at all. That required reshaping `InputConversionErrors`
+to carry an exit code, since it previously flattened every per-input failure into
+`string[]` and `main()` hardcoded a single code. See `ExitCode.ErrorInputUrlStatus`
+(6). The two tests pinned above are now regression tests for the fixed behaviour.
+
 ### 10.6 Prerequisite refactor, as landed
 
 `cli/src/index.ts` now builds its `Command` inside `buildProgram()`, called per

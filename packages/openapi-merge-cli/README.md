@@ -146,6 +146,26 @@ are defeated by realpath-ing the closest existing ancestor of the output.
 When unset, the CLI keeps its historical permissive default and writes
 wherever you tell it to.
 
+## Exit codes
+
+The CLI's exit codes are part of its contract; scripts and CI pipelines can
+branch on them.
+
+| Code | Meaning |
+| ---- | ------- |
+| `0` | Success — the merge completed and the output was written |
+| `1` | Failed to load or parse the configuration file |
+| `2` | Failed to load one or more inputs (missing file, unreachable URL, unparseable content) |
+| `3` | The merge itself failed (duplicate paths, unresolvable `operationId` conflicts, …) |
+| `4` | An uncaught exception escaped the CLI |
+| `5` | The resolved output path escaped `outputRoot` / `--restrict-output-to` |
+| `6` | An `inputURL` responded with a non-2xx HTTP status |
+
+Code `6` is separate from `2` on purpose. A `404` from a stale URL or a `5xx`
+from a service that is down means the server answered and refused; a missing
+file or an unreachable host means the input could not be obtained at all. In
+CI the former usually means "fix the config" and the latter "retry".
+
 If you experience any issues then please [raise them in the bug tracker][1].
 
  [1]: https://github.com/robertmassaioli/openapi-merge/issues/new

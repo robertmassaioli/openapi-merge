@@ -233,7 +233,12 @@ describe('main - inputURL', () => {
       if (req.url === '/spec.json') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(oas({ '/remote': getPath('getRemote') })));
+      } else if (req.url === '/boom.json') {
+        res.writeHead(500);
+        res.end('internal server error');
       } else {
+        // A body that is not JSON but IS a valid YAML string scalar -- the
+        // shape that used to slip through as a spec.
         res.writeHead(404);
         res.end('not found');
       }
@@ -259,28 +264,21 @@ describe('main - inputURL', () => {
     expect(Object.keys(JSON.parse(readOutput()).paths)).toEqual(['/remote']);
   });
 
-  // KNOWN BUG, pinned deliberately rather than asserted as correct.
-  //
-  // `loadOasForInput` does `fetch(url).then(rsp => rsp.text())` and never looks
-  // at the HTTP status. A 404 body such as "not found" fails JSON.parse but is
-  // a *valid YAML string scalar*, so it parses cleanly and is cast to
-  // SwaggerV3. The merge then succeeds against a string, and the CLI writes an
-  // output with no `info` block and exits 0 -- a CI pipeline sees success and
-  // publishes a corrupt spec.
-  //
-  // These tests document what the code does today. When the status check is
-  // added they will fail, which is the point: update them to expect
-  // ExitCode.ErrorLoadingInputs at that time.
-  it('does not currently detect an HTTP error response', async () => {
+  // Regression tests for the silent-404 bug. Before the status check landed,
+  // `loadOasForInput` did `fetch(url).then(rsp => rsp.text())` and never looked
+  // at the status: a 404 body such as "not found" fails JSON.parse but is a
+  // valid YAML string scalar, so it parsed cleanly, was cast to SwaggerV3, and
+  // the merge produced a spec with no `info` block while exiting 0.
+  it('exits ErrorInputUrlStatus when the URL 404s', async () => {
     const config = writeJson('openapi-merge.json', {
       inputs: [{ inputURL: `${baseUrl}/missing.json` }],
       output: './output.json',
     });
 
-    expect(await runMain('-c', config)).toBe(ExitCode.Success);
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorInputUrlStatus);
   });
 
-  it('silently writes a spec with no info block when an input 404s', async () => {
+  it('writes no output at all when an input 404s', async () => {
     const config = writeJson('openapi-merge.json', {
       inputs: [{ inputURL: `${baseUrl}/missing.json` }],
       output: './output.json',
@@ -288,9 +286,55 @@ describe('main - inputURL', () => {
 
     await runMain('-c', config);
 
-    const output = JSON.parse(readOutput());
-    expect(output.info).toBeUndefined();
-    expect(output.paths).toEqual({});
+    expect(fs.existsSync(path.join(tmpDir, 'output.json'))).toBe(false);
+  });
+
+  it('reports the status and the URL on stderr', async () => {
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputURL: `${baseUrl}/missing.json` }],
+      output: './output.json',
+    });
+
+    await runMain('-c', config);
+
+    const output = stderr.join('\n');
+    expect(output).toContain('404');
+    expect(output).toContain('/missing.json');
+  });
+
+  it('exits ErrorInputUrlStatus for a 500 as well as a 404', async () => {
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputURL: `${baseUrl}/boom.json` }],
+      output: './output.json',
+    });
+
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorInputUrlStatus);
+    expect(stderr.join('\n')).toContain('500');
+  });
+
+  it('still exits ErrorLoadingInputs when the URL cannot be reached at all', async () => {
+    // A transport-level failure is not a status failure: the server never
+    // answered, so this must stay on the generic code.
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputURL: 'http://127.0.0.1:1/unreachable.json' }],
+      output: './output.json',
+    });
+
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorLoadingInputs);
+  });
+
+  it('reports the first failing input when inputs fail for different reasons', async () => {
+    // Input 0 is a missing file (ErrorLoadingInputs), input 1 is a 404
+    // (ErrorInputUrlStatus). The first failure decides the exit code.
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './missing.json' }, { inputURL: `${baseUrl}/missing.json` }],
+      output: './output.json',
+    });
+
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorLoadingInputs);
+    // ...but both failures are still reported to the user.
+    expect(stderr.join('\n')).toContain('Input 0');
+    expect(stderr.join('\n')).toContain('Input 1');
   });
 });
 

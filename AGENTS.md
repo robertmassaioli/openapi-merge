@@ -259,12 +259,23 @@ first to strip `undefined` values (a workaround for
 
 ### Exit codes
 
-| Code | Meaning                              |
-| ---- | ------------------------------------ |
-| `0`  | Success                              |
-| `1`  | `ERROR_LOADING_CONFIG`               |
-| `2`  | `ERROR_LOADING_INPUTS`               |
-| `3`  | `ERROR_MERGING`                      |
+Defined in `src/exit-codes.ts`, whose header table is the source of truth.
+`src/__tests__/exit-codes.test.ts` pins every value, so renumbering a member
+fails the build rather than someone's pipeline.
+
+| Code | `ExitCode` member      | Meaning                                        |
+| ---- | ---------------------- | ---------------------------------------------- |
+| `0`  | `Success`              | Merge succeeded, output written                |
+| `1`  | `ErrorLoadingConfig`   | Failed to load/parse the configuration file    |
+| `2`  | `ErrorLoadingInputs`   | An input could not be obtained or parsed       |
+| `3`  | `ErrorMerging`         | Merge logic failed (conflicts, etc.)           |
+| `4`  | `ErrorUncaught`        | Uncaught exception during execution            |
+| `5`  | `ErrorUnsafePath`      | Output escaped `outputRoot`                    |
+| `6`  | `ErrorInputUrlStatus`  | An `inputURL` returned a non-2xx HTTP status   |
+
+Adding a code means: append the next unused integer (never re-use a retired
+one), add a row to the table in `exit-codes.ts`, add it to the `documented`
+list in `exit-codes.test.ts`, and update the tables here and in the CLI README.
 
 ### Build / Test / Lint / Generate
 

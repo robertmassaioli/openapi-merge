@@ -59,6 +59,24 @@ class LogWithMillisDiff {
   }
 }
 
+/**
+ * Thrown when an `inputURL` responds with a non-2xx status.
+ *
+ * Without this check the response body is fed straight to the YAML parser, and
+ * a body like `not found` is a *valid YAML string scalar* -- so it parses
+ * cleanly, gets cast to SwaggerV3, and the merge silently produces a spec with
+ * no `info` block while exiting 0.
+ */
+export class InputUrlStatusError extends Error {
+  public constructor(
+    public readonly url: string,
+    public readonly status: number,
+    statusText: string,
+  ) {
+    super(`Received HTTP ${status}${statusText ? ` ${statusText}` : ''} when fetching '${url}'`);
+  }
+}
+
 async function loadOasForInput(basePath: string, input: ConfigurationInput, inputIndex: number, logger: LogWithMillisDiff): Promise<Swagger.SwaggerV3> {
   if (isConfigurationInputFromFile(input)) {
     const fullPath = resolveConfigPath(basePath, input.inputFile);
@@ -66,25 +84,35 @@ async function loadOasForInput(basePath: string, input: ConfigurationInput, inpu
     return (await readYamlOrJSON(await readFileAsString(fullPath))) as Swagger.SwaggerV3;
   } else {
     logger.log(`## Loading input ${inputIndex} from URL: ${input.inputURL}`);
-    const inputContents = await fetch(input.inputURL).then(rsp => rsp.text());
+    const response = await fetch(input.inputURL);
+    if (!response.ok) {
+      throw new InputUrlStatusError(input.inputURL, response.status, response.statusText);
+    }
+    const inputContents = await response.text();
     return (await readYamlOrJSON(inputContents)) as Swagger.SwaggerV3;
   }
 }
 
-type InputConversionErrors = {
-  errors: string[];
+type InputConversionError = {
+  message: string;
+  exitCode: ExitCode;
 };
 
-function isString<A extends object>(s: A | string): s is string {
-  return typeof s === 'string';
+type InputConversionErrors = {
+  errors: string[];
+  exitCode: ExitCode;
+};
+
+function isConversionError(s: SingleMergeInput | InputConversionError): s is InputConversionError {
+  return 'message' in s && 'exitCode' in s;
 }
 
-function isSingleMergeInput(i: SingleMergeInput | string): i is SingleMergeInput {
-  return typeof i !== 'string';
+function isSingleMergeInput(i: SingleMergeInput | InputConversionError): i is SingleMergeInput {
+  return !isConversionError(i);
 }
 
 async function convertInputs(basePath: string, configInputs: ConfigurationInput[], logger: LogWithMillisDiff): Promise<MergeInput | InputConversionErrors> {
-  const results = await Promise.all(configInputs.map<Promise<SingleMergeInput | string>>(async (input, inputIndex) => {
+  const results = await Promise.all(configInputs.map<Promise<SingleMergeInput | InputConversionError>>(async (input, inputIndex) => {
     try {
       const oas = await loadOasForInput(basePath, input, inputIndex, logger);
 
@@ -109,14 +137,22 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
 
       return output;
     } catch (e) {
-      return `Input ${inputIndex}: could not load configuration file. ${e}`;
+      return {
+        message: `Input ${inputIndex}: could not load configuration file. ${e}`,
+        exitCode: e instanceof InputUrlStatusError
+          ? ExitCode.ErrorInputUrlStatus
+          : ExitCode.ErrorLoadingInputs,
+      };
     }
   }));
 
-  const errors = results.filter(isString);
+  const errors = results.filter(isConversionError);
 
   if (errors.length > 0) {
-    return { errors };
+    // `Promise.all` preserves the order of `configInputs`, so "the first input
+    // that failed" is deterministic. When inputs fail for different reasons we
+    // report that first failure's code rather than trying to rank them.
+    return { errors: errors.map(e => e.message), exitCode: errors[0].exitCode };
   }
 
   return results.filter(isSingleMergeInput);
@@ -161,8 +197,8 @@ export async function main(): Promise<void> {
   const inputs = await convertInputs(basePath, config.inputs, logger);
 
   if ('errors' in inputs) {
-    console.error(inputs);
-    process.exit(ExitCode.ErrorLoadingInputs);
+    inputs.errors.forEach(error => console.error(error));
+    process.exit(inputs.exitCode);
     return;
   }
 
