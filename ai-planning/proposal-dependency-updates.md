@@ -1,6 +1,6 @@
 # Implementation Proposal: Dependency Audit and a Progressive Update Path
 
-**Status:** 📝 Proposal — implementation in progress, see §9
+**Status:** ✅ Implemented — all 9 phases landed, see §10
 **Type:** Maintenance / security
 **Scope:** all three `package.json` files
 **Date:** 2026-07-25
@@ -247,4 +247,79 @@ a clean tree:
 
 ## 9. Progress
 
-Updated as phases land. See §10 for results.
+All nine phases landed, one commit each, every one independently revertable.
+
+## 10. Results
+
+### 10.1 Security
+
+**`bun audit`: 13 vulnerabilities (1 critical, 6 high, 5 moderate, 1 low) →
+`No vulnerabilities found`.**
+
+| Advisory | Cleared by |
+| --- | --- |
+| `parse-url` SSRF (critical) | Phase 3 — `@adobe/jsonschema2md` 6 → 8 |
+| `vue-template-compiler`, `ansi-html`, `parse-path`, `braces`, `micromatch`, `@babel/core` | Phase 3 (same) |
+| `fast-uri` host confusion | `fast-uri` override to ^4.1.1 |
+| `brace-expansion` DoS | Phase 8 — eslint / typescript-eslint |
+| `js-yaml` quadratic CPU | Phase 4 direct upgrade + a ^4.3.0 override for the transitive copy |
+
+### 10.2 Versions
+
+| Package | From | To |
+| --- | --- | --- |
+| `es6-promise` | 4.2.8 | **removed** (never imported) |
+| `isomorphic-fetch` + `@types/isomorphic-fetch` | 3.x / 0.0.35 | **removed** (native `fetch`) |
+| `@typescript-eslint/parser` + `/eslint-plugin` | 2.34.0 | **removed** (folded into `typescript-eslint`) |
+| `@adobe/jsonschema2md` | 6.1.4 | 8.0.11 |
+| `js-yaml` / `@types/js-yaml` | 3.15.0 / 3.12.10 | 5.2.2 / 4.0.9 |
+| `ajv` | 6.15.0 | 8.20.0 (+ `ajv-formats` 3.0.1) |
+| `commander` | 5.1.0 | 15.0.0 |
+| `eslint` | 7.32.0 | 10.x (+ `typescript-eslint` 8.65, `@eslint/js`, `globals`, `eslint-formatter-visualstudio`) |
+| `@types/jest` | 25.2.3 | 30.0.0 |
+| `@types/node` | 22.20.1 | 26.1.1 |
+| `typescript-json-schema` | 0.65.1 | 0.68.0 |
+| `husky` | 7.0.4 | 9.1.7 |
+
+Every remaining dependency was already current. Two `overrides` were added to
+the root `package.json` (`fast-uri`, `js-yaml`) for advisories inside
+dependencies that had not yet widened their own ranges.
+
+### 10.3 Corrections to this proposal
+
+- **§4.1 was wrong that the ajv upgrade clears `fast-uri`.** ajv 8.20 depends on
+  `fast-uri` ^3, and the advisory covers all of ≤3.1.3; the fix is in 4.x.
+  Clearing it needed an override, not the upgrade.
+- **§4.2 missed a second js-yaml break.** Beyond the `safeLoad`/`safeDump`
+  rename, v5 is ESM with **no default export**, so `import yaml from 'js-yaml'`
+  typechecks under `esModuleInterop` and then throws at runtime. `bun run build`
+  passed while every CLI test failed.
+- **§5's `@types/jest` risk did not materialise.** v30 still declares `fail()`,
+  and declares it returning `never`, which improves narrowing.
+- **§7 put eslint at 10 rather than 9.** `typescript-eslint` 8.65 declares
+  `eslint: ^8.57 || ^9 || ^10`, so latest was supported after all.
+
+### 10.4 Two traps worth remembering
+
+**`bun add` rolls back the manifest if `prepare` fails.** The CLI's `prepare`
+runs a build, so `bun add js-yaml@5` failed and reverted `package.json` while
+leaving the new version in the store. The intermediate state was dangerous
+rather than merely broken: js-yaml 3 *has* a `load`, but there it is the
+**unsafe** full-schema loader — `safeLoad` was the safe one. Renaming the call
+site while the dependency was still v3 would have silently switched the CLI to
+unsafe YAML parsing. Always re-check the resolved version after an upgrade whose
+`prepare` failed.
+
+**`eslint --fix` deletes obsolete disable directives and leaves the whitespace.**
+Three directives referenced rules that no longer exist or no longer fire; `--fix`
+stripped them into whitespace-only lines. Worse, one of them
+(`no-var-requires` → `no-require-imports`) meant a rule *was* firing and had been
+silently unsuppressed. Run `eslint` without `--fix` first on a major upgrade.
+
+### 10.5 Out of scope, noted
+
+The pre-commit hook runs `bun run lint` only. ESLint does not do full type
+analysis, so a **type error passes the hook** — verified. That is defensible
+(lint ≠ typecheck) and CI's new Build job now covers it, but anyone expecting the
+hook to be a complete gate should know. Adding `bun run build` to the hook would
+close it at the cost of a slower commit; not done here.
