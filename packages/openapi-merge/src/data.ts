@@ -124,7 +124,15 @@ export type SuccessfulMergeResult = {
   output: Swagger.SwaggerV3;
 };
 
-export type ErrorType = 'no-inputs' | 'duplicate-paths' | 'component-definition-conflict' | 'operation-id-conflict';
+export type ErrorType =
+  | 'no-inputs'
+  | 'duplicate-paths'
+  | 'component-definition-conflict'
+  | 'operation-id-conflict'
+  /** An input declared a version this library cannot merge, or none at all. */
+  | 'unsupported-openapi-version'
+  /** The inputs did not all declare the same OpenAPI major.minor version. */
+  | 'mixed-openapi-versions';
 
 export type ErrorMergeResult = {
   type: ErrorType;

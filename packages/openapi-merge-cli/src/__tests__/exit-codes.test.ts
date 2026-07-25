@@ -18,6 +18,7 @@ const documented: { [member: string]: number } = {
   ErrorInputUrlClientStatus: 6,
   ErrorInputUrlServerStatus: 7,
   ErrorInputUrlUnexpectedStatus: 8,
+  ErrorOpenApiVersion: 9,
 };
 
 describe('ExitCode contract', () => {

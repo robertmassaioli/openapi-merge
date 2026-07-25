@@ -450,6 +450,80 @@ describe('main - exit codes', () => {
   });
 });
 
+describe('main - OpenAPI version checking', () => {
+  it('exits ErrorOpenApiVersion for a 3.1 input', async () => {
+    writeJson('a.json', { ...(oas({ '/a': getPath('getA') }) as object), openapi: '3.1.1' });
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+    });
+
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorOpenApiVersion);
+  });
+
+  it('names the offending input and its version on stderr', async () => {
+    writeJson('a.json', { ...(oas({ '/a': getPath('getA') }) as object), openapi: '3.2.0' });
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+    });
+
+    await runMain('-c', config);
+
+    const output = stderr.join('\n');
+    expect(output).toContain('Input 0');
+    expect(output).toContain('3.2.0');
+  });
+
+  it('writes no output file when a version is unsupported', async () => {
+    // The assertion that proves the failure is real rather than cosmetic.
+    writeJson('a.json', { ...(oas({ '/a': getPath('getA') }) as object), openapi: '3.1.0' });
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+    });
+
+    await runMain('-c', config);
+
+    expect(fs.existsSync(path.join(tmpDir, 'output.json'))).toBe(false);
+  });
+
+  it('exits ErrorOpenApiVersion when an input has no openapi field', async () => {
+    const doc = oas({ '/a': getPath('getA') }) as Record<string, unknown>;
+    delete doc.openapi;
+    writeJson('a.json', doc);
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+    });
+
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorOpenApiVersion);
+  });
+
+  it('still exits ErrorMerging for a genuine merge conflict', async () => {
+    // Guards against the new code swallowing the existing one.
+    writeJson('a.json', oas({ '/same': getPath('getA') }));
+    writeJson('b.json', oas({ '/same': getPath('getB') }));
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }, { inputFile: './b.json' }],
+      output: './output.json',
+    });
+
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorMerging);
+  });
+
+  it('merges 3.0 inputs with differing patch versions', async () => {
+    writeJson('a.json', { ...(oas({ '/a': getPath('getA') }) as object), openapi: '3.0.0' });
+    writeJson('b.json', { ...(oas({ '/b': getPath('getB') }) as object), openapi: '3.0.3' });
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }, { inputFile: './b.json' }],
+      output: './output.json',
+    });
+
+    expect(await runMain('-c', config)).toBe(ExitCode.Success);
+  });
+});
+
 describe('main - output path safety', () => {
   it('exits ErrorUnsafePath when the output escapes outputRoot', async () => {
     writeJson('a.json', oas({ '/a': getPath('getA') }));
