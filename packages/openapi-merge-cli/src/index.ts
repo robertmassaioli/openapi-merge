@@ -17,16 +17,24 @@ import { DEFAULT_INDENT, Indent } from "./data";
 
 export { ExitCode } from "./exit-codes";
 
-// Built per invocation rather than once at module scope. Commander stores parsed
-// options on the Command instance and does not clear options that are absent
-// from a later parse, so a module-scope singleton leaks state between calls to
-// `main()` -- a second call without `-c` would silently reuse the first call's
-// config file.
-// `Command` as imported is commander's static interface, which is not the same
-// type as `new Command()` produces; InstanceType bridges the two.
-type CommandInstance = InstanceType<typeof Command>;
+/**
+ * The parsed command-line options.
+ *
+ * Commander no longer exposes options as properties on the Command instance --
+ * they come from `opts()` -- so this names the shape rather than reaching for
+ * `any`.
+ */
+type CliOptions = {
+  config?: string;
+  restrictOutputTo?: string;
+};
 
-function buildProgram(): CommandInstance {
+// Built per invocation rather than once at module scope. A Command retains the
+// values from a previous parse, and a later parse does not clear options that
+// are absent from it, so a module-scope singleton leaks state between calls to
+// `main()` -- a second call without `-c` would silently reuse the first call's
+// config file. Covered by the two isolation tests in main-integration.test.ts.
+function buildProgram(): Command {
   const program = new Command();
 
   program.version(pjson.version);
@@ -197,9 +205,10 @@ export async function main(): Promise<void> {
   const logger = new LogWithMillisDiff();
   const program = buildProgram();
   program.parse(process.argv);
+  const options = program.opts<CliOptions>();
   logger.log(`## ${process.argv[0]}: Running v${pjson.version}`);
 
-  const config = await loadConfiguration(program.config);
+  const config = await loadConfiguration(options.config);
 
   if (typeof config === 'string') {
     console.error(config);
@@ -209,7 +218,7 @@ export async function main(): Promise<void> {
 
   logger.log(`## Loaded the configuration: ${config.inputs.length} inputs`);
 
-  const basePath = path.dirname(program.config || './');
+  const basePath = path.dirname(options.config || './');
 
   const inputs = await convertInputs(basePath, config.inputs, logger);
 
@@ -234,7 +243,7 @@ export async function main(): Promise<void> {
   // The CLI flag overrides whatever is in the config file. Both are resolved
   // against the config's directory so that relative `outputRoot` values mean
   // what a config author would expect.
-  const outputRootRaw: string | undefined = program.restrictOutputTo || config.outputRoot;
+  const outputRootRaw: string | undefined = options.restrictOutputTo || config.outputRoot;
   const outputRoot = outputRootRaw === undefined ? undefined : resolveConfigPath(basePath, outputRootRaw);
 
   try {
