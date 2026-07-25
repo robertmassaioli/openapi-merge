@@ -1,7 +1,9 @@
 import { ConfigurationInput, isConfigurationInputFromFile } from "./data";
 import { loadConfiguration } from "./load-configuration";
 import { Command } from 'commander';
-/* eslint-disable-next-line @typescript-eslint/no-var-requires */
+// package.json sits outside tsconfig's rootDir, so it cannot be imported as a
+// module without widening the compilation. require() is the pragmatic option.
+/* eslint-disable-next-line @typescript-eslint/no-require-imports */
 const pjson = require('../package.json');
 import { merge, MergeInput } from 'openapi-merge';
 import fs from 'fs';

@@ -38,7 +38,6 @@ export function validateConfigurationSemantics(config: Configuration): string | 
 }
 
 async function validateConfiguration(rawData: string): Promise<Configuration | string> {
-  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   try {
     const data = await readYamlOrJSON(rawData);
 
@@ -72,7 +71,9 @@ export async function loadConfiguration(configLocation?: string): Promise<Config
     const rawData = await readFileAsString(configFile);
 
     return await validateConfiguration(rawData);
-  } catch (e) {
+  } catch {
+    // The specific fs error is deliberately not surfaced: the actionable part is
+    // which path was tried and from where.
     return `Could not find or read '${configFile}' in the current directory: ${process.cwd()}`;
   }
 }

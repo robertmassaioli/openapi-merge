@@ -32,16 +32,18 @@
     "prepare": "tsgo --project .",
     "prepublishOnly": "tsgo --project .",
     "test": "bun test --coverage",
-    "lint": "eslint src --ext .js,.jsx,.ts,.tsx --fix --format=visualstudio",
+    "lint": "eslint src --fix --format=visualstudio",
     "start": "bun src/index.ts"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.14.150",
-    "@typescript-eslint/eslint-plugin": "^2.31.0",
-    "@typescript-eslint/parser": "^2.31.0",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
-    "eslint": "^7.0.0"
+    "eslint": "^10.0.0",
+    "eslint-formatter-visualstudio": "^9.0.1",
+    "globals": "^17.7.0",
+    "typescript-eslint": "^8.65.0"
   },
   "dependencies": {
     "@atlassian/atlassian-openapi": "^1.0.6",
