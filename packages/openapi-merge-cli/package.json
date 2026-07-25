@@ -27,7 +27,7 @@
     "url": "https://github.com/robertmassaioli/openapi-merge/issues"
   },
   "devDependencies": {
-    "@adobe/jsonschema2md": "^6",
+    "@adobe/jsonschema2md": "8",
     "@types/jest": "^25.2.1",
     "@types/js-yaml": "^3.12.5",
     "@types/node": "^22.0.0",
