@@ -20,5 +20,8 @@
   },
   "devDependencies": {
     "husky": "^7.0.2"
+  },
+  "overrides": {
+    "fast-uri": "^4.1.1"
   }
 }
