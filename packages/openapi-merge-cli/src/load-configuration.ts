@@ -1,6 +1,10 @@
 import path from 'path';
 import { Configuration } from "./data";
 import Ajv from 'ajv';
+// ajv 8 unbundled its format validators. The generated schema uses `format:
+// "uri"` on inputURL, which ajv 8 rejects as an unknown format unless the
+// standard formats are registered explicitly.
+import addFormats from 'ajv-formats';
 import ConfigurationSchema from './configuration.schema.json';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
 import process from 'process';
@@ -39,6 +43,7 @@ async function validateConfiguration(rawData: string): Promise<Configuration | s
     const data = await readYamlOrJSON(rawData);
 
     const ajv = new Ajv();
+    addFormats(ajv);
     const validate = ajv.compile(ConfigurationSchema);
     const valid = validate(data);
 

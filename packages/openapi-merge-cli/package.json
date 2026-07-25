@@ -39,7 +39,8 @@
   },
   "dependencies": {
     "@atlassian/atlassian-openapi": "^1.0.6",
-    "ajv": "^6.12.2",
+    "ajv": "8",
+    "ajv-formats": "^3.0.1",
     "commander": "^5.1.0",
     "js-yaml": "^5.2.2",
     "openapi-merge": "^1.2.0"
