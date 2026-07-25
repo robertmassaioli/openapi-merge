@@ -35,6 +35,7 @@ dependency health, build migrations. Named by topic rather than by number.
 | [`proposal-cli-test-coverage.md`](proposal-cli-test-coverage.md) | ⛔ Superseded by the above; kept for history |
 | [`proposal-dependency-updates.md`](proposal-dependency-updates.md) | Dependency audit and the phased upgrade path |
 | [`proposal-openapi-3.2-support.md`](proposal-openapi-3.2-support.md) | What it would take to support OpenAPI 3.1 / 3.2 |
+| [`proposal-mixed-version-inputs.md`](proposal-mixed-version-inputs.md) | Policy for inputs of differing versions, and automatic upgrading |
 | [`bun-tsgo-migration-build-timings.md`](bun-tsgo-migration-build-timings.md) | Measured build timings for the Bun + tsgo migration |
 
 ## Conventions
