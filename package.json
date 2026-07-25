@@ -12,7 +12,9 @@
     "packages/*"
   ],
   "scripts": {
-    "lint": "bun run --filter '*' lint",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "bun run --filter '*' lint && bun run typecheck",
+    "lint:eslint": "bun run --filter '*' lint",
     "test": "bun run --filter '*' test",
     "coverage": "bun run test && bun scripts/coverage-summary.ts",
     "build": "bun run --filter '*' build",

@@ -29,6 +29,7 @@
   },
   "scripts": {
     "build": "tsgo --project .",
+    "typecheck": "tsgo --project . --noEmit",
     "prepare": "tsgo --project .",
     "prepublishOnly": "tsgo --project .",
     "test": "bun test --coverage",

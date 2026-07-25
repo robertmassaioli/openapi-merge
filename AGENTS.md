@@ -35,7 +35,7 @@ the **MIT License**. Source is hosted at
 ```
 .
 ├── .github/workflows/        # CI workflows: branch-test, npm-publish, codeql-analysis
-├── .husky/pre-commit         # Husky pre-commit hook (runs `bun run lint`)
+├── .husky/pre-commit         # Husky pre-commit hook (runs `bun run lint`: eslint + typecheck)
 ├── scripts/publish-changed.sh # Publishes any workspace package whose version has changed
 ├── LICENSE                   # MIT
 ├── README.md                 # Repository-level README
@@ -71,11 +71,14 @@ Root-level scripts fan out into each package using Bun's `--filter`:
 
 | Script             | What it does                                                       |
 | ------------------ | ------------------------------------------------------------------ |
-| `bun run lint`     | `bun run --filter '*' lint` — runs `lint` in every workspace        |
-| `bun run test`     | `bun run --filter '*' test` — runs `test` in every workspace        |
-| `bun run build`    | `bun run --filter '*' build` — builds every workspace with `tsgo`   |
+| `bun run lint`      | eslint in every workspace, **then** `bun run typecheck`             |
+| `bun run typecheck` | `tsgo --project . --noEmit` in every workspace (~0.6s, no output)    |
+| `bun run lint:eslint` | eslint only, skipping the typecheck                              |
+| `bun run test`      | `bun run --filter '*' test` — runs `test` in every workspace        |
+| `bun run coverage`  | `bun run test`, then prints a weighted coverage table               |
+| `bun run build`     | `bun run --filter '*' build` — builds every workspace with `tsgo`   |
 | `bun run cli`      | `bun run --cwd packages/openapi-merge-cli start` — runs the CLI in dev mode |
-| `bun run prepare`  | `husky install` — installs the git hooks                           |
+| `bun run prepare`   | `husky` — installs the git hooks                                   |
 
 TypeScript is compiled with **[`tsgo`](https://github.com/microsoft/typescript-go)**
 (package `@typescript/native-preview`), the Go-based native port of the TypeScript
@@ -162,7 +165,8 @@ From `packages/openapi-merge`:
 ```bash
 bun run build      # tsgo --project .        (also runs on `prepare` and `prepublishOnly`)
 bun run test       # bun test --coverage
-bun run lint       # eslint src --ext .js,.jsx,.ts,.tsx --fix
+bun run lint       # eslint src --fix
+bun run typecheck  # tsgo --project . --noEmit
 bun run start      # bun src/index.ts         (rarely useful directly)
 ```
 
@@ -294,7 +298,8 @@ bun run gen-schema # typescript-json-schema against tsconfig.schema.json, then b
 bun run prepare    # bun run gen-schema && tsgo --project .
 bun run prepublishOnly # same as prepare
 bun run start      # bun ./src/cli.ts           (dev mode)
-bun run lint       # eslint src --ext .ts,.tsx --fix
+bun run lint       # eslint src --fix
+bun run typecheck  # tsgo --project . --noEmit
 bun run gen-docs   # jsonschema2md --input=src  (regenerate Markdown docs)
 ```
 
@@ -344,8 +349,17 @@ bun run cli -- --config openapi-merge.test.json
 
 ### Pre-commit hook
 
-`.husky/pre-commit` runs `bun run lint` before every commit. If you add new files,
-ensure they pass ESLint with `--fix` cleanly.
+`.husky/pre-commit` runs `bun run lint` before every commit, which is eslint
+**and** a full `tsgo --noEmit` typecheck of both packages. New files must pass
+ESLint with `--fix` cleanly and must typecheck.
+
+Note what this closed: ESLint does no full type analysis and `bun test`
+transpiles rather than typechecks, so before the typecheck was folded into
+`lint`, a type error -- including one in a test file -- passed the hook and only
+surfaced later as a confusing failure in the CLI's `prepare` script. The whole
+typecheck takes about 0.6s, which is why it is affordable on every commit.
+
+Use `bun run lint:eslint` if you deliberately want the lint half alone.
 
 ### Code coverage
 

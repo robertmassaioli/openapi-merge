@@ -5,7 +5,7 @@ on:
       - main # Change this to your default branch
 jobs:
   lint:
-    name: Lint
+    name: Lint and Typecheck
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
@@ -15,6 +15,10 @@ jobs:
       with:
         bun-version: 1.3.14
     - run: bun install --frozen-lockfile
+    # `bun run lint` is eslint followed by `bun run typecheck` (tsgo --noEmit).
+    # ESLint does no full type analysis and `bun test` transpiles rather than
+    # typechecks, so the typecheck half is what catches a type error -- including
+    # one in a test file, which nothing used to catch.
     - run: bun run lint
   build:
     name: Build
@@ -27,9 +31,8 @@ jobs:
       with:
         bun-version: 1.3.14
     - run: bun install --frozen-lockfile
-    # `bun test` transpiles rather than typechecks and eslint does not do full
-    # type analysis, so this is the only job that catches a type error --
-    # including one in a test file.
+    # Distinct from the typecheck above: this one actually emits, so it also
+    # covers declaration output and anything that only breaks when writing dist/.
     - run: bun run build
   test:
     name: Test and Coverage
