@@ -18,13 +18,26 @@ import { DEFAULT_INDENT, Indent } from "./data";
 
 export { ExitCode } from "./exit-codes";
 
-const program = new Command();
+// Built per invocation rather than once at module scope. Commander stores parsed
+// options on the Command instance and does not clear options that are absent
+// from a later parse, so a module-scope singleton leaks state between calls to
+// `main()` -- a second call without `-c` would silently reuse the first call's
+// config file.
+// `Command` as imported is commander's static interface, which is not the same
+// type as `new Command()` produces; InstanceType bridges the two.
+type CommandInstance = InstanceType<typeof Command>;
 
-program.version(pjson.version);
+function buildProgram(): CommandInstance {
+  const program = new Command();
 
-program
-  .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.')
-  .option('--restrict-output-to <dir>', 'Refuse to write output anywhere outside this directory (overrides outputRoot in the config).');
+  program.version(pjson.version);
+
+  program
+    .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.')
+    .option('--restrict-output-to <dir>', 'Refuse to write output anywhere outside this directory (overrides outputRoot in the config).');
+
+  return program;
+}
 
 
 class LogWithMillisDiff {
@@ -129,6 +142,7 @@ function writeOutput(outputFullPath: string, outputSchema: Swagger.SwaggerV3, in
 
 export async function main(): Promise<void> {
   const logger = new LogWithMillisDiff();
+  const program = buildProgram();
   program.parse(process.argv);
   logger.log(`## ${process.argv[0]}: Running v${pjson.version}`);
 

@@ -641,7 +641,7 @@ every file in `packages/*/src/__tests__/`:
 | --- | --- |
 | Framework imports (`bun:test`, `@jest/globals`, `vitest`) | **none** — the tests rely purely on globals |
 | Mocks / spies (`mock()`, `spyOn`, `jest.*`, `vi.*`) | **none** |
-| Lifecycle hooks (`beforeEach`, `afterAll`, …) | **none** |
+| Lifecycle hooks (`beforeEach`, `afterAll`, …) | **none** at the time of writing — `beforeEach`/`afterEach` were introduced later by `proposal-closing-coverage-gaps.md`. Portability is unaffected: they are globals in every Jest-compatible runner. |
 | Snapshot assertions | **none** |
 | Distinct matchers used | **6**: `toBe`, `toBeInstanceOf`, `toBeUndefined`, `toContain`, `toEqual`, `toThrow` |
 

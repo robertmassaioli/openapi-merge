@@ -1,6 +1,6 @@
 # Implementation Proposal: Closing the Measured Test-Coverage Gaps
 
-**Status:** 📝 Proposal — awaiting implementation
+**Status:** ✅ Implemented — see §10 for measured results
 **Type:** Test coverage / quality
 **Scope:** `packages/openapi-merge`, `packages/openapi-merge-cli`
 **Date:** 2026-07-25
@@ -233,3 +233,135 @@ than left to rot as a third source of truth.
 - [ ] `bun run lint` clean; both suites green; `configuration.schema.json`
       byte-identical after a test run.
 - [ ] Weighted before/after figures recorded in this document on completion.
+
+---
+
+## 10. Results (measured)
+
+### 10.1 Weighted totals, from `coverage/lcov.info`
+
+| Package | Lines before | Lines after | Functions before | Functions after |
+| --- | --- | --- | --- | --- |
+| `openapi-merge` | 69.56% | **97.39%** | 75.36% | **98.57%** |
+| `openapi-merge-cli` | 56.13% | **99.46%** | 28.57% | **100.00%** |
+
+Tests: 76 → **187** (library 49 → 108, CLI 27 → 79).
+
+### 10.2 Per-file, the five targets
+
+| File | Funcs before → after | Lines before → after |
+| --- | --- | --- |
+| CLI `index.ts` | 0.00% → **100.00%** | 22.22% → **100.00%** |
+| `reference-walker.ts` | 42.86% → **100.00%** | 32.81% → **100.00%** |
+| `paths-and-components.ts` | 61.11% → **100.00%** | 80.48% → **93.55%** |
+| CLI `load-configuration.ts` | 33.33% → **100.00%** | 38.30% → **100.00%** |
+| CLI `file-loading.ts` | 0.00% → **100.00%** | 18.18% → **100.00%** |
+
+Two files improved beyond the plan: CLI `data.ts` (0.00% → 100.00% funcs, via the
+preload plus real use in the integration tests) and `component-equivalence.ts`
+(80.00% → 90.91% funcs, 95.71% → 100.00% lines).
+
+### 10.3 Thresholds ratcheted
+
+| Package | Before | After |
+| --- | --- | --- |
+| `openapi-merge` | `{ lines = 0.30, functions = 0.40 }` | `{ lines = 0.85, functions = 0.85 }` |
+| `openapi-merge-cli` | *(none)* | `{ lines = 0.85, functions = 0.95 }` |
+
+Both verified with the red-then-green ritual from the repository root: proposed
+values exit 0; either package raised to 0.99 exits 1.
+
+### 10.4 What remains uncovered, and why
+
+Deliberate, per §7:
+
+- `paths-and-components.ts` 67–70 and 129–132 — the `component-definition-conflict`
+  and `operation-id-conflict` error returns. Both require **999** prior naming
+  collisions to reach (`antiConflict < 1000`). Constructible, but the test would
+  assert an anti-conflict loop bound rather than behaviour anyone relies on.
+- `paths-and-components.ts` 125–126, 141, 165 — loop-exhaustion and
+  error-propagation lines that only execute in the same 999-collision scenario.
+- `paths-and-components.ts` 316 — the "more than one matching key" guard.
+- `formatting.ts` 52 — statically unreachable. `DEFAULT_INDENT.style` is the
+  literal `'spaces'`, so the fallback exists only to satisfy the compiler.
+- `dispute.ts` 9, `extensions.ts` 23, `tags.ts` — minor residual branches.
+- `cli.ts` and `fix-schema.ts` — unmeasurable in-process by design (§5).
+
+### 10.5 A bug found by the new tests
+
+`loadOasForInput` (`cli/src/index.ts`) does
+`fetch(input.inputURL).then(rsp => rsp.text())` and **never checks the HTTP
+status**. A 404 body such as `not found` fails `JSON.parse` but is a valid YAML
+string scalar, so it parses cleanly and is cast to `SwaggerV3`. The merge then
+succeeds against a string and the CLI writes `{"openapi":"3.0.3","paths":{}}` —
+a spec with no `info` block — and **exits 0**.
+
+A CI pipeline pointing at a URL that starts 404ing therefore publishes a corrupt
+spec and sees success.
+
+This was **not fixed here**: the fix is a production behaviour change, outside
+this proposal's scope, and the `ErrorLoadingInputs` path is already covered by
+the missing-input-file test. Two tests in `main-integration.test.ts` pin the
+current behaviour with a comment marking it a known bug, so whoever adds the
+status check will see them fail and can flip them to expect
+`ExitCode.ErrorLoadingInputs`.
+
+Recommended fix, for a follow-up branch:
+
+```ts
+const rsp = await fetch(input.inputURL);
+if (!rsp.ok) {
+  throw new Error(`HTTP ${rsp.status} ${rsp.statusText} for ${input.inputURL}`);
+}
+const inputContents = await rsp.text();
+```
+
+`convertInputs` already wraps `loadOasForInput` in a `try`/`catch` that turns a
+throw into an `ErrorLoadingInputs` exit, so the throw is all that is needed.
+
+### 10.6 Prerequisite refactor, as landed
+
+`cli/src/index.ts` now builds its `Command` inside `buildProgram()`, called per
+`main()` invocation. Two regression tests in `main-integration.test.ts` cover it
+directly: one asserts `--restrict-output-to` does not leak into a later call,
+the other that `-c` does not. Both fail against the old module-scope singleton.
+
+One wrinkle worth recording: commander v5 exports `Command` as a *static
+interface* whose type differs from `new Command()`'s instance type, so
+`buildProgram()` is annotated `InstanceType<typeof Command>`. Annotating it
+`Command` does not compile under `tsgo`.
+
+### 10.7 Verify in a clean clone, not just locally
+
+A type error in a *test* file broke CI while every local check passed. The
+failure chain is worth knowing because its symptom points nowhere near its
+cause:
+
+1. `component-types.test.ts` narrowed `MergeResult` with `'errorType' in result`
+   instead of the library's own `isErrorResult` guard, so `result.output` did
+   not typecheck.
+2. `tsgo --project .` compiles `src/` including `__tests__/`, so the **library
+   build** failed.
+3. The CLI's `prepare` script is
+   `bun run --cwd ../openapi-merge build && bun run gen-schema && tsgo --project .`,
+   so the failing library build short-circuited it and **`gen-schema` never ran**.
+4. `src/configuration.schema.json` is generated and **gitignored**, so in a clean
+   clone it simply did not exist.
+5. Every CLI test failed with
+   `Cannot find module './configuration.schema.json'` — a module-resolution
+   error that looks like a packaging problem and says nothing about the type
+   error three steps upstream.
+
+None of this reproduces locally, because the generated schema and `dist/` are
+already on disk from earlier runs. The check that catches it is CI's exact two
+commands against a fresh clone:
+
+```bash
+git clone --branch <branch> . /tmp/probe && cd /tmp/probe
+bun install --frozen-lockfile   # runs prepare -> build + gen-schema
+bun run lint && bun run test
+```
+
+Note also that `bun test` transpiles rather than typechecks, so a type error in
+a test file is invisible to `bun run test` and only surfaces via `bun run build`.
+Run both.
