@@ -15,7 +15,9 @@ const documented: { [member: string]: number } = {
   ErrorMerging: 3,
   ErrorUncaught: 4,
   ErrorUnsafePath: 5,
-  ErrorInputUrlStatus: 6,
+  ErrorInputUrlClientStatus: 6,
+  ErrorInputUrlServerStatus: 7,
+  ErrorInputUrlUnexpectedStatus: 8,
 };
 
 describe('ExitCode contract', () => {

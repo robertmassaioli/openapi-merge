@@ -75,6 +75,24 @@ export class InputUrlStatusError extends Error {
   ) {
     super(`Received HTTP ${status}${statusText ? ` ${statusText}` : ''} when fetching '${url}'`);
   }
+
+  /**
+   * Which exit code this status maps to.
+   *
+   * The split is by responsibility, because that is what a caller can act on:
+   * a 4xx is the request's fault and will fail again identically, a 5xx is the
+   * server's and may not. Anything else gets its own code rather than being
+   * forced into whichever neighbour is closest.
+   */
+  public get exitCode(): ExitCode {
+    if (this.status >= 400 && this.status < 500) {
+      return ExitCode.ErrorInputUrlClientStatus;
+    }
+    if (this.status >= 500 && this.status < 600) {
+      return ExitCode.ErrorInputUrlServerStatus;
+    }
+    return ExitCode.ErrorInputUrlUnexpectedStatus;
+  }
 }
 
 async function loadOasForInput(basePath: string, input: ConfigurationInput, inputIndex: number, logger: LogWithMillisDiff): Promise<Swagger.SwaggerV3> {
@@ -140,7 +158,7 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
       return {
         message: `Input ${inputIndex}: could not load configuration file. ${e}`,
         exitCode: e instanceof InputUrlStatusError
-          ? ExitCode.ErrorInputUrlStatus
+          ? e.exitCode
           : ExitCode.ErrorLoadingInputs,
       };
     }

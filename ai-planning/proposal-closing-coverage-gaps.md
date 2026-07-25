@@ -324,8 +324,16 @@ throw into an `ErrorLoadingInputs` exit, so the throw is all that is needed.
 means the server answered and refused, which is a different remedy from an input
 that could not be obtained at all. That required reshaping `InputConversionErrors`
 to carry an exit code, since it previously flattened every per-input failure into
-`string[]` and `main()` hardcoded a single code. See `ExitCode.ErrorInputUrlStatus`
-(6). The two tests pinned above are now regression tests for the fixed behaviour.
+`string[]` and `main()` hardcoded a single code. The two tests pinned above are
+now regression tests for the fixed behaviour.
+
+The status is further split by responsibility, so CI can branch on
+retryability: `ErrorInputUrlClientStatus` (6) for 4xx, which will fail
+identically on retry; `ErrorInputUrlServerStatus` (7) for 5xx, which may not;
+and `ErrorInputUrlUnexpectedStatus` (8) for anything else outside the 2xx range.
+That third code is not defensive padding — ordinary redirects are followed by
+`fetch` and never surface, but a `304 Not Modified` does, which is measured and
+covered by a test.
 
 ### 10.6 Prerequisite refactor, as landed
 

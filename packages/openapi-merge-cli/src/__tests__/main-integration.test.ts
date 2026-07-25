@@ -236,6 +236,18 @@ describe('main - inputURL', () => {
       } else if (req.url === '/boom.json') {
         res.writeHead(500);
         res.end('internal server error');
+      } else if (req.url === '/unavailable.json') {
+        res.writeHead(503);
+        res.end('service unavailable');
+      } else if (req.url === '/teapot.json') {
+        res.writeHead(418);
+        res.end('short and stout');
+      } else if (req.url === '/notmodified.json') {
+        // 3xx redirects are followed by fetch and never surface, but 304 is not
+        // a redirect -- it comes back as a non-ok response, which is the only
+        // realistic way to reach ErrorInputUrlUnexpectedStatus.
+        res.writeHead(304);
+        res.end();
       } else {
         // A body that is not JSON but IS a valid YAML string scalar -- the
         // shape that used to slip through as a spec.
@@ -269,13 +281,33 @@ describe('main - inputURL', () => {
   // at the status: a 404 body such as "not found" fails JSON.parse but is a
   // valid YAML string scalar, so it parsed cleanly, was cast to SwaggerV3, and
   // the merge produced a spec with no `info` block while exiting 0.
-  it('exits ErrorInputUrlStatus when the URL 404s', async () => {
+  it('exits ErrorInputUrlClientStatus when the URL 404s', async () => {
     const config = writeJson('openapi-merge.json', {
       inputs: [{ inputURL: `${baseUrl}/missing.json` }],
       output: './output.json',
     });
 
-    expect(await runMain('-c', config)).toBe(ExitCode.ErrorInputUrlStatus);
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorInputUrlClientStatus);
+  });
+
+  it('exits ErrorInputUrlClientStatus for any other 4xx', async () => {
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputURL: `${baseUrl}/teapot.json` }],
+      output: './output.json',
+    });
+
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorInputUrlClientStatus);
+    expect(stderr.join('\n')).toContain('418');
+  });
+
+  it('exits ErrorInputUrlUnexpectedStatus for a non-2xx that is neither 4xx nor 5xx', async () => {
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputURL: `${baseUrl}/notmodified.json` }],
+      output: './output.json',
+    });
+
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorInputUrlUnexpectedStatus);
+    expect(stderr.join('\n')).toContain('304');
   });
 
   it('writes no output at all when an input 404s', async () => {
@@ -302,14 +334,38 @@ describe('main - inputURL', () => {
     expect(output).toContain('/missing.json');
   });
 
-  it('exits ErrorInputUrlStatus for a 500 as well as a 404', async () => {
+  it('exits ErrorInputUrlServerStatus for a 500', async () => {
     const config = writeJson('openapi-merge.json', {
       inputs: [{ inputURL: `${baseUrl}/boom.json` }],
       output: './output.json',
     });
 
-    expect(await runMain('-c', config)).toBe(ExitCode.ErrorInputUrlStatus);
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorInputUrlServerStatus);
     expect(stderr.join('\n')).toContain('500');
+  });
+
+  it('exits ErrorInputUrlServerStatus for a 503', async () => {
+    const config = writeJson('openapi-merge.json', {
+      inputs: [{ inputURL: `${baseUrl}/unavailable.json` }],
+      output: './output.json',
+    });
+
+    expect(await runMain('-c', config)).toBe(ExitCode.ErrorInputUrlServerStatus);
+  });
+
+  it('gives 4xx and 5xx different exit codes', async () => {
+    // The point of the split: a caller can branch on retryability.
+    const clientConfig = writeJson('client.json', {
+      inputs: [{ inputURL: `${baseUrl}/missing.json` }], output: './output.json',
+    });
+    const serverConfig = writeJson('server.json', {
+      inputs: [{ inputURL: `${baseUrl}/boom.json` }], output: './output.json',
+    });
+
+    const clientCode = await runMain('-c', clientConfig);
+    const serverCode = await runMain('-c', serverConfig);
+
+    expect(clientCode).not.toBe(serverCode);
   });
 
   it('still exits ErrorLoadingInputs when the URL cannot be reached at all', async () => {

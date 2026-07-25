@@ -271,7 +271,14 @@ fails the build rather than someone's pipeline.
 | `3`  | `ErrorMerging`         | Merge logic failed (conflicts, etc.)           |
 | `4`  | `ErrorUncaught`        | Uncaught exception during execution            |
 | `5`  | `ErrorUnsafePath`      | Output escaped `outputRoot`                    |
-| `6`  | `ErrorInputUrlStatus`  | An `inputURL` returned a non-2xx HTTP status   |
+| `6`  | `ErrorInputUrlClientStatus` | An `inputURL` returned a 4xx status       |
+| `7`  | `ErrorInputUrlServerStatus` | An `inputURL` returned a 5xx status       |
+| `8`  | `ErrorInputUrlUnexpectedStatus` | `inputURL` non-2xx, neither 4xx nor 5xx |
+
+The three URL-status codes are split by **responsibility**, so callers can
+branch on retryability: 4xx will fail identically on retry, 5xx may not. A
+transport-level failure (DNS, refused connection) is `2`, not these — the
+distinction is whether the server answered at all.
 
 Adding a code means: append the next unused integer (never re-use a retired
 one), add a row to the table in `exit-codes.ts`, add it to the `documented`
