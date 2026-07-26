@@ -3,9 +3,9 @@ import { MergeInput, MergeResult, isErrorResult, PathModification, OperationSele
 import { mergeTags } from './tags';
 import { mergePathsAndComponents } from './paths-and-components';
 import { mergeExtensions } from './extensions';
-import { Swagger } from '@atlassian/atlassian-openapi';
 import { mergeInfos } from './info';
-import { validateInputVersions } from './openapi-version';
+import { negotiateOutputVersion, validateInputVersions } from './openapi-version';
+import { OpenApiDocument } from './oas31';
 
 export { isErrorResult };
 export type { MergeInput, MergeResult, PathModification, OperationSelection };
@@ -44,19 +44,24 @@ export function merge(inputs: MergeInput): MergeResult {
     return pathAndComponentResult;
   }
 
-  const { paths, components: retComponents } = pathAndComponentResult;
+  const { paths, webhooks, components: retComponents } = pathAndComponentResult;
 
   const components = Object.keys(retComponents).length === 0 ? undefined : retComponents;
 
-  const output: Swagger.SwaggerV3 = mergeExtensions(
+  const output: OpenApiDocument = mergeExtensions(
     {
-      openapi: '3.0.3',
+      // The version the inputs actually declared, rather than a hard-coded
+      // 3.0.3. Well defined because every input shares a major.minor by now.
+      openapi: negotiateOutputVersion(inputs) ?? '3.0.3',
       info: mergeInfos(inputs),
       servers: getFirstMatching(inputs, input => input.oas.servers),
       externalDocs: getFirstMatching(inputs, input => input.oas.externalDocs),
       security: getFirstMatching(inputs, input => input.oas.security),
       tags: mergeTags(inputs),
       paths,
+      // Omitted entirely for 3.0 documents, which cannot declare webhooks.
+      webhooks: Object.keys(webhooks).length === 0 ? undefined : webhooks,
+      jsonSchemaDialect: getFirstMatching(inputs, input => input.oas.jsonSchemaDialect),
       components,
     },
     inputs.map(input => input.oas)

@@ -9,6 +9,7 @@ import { merge, MergeInput } from 'openapi-merge';
 import fs from 'fs';
 import path from 'path';
 import { ErrorMergeResult, isErrorResult, SingleMergeInput } from "openapi-merge/dist/data";
+import { OpenApiDocument } from "openapi-merge/dist/oas31";
 import { Swagger } from "@atlassian/atlassian-openapi";
 import { dump as dumpYaml } from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
@@ -211,7 +212,7 @@ function dumpAsYaml(blob: unknown, indent: Indent = DEFAULT_INDENT): string {
   return dumpYaml(JSON.parse(JSON.stringify(blob)), { indent: indentToYamlArg(indent) });
 }
 
-function writeOutput(outputFullPath: string, outputSchema: Swagger.SwaggerV3, indent: Indent = DEFAULT_INDENT): void {
+function writeOutput(outputFullPath: string, outputSchema: OpenApiDocument, indent: Indent = DEFAULT_INDENT): void {
   const fileContents = isYamlExtension(outputFullPath)
     ? dumpAsYaml(outputSchema, indent)
     : JSON.stringify(outputSchema, null, indentToJsonStringifyArg(indent));

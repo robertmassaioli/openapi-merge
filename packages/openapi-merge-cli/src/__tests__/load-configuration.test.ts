@@ -29,14 +29,14 @@ const validConfig = {
 /** `loadConfiguration` returns the error message as a plain string. */
 function expectError(result: Configuration | string): string {
   if (typeof result !== 'string') {
-    fail(`Expected an error string, got: ${JSON.stringify(result, null, 2)}`);
+    throw new Error(`Expected an error string, got: ${JSON.stringify(result, null, 2)}`);
   }
   return result as string;
 }
 
 function expectConfig(result: Configuration | string): Configuration {
   if (typeof result === 'string') {
-    fail(`Expected a Configuration, got the error: ${result}`);
+    throw new Error(`Expected a Configuration, got the error: ${result}`);
   }
   return result as Configuration;
 }

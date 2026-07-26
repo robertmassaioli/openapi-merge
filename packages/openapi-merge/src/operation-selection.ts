@@ -1,6 +1,7 @@
 import _ from 'lodash';
 import { Swagger } from "@atlassian/atlassian-openapi";
 import { OperationSelection } from './data';
+import { OpenApiDocument } from './oas31';
 
 const allMethods: Swagger.Method[] = [
   'get' , 'put' , 'post' , 'delete' , 'options' , 'head' , 'patch' , 'trace'
@@ -10,7 +11,7 @@ function operationContainsAnyTag(operation: Swagger.Operation, tags: string[]): 
   return operation.tags !== undefined && operation.tags.some(tag => tags.includes(tag));
 }
 
-function dropOperationsThatHaveTags(originalOas: Swagger.SwaggerV3, excludedTags: string[]): Swagger.SwaggerV3 {
+function dropOperationsThatHaveTags(originalOas: OpenApiDocument, excludedTags: string[]): OpenApiDocument {
   if (excludedTags.length === 0) {
     return originalOas;
   }
@@ -36,7 +37,7 @@ function dropOperationsThatHaveTags(originalOas: Swagger.SwaggerV3, excludedTags
   return oas;
 }
 
-function includeOperationsThatHaveTags(originalOas: Swagger.SwaggerV3, includeTags: string[]): Swagger.SwaggerV3 {
+function includeOperationsThatHaveTags(originalOas: OpenApiDocument, includeTags: string[]): OpenApiDocument {
   if (includeTags.length === 0) {
     return originalOas;
   }
@@ -63,7 +64,7 @@ function includeOperationsThatHaveTags(originalOas: Swagger.SwaggerV3, includeTa
 }
 
 
-export function runOperationSelection(originalOas: Swagger.SwaggerV3, operationSelection: OperationSelection | undefined): Swagger.SwaggerV3 {
+export function runOperationSelection(originalOas: OpenApiDocument, operationSelection: OperationSelection | undefined): OpenApiDocument {
   if (operationSelection === undefined) {
     return originalOas;
   }

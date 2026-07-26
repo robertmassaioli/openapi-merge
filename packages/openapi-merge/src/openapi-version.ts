@@ -24,7 +24,7 @@ export type OpenApiVersion = {
  * 3 adds '3.2'. Adding an entry here is a claim that the merge logic handles
  * that version's constructs -- do not add one without the work behind it.
  */
-export const SUPPORTED_MINOR_VERSIONS: ReadonlyArray<string> = ['3.0'];
+export const SUPPORTED_MINOR_VERSIONS: ReadonlyArray<string> = ['3.0', '3.1'];
 
 /** `major.minor`, the granularity at which compatibility is decided. */
 export function toMinorVersion(version: OpenApiVersion): string {
@@ -134,4 +134,31 @@ export function validateInputVersions(
   }
 
   return undefined;
+}
+
+/**
+ * The version the merged document should declare.
+ *
+ * Every input shares a `major.minor` by the time this runs, so the only
+ * question is the patch. The highest one wins: patch releases within a minor
+ * are the same feature set, and a document written against 3.0.3 may use
+ * clarifications that a 3.0.0 consumer would not expect, so claiming the
+ * highest is the safe direction.
+ *
+ * Returns undefined only when there are no inputs, which `merge` rejects first.
+ */
+export function negotiateOutputVersion(inputs: MergeInput): string | undefined {
+  let best: OpenApiVersion | undefined;
+
+  for (const input of inputs) {
+    const version = parseOpenApiVersion(input.oas.openapi);
+    if (version === undefined) {
+      continue;
+    }
+    if (best === undefined || version.patch > best.patch) {
+      best = version;
+    }
+  }
+
+  return best?.raw;
 }

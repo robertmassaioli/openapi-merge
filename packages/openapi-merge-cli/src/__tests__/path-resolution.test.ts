@@ -110,7 +110,7 @@ describe('assertOutputContained', () => {
     const exists = (): boolean => true;
     try {
       assertOutputContained(out, root, realpath, exists);
-      fail('expected OutputOutsideRootError');
+      throw new Error('expected OutputOutsideRootError');
     } catch (e) {
       expect(e).toBeInstanceOf(OutputOutsideRootError);
       expect((e as OutputOutsideRootError).message).toContain(path.resolve('/etc/passwd'));

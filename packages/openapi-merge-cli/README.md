@@ -181,18 +181,25 @@ They are separate from each other so that CI can branch on **retryability**:
 
 ### OpenAPI version support
 
-This tool merges **OpenAPI 3.0.x** documents. Every input must declare a full
-`openapi` version (for example `"3.0.3"`), and all inputs must agree on the
-`major.minor` version — patch differences such as `3.0.0` and `3.0.3` are fine,
-since they are the same feature set.
+This tool merges **OpenAPI 3.0.x and 3.1.x** documents. Every input must
+declare a full `openapi` version (for example `"3.1.1"`), and all inputs must
+agree on the `major.minor` version — patch differences such as `3.1.0` and
+`3.1.1` are fine, since they are the same feature set, but 3.0 and 3.1 inputs
+cannot be mixed.
 
-An input declaring 3.1 or 3.2, or no version at all, exits with code `9` and a
-message naming the offending input. Previously such documents were merged under
-3.0 assumptions and anything unrecognised was silently discarded, so if you were
-relying on that behaviour, the merge was losing data.
+3.1 support covers the constructs 3.1 added: `webhooks` merge exactly like
+paths (same duplicate rule, same `operationId` uniqueness, same `$ref`
+rewriting), `components.pathItems` deduplicate like any other component,
+`jsonSchemaDialect` is carried through, and a webhooks-only document with no
+`paths` at all is valid input.
 
-To merge 3.1 or 3.2 documents today, convert your inputs to a single 3.0
-version first.
+An input declaring 3.2, no version at all, or a version that disagrees with the
+other inputs exits with code `9` and a message naming the offending input.
+
+**The output now declares the version the inputs used**, rather than always
+`3.0.3`. Merging documents that declare `3.0.0` now produces `3.0.0`. Relabelling
+within a minor is safe in both directions, so no document becomes invalid, but
+the emitted value has changed.
 
 For example, retrying only on a server-side failure:
 

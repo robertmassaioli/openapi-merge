@@ -451,8 +451,8 @@ describe('main - exit codes', () => {
 });
 
 describe('main - OpenAPI version checking', () => {
-  it('exits ErrorOpenApiVersion for a 3.1 input', async () => {
-    writeJson('a.json', { ...(oas({ '/a': getPath('getA') }) as object), openapi: '3.1.1' });
+  it('exits ErrorOpenApiVersion for a 3.2 input', async () => {
+    writeJson('a.json', { ...(oas({ '/a': getPath('getA') }) as object), openapi: '3.2.0' });
     const config = writeJson('openapi-merge.json', {
       inputs: [{ inputFile: './a.json' }],
       output: './output.json',
@@ -477,7 +477,7 @@ describe('main - OpenAPI version checking', () => {
 
   it('writes no output file when a version is unsupported', async () => {
     // The assertion that proves the failure is real rather than cosmetic.
-    writeJson('a.json', { ...(oas({ '/a': getPath('getA') }) as object), openapi: '3.1.0' });
+    writeJson('a.json', { ...(oas({ '/a': getPath('getA') }) as object), openapi: '3.2.0' });
     const config = writeJson('openapi-merge.json', {
       inputs: [{ inputFile: './a.json' }],
       output: './output.json',

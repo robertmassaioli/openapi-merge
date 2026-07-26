@@ -1,4 +1,4 @@
-import { Swagger } from '@atlassian/atlassian-openapi';
+import { OpenApiDocument } from './oas31';
 
 export type OperationSelection = {
   /**
@@ -39,7 +39,7 @@ export interface DisputeSuffix extends DisputeBase {
 export type Dispute = DisputePrefix | DisputeSuffix;
 
 export interface SingleMergeInputBase {
-  oas: Swagger.SwaggerV3;
+  oas: OpenApiDocument;
 
   pathModification?: PathModification;
 
@@ -121,7 +121,7 @@ export type DescriptionTitle = {
 export type MergeInput = Array<SingleMergeInput>;
 
 export type SuccessfulMergeResult = {
-  output: Swagger.SwaggerV3;
+  output: OpenApiDocument;
 };
 
 export type ErrorType =
@@ -132,7 +132,9 @@ export type ErrorType =
   /** An input declared a version this library cannot merge, or none at all. */
   | 'unsupported-openapi-version'
   /** The inputs did not all declare the same OpenAPI major.minor version. */
-  | 'mixed-openapi-versions';
+  | 'mixed-openapi-versions'
+  /** Two inputs declared the same webhook name (3.1). */
+  | 'duplicate-webhooks';
 
 export type ErrorMergeResult = {
   type: ErrorType;
