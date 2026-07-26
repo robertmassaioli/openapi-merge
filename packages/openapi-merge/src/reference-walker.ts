@@ -1,6 +1,6 @@
 /* eslint-disable no-prototype-builtins */
 import { Swagger, SwaggerTypeChecks as TC } from "@atlassian/atlassian-openapi";
-import { Components31, getPaths, getWebhooks, OpenApiDocument, PathItemMap } from './oas31';
+import { Components31, getPathItemOperations, getPaths, getWebhooks, OpenApiDocument, PathItem32, PathItemMap } from './oas31';
 
 export type Modify = (input: string) => string;
 
@@ -205,18 +205,15 @@ function walkOperationReferences(operation: Swagger.Operation, modify: Modify): 
   }
 }
 
-function walkPathItemReferences(pathItem: Swagger.PathItem, modify: Modify): void {
+function walkPathItemReferences(pathItem: PathItem32, modify: Modify): void {
   if (pathItem['$ref'] !== undefined) {
     pathItem['$ref'] = modify(pathItem['$ref']);
   } else {
-    if (pathItem.get !== undefined) walkOperationReferences(pathItem.get, modify);
-    if (pathItem.put !== undefined) walkOperationReferences(pathItem.put, modify);
-    if (pathItem.post !== undefined) walkOperationReferences(pathItem.post, modify);
-    if (pathItem.delete !== undefined) walkOperationReferences(pathItem.delete, modify);
-    if (pathItem.options !== undefined) walkOperationReferences(pathItem.options, modify);
-    if (pathItem.head !== undefined) walkOperationReferences(pathItem.head, modify);
-    if (pathItem.patch !== undefined) walkOperationReferences(pathItem.patch, modify);
-    if (pathItem.trace !== undefined) walkOperationReferences(pathItem.trace, modify);
+    // Includes `query` and every custom verb in `additionalOperations`; a $ref
+    // inside one of those is a real reference and must be rewritten like any other.
+    for (const { operation } of getPathItemOperations(pathItem)) {
+      walkOperationReferences(operation, modify);
+    }
 
     if (pathItem.parameters !== undefined) {
       for (let parameterIndex = 0; parameterIndex < pathItem.parameters.length; parameterIndex++) {

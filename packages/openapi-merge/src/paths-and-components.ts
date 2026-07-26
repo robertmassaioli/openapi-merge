@@ -5,7 +5,7 @@ import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";
 import { deepEquality } from "./component-equivalence";
 import { applyDispute, getDispute } from './dispute';
-import { Components31, getPaths, getWebhooks, OpenApiDocument, PathItemMap } from './oas31';
+import { Components31, getPathItemOperations, getPaths, getWebhooks, OpenApiDocument, PathItem32, PathItemMap } from './oas31';
 
 export type PathAndComponents = {
   paths: Swagger.Paths;
@@ -77,17 +77,11 @@ function processComponents<A>(results: Components<A>, components: Components<A>,
   }
 }
 
-function countOperationsInPathItem(pathItem: Swagger.PathItem): number {
-  let count = 0;
-  count += pathItem.get !== undefined ? 1 : 0;
-  count += pathItem.put !== undefined ? 1 : 0;
-  count += pathItem.post !== undefined ? 1 : 0;
-  count += pathItem.delete !== undefined ? 1 : 0;
-  count += pathItem.options !== undefined ? 1 : 0;
-  count += pathItem.head !== undefined ? 1 : 0;
-  count += pathItem.patch !== undefined ? 1 : 0;
-  count += pathItem.trace !== undefined ? 1 : 0;
-  return count;
+function countOperationsInPathItem(pathItem: PathItem32): number {
+  // Counts `query` and `additionalOperations` too. Undercounting here is not a
+  // cosmetic bug: dropPathItemsWithNoOperations deletes anything scoring zero,
+  // so a 3.2 path item using only the new operation slots used to vanish.
+  return getPathItemOperations(pathItem).length;
 }
 
 function dropPathItemsWithNoOperations(originalOas: OpenApiDocument): OpenApiDocument {
@@ -147,26 +141,13 @@ function ensureUniqueOperationId(operation: Swagger.Operation, seenOperationIds:
   }
 }
 
-function ensureUniqueOperationIds(pathItem: Swagger.PathItem, seenOperationIds: Set<string>, dispute: Dispute | undefined): ErrorMergeResult | undefined {
-  const operations = [
-    pathItem.get,
-    pathItem.put,
-    pathItem.post,
-    pathItem.delete,
-    pathItem.patch,
-    pathItem.head,
-    pathItem.trace,
-    pathItem.options
-  ];
+function ensureUniqueOperationIds(pathItem: PathItem32, seenOperationIds: Set<string>, dispute: Dispute | undefined): ErrorMergeResult | undefined {
+  const operations = getPathItemOperations(pathItem);
 
   for (let opIndex = 0; opIndex < operations.length; opIndex++) {
-    const operation = operations[opIndex];
-
-    if (operation !== undefined) {
-      const result = ensureUniqueOperationId(operation, seenOperationIds, dispute);
-      if (result !== undefined) {
-        return result;
-      }
+    const result = ensureUniqueOperationId(operations[opIndex].operation, seenOperationIds, dispute);
+    if (result !== undefined) {
+      return result;
     }
   }
 }

@@ -24,7 +24,7 @@ export type OpenApiVersion = {
  * 3 adds '3.2'. Adding an entry here is a claim that the merge logic handles
  * that version's constructs -- do not add one without the work behind it.
  */
-export const SUPPORTED_MINOR_VERSIONS: ReadonlyArray<string> = ['3.0', '3.1'];
+export const SUPPORTED_MINOR_VERSIONS: ReadonlyArray<string> = ['3.0', '3.1', '3.2'];
 
 /** `major.minor`, the granularity at which compatibility is decided. */
 export function toMinorVersion(version: OpenApiVersion): string {
