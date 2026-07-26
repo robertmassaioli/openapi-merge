@@ -13,8 +13,77 @@ import { Swagger } from '@atlassian/atlassian-openapi';
  * the constructs this library has to merge.
  */
 
+/**
+ * The nine HTTP methods a Path Item may carry.
+ *
+ * `query` is the 3.2 addition. This list exists once; every place that needs to
+ * consider "all the operations in a path item" goes through
+ * {@link getPathItemOperations} rather than repeating it. Four separate copies
+ * of the eight-method version of this list is why a 3.2 path item containing
+ * only `query` was scored as having zero operations and deleted outright.
+ */
+export const HTTP_METHODS = [
+  'get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace', 'query',
+] as const;
+
+export type HttpMethod = typeof HTTP_METHODS[number];
+
+/**
+ * A Path Item, including the 3.2 additions.
+ *
+ * `query` is a normal method slot. `additionalOperations` maps arbitrary custom
+ * verbs (`PURGE`, `LOCK`, ...) to Operations; its keys are opaque to us, only
+ * the Operation values are interpreted.
+ */
+export type PathItem32 = Swagger.PathItem & {
+  query?: Swagger.Operation;
+  additionalOperations?: { [method: string]: Swagger.Operation };
+};
+
+/**
+ * A Tag, including the 3.2 additions.
+ *
+ * `summary` supersedes the `x-displayName` extension, `parent` enables
+ * hierarchical tags, and `kind` classifies a tag (`nav`, `badge`, `audience`).
+ * They are carried through the merge as ordinary tag fields.
+ */
+export type Tag32 = Swagger.Tag & {
+  summary?: string;
+  parent?: string;
+  kind?: string;
+};
+
 /** A map of name to Path Item, the shape shared by `paths` and `webhooks`. */
-export type PathItemMap = { [key: string]: Swagger.PathItem };
+export type PathItemMap = { [key: string]: PathItem32 };
+
+/**
+ * Every operation a Path Item contains: the nine standard methods plus any
+ * custom verbs under `additionalOperations`.
+ *
+ * Returns entries rather than just values so callers that need to delete an
+ * operation (tag-based selection) can address it.
+ */
+export function getPathItemOperations(
+  pathItem: PathItem32,
+): Array<{ method: string; operation: Swagger.Operation; isAdditional: boolean }> {
+  const found: Array<{ method: string; operation: Swagger.Operation; isAdditional: boolean }> = [];
+
+  for (const method of HTTP_METHODS) {
+    const operation = pathItem[method];
+    if (operation !== undefined) {
+      found.push({ method, operation, isAdditional: false });
+    }
+  }
+
+  const additional = pathItem.additionalOperations;
+  if (additional !== undefined) {
+    for (const method of Object.keys(additional)) {
+      found.push({ method, operation: additional[method], isAdditional: true });
+    }
+  }
+
+  return found;
+}
 
 /**
  * 3.1 adds `pathItems` to the component types.
@@ -40,7 +109,10 @@ export type Components31 = Swagger.Components & {
  * - `components` may carry `pathItems`.
  */
 export type OpenApiDocument = Omit<Swagger.SwaggerV3, 'paths' | 'components'> & {
-  paths?: Swagger.Paths;
+  paths?: PathItemMap;
+  /** 3.2: the document's own identity URI. See the merge policy in oas32 tests. */
+  $self?: string;
+  tags?: Tag32[];
   webhooks?: PathItemMap;
   jsonSchemaDialect?: string;
   components?: Components31;

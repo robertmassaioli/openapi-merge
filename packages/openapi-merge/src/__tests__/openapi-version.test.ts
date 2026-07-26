@@ -76,11 +76,11 @@ describe('toMinorVersion', () => {
 });
 
 describe('SUPPORTED_MINOR_VERSIONS', () => {
-  it('contains 3.0 and 3.1 after phase 2', () => {
+  it('contains every published 3.x version after phase 3', () => {
     // Widened by each phase. This pins the contract so that adding a version is
-    // a deliberate act with a failing test to update -- which is exactly what
-    // happened when phase 2 added '3.1'.
-    expect([...SUPPORTED_MINOR_VERSIONS]).toEqual(['3.0', '3.1']);
+    // a deliberate act with a failing test to update -- which is what happened
+    // when phase 2 added '3.1' and phase 3 added '3.2'.
+    expect([...SUPPORTED_MINOR_VERSIONS]).toEqual(['3.0', '3.1', '3.2']);
   });
 });
 
@@ -100,20 +100,21 @@ describe('validateInputVersions', () => {
 });
 
 describe('merge - unsupported versions', () => {
-  it('rejects a 3.2 input and names the index and version', () => {
-    const message = expectError(merge(inputsAt('3.2.0')), 'unsupported-openapi-version');
+  it('rejects a 3.3 input and names the index and version', () => {
+    const message = expectError(merge(inputsAt('3.3.0')), 'unsupported-openapi-version');
 
     expect(message).toContain('Input 0');
-    expect(message).toContain('3.2.0');
-    expect(message).toContain('3.1.x');
+    expect(message).toContain('3.3.0');
+    expect(message).toContain('3.2.x');
   });
 
-  it('accepts a 3.1 input now that phase 2 supports it', () => {
+  it('accepts 3.1 and 3.2 inputs now that phases 2 and 3 support them', () => {
     expect(isErrorResult(merge(inputsAt('3.1.1')))).toBe(false);
+    expect(isErrorResult(merge(inputsAt('3.2.0')))).toBe(false);
   });
 
   it('names the offending input when it is not the first', () => {
-    const message = expectError(merge(inputsAt('3.0.3', '3.0.0', '3.2.0')), 'unsupported-openapi-version');
+    const message = expectError(merge(inputsAt('3.0.3', '3.0.0', '3.3.0')), 'unsupported-openapi-version');
 
     expect(message).toContain('Input 2');
   });
@@ -178,7 +179,7 @@ describe('merge - version checking runs first', () => {
     // These two inputs also have duplicate paths, which would normally be a
     // 'duplicate-paths' error. The version problem must win, because nothing
     // should be merged at all.
-    const result = merge(inputsAt('3.2.0', '3.2.0'));
+    const result = merge(inputsAt('3.3.0', '3.3.0'));
 
     expectError(result, 'unsupported-openapi-version');
   });

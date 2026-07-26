@@ -23,6 +23,19 @@ function getFirstMatching<A, B>(inputs: Array<A>, extract: (input: A) => B | und
 }
 
 /**
+ * `$self` (3.2) declares a document's own identity URI.
+ *
+ * Merging several documents produces a third document that is none of them, so
+ * carrying one input's `$self` forward would assert an identity the output does
+ * not have -- and because `$self` participates in reference resolution, a stale
+ * value can change how relative `$ref`s resolve. It is therefore kept only in
+ * the degenerate single-input case, where the output really is that document.
+ */
+function mergeSelf(inputs: MergeInput): string | undefined {
+  return inputs.length === 1 ? inputs[0].oas.$self : undefined;
+}
+
+/**
  * Swagger Merge Tool
  */
 export function merge(inputs: MergeInput): MergeResult {
@@ -62,6 +75,7 @@ export function merge(inputs: MergeInput): MergeResult {
       // Omitted entirely for 3.0 documents, which cannot declare webhooks.
       webhooks: Object.keys(webhooks).length === 0 ? undefined : webhooks,
       jsonSchemaDialect: getFirstMatching(inputs, input => input.oas.jsonSchemaDialect),
+      $self: mergeSelf(inputs),
       components,
     },
     inputs.map(input => input.oas)

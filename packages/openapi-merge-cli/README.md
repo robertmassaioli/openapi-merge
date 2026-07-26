@@ -181,20 +181,32 @@ They are separate from each other so that CI can branch on **retryability**:
 
 ### OpenAPI version support
 
-This tool merges **OpenAPI 3.0.x and 3.1.x** documents. Every input must
-declare a full `openapi` version (for example `"3.1.1"`), and all inputs must
+This tool merges **OpenAPI 3.0.x, 3.1.x and 3.2.x** documents. Every input must
+declare a full `openapi` version (for example `"3.2.0"`), and all inputs must
 agree on the `major.minor` version — patch differences such as `3.1.0` and
-`3.1.1` are fine, since they are the same feature set, but 3.0 and 3.1 inputs
-cannot be mixed.
+`3.1.1` are fine, since they are the same feature set, but 3.0, 3.1 and 3.2
+inputs cannot be mixed with each other.
 
-3.1 support covers the constructs 3.1 added: `webhooks` merge exactly like
-paths (same duplicate rule, same `operationId` uniqueness, same `$ref`
-rewriting), `components.pathItems` deduplicate like any other component,
-`jsonSchemaDialect` is carried through, and a webhooks-only document with no
-`paths` at all is valid input.
+**3.1** support covers `webhooks` (which merge exactly like paths: same
+duplicate rule, same `operationId` uniqueness, same `$ref` rewriting),
+`components.pathItems`, `jsonSchemaDialect`, and documents with no `paths` at
+all.
 
-An input declaring 3.2, no version at all, or a version that disagrees with the
-other inputs exits with code `9` and a message naming the offending input.
+**3.2** support covers the `query` HTTP method and `additionalOperations`
+(custom verbs such as `PURGE`), which participate fully in operation counting,
+`operationId` uniqueness, `$ref` rewriting and tag-based selection. The new tag
+fields `summary`, `parent` and `kind` are carried through, as are
+`itemSchema`, discriminator `defaultMapping`, OAuth2 device-authorization
+flows and `in: querystring` parameters.
+
+`$self` is a special case: it declares a document's *own* identity, and a
+merged document is not any of its inputs. It is kept when there is exactly one
+input and **dropped** otherwise, rather than arbitrarily inheriting one input's
+identity — which would also affect how relative `$ref`s resolve.
+
+An input declaring a version this tool does not know, no version at all, or a
+version that disagrees with the other inputs exits with code `9` and a message
+naming the offending input.
 
 **The output now declares the version the inputs used**, rather than always
 `3.0.3`. Merging documents that declare `3.0.0` now produces `3.0.0`. Relabelling

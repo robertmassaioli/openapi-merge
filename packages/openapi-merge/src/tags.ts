@@ -1,7 +1,7 @@
 import { MergeInput } from './data';
-import { Swagger } from '@atlassian/atlassian-openapi';
+import { Tag32 } from './oas31';
 
-function getNonExcludedTags(originalTags: Swagger.Tag[], excludedTagNames: string[]): Swagger.Tag[] {
+function getNonExcludedTags(originalTags: Tag32[], excludedTagNames: string[]): Tag32[] {
   if (excludedTagNames.length === 0) {
     return originalTags;
   }
@@ -9,8 +9,8 @@ function getNonExcludedTags(originalTags: Swagger.Tag[], excludedTagNames: strin
   return originalTags.filter(tag => !excludedTagNames.includes(tag.name));
 }
 
-export function mergeTags(inputs: MergeInput): Swagger.Tag[] | undefined {
-  const result = new Array<Swagger.Tag>();
+export function mergeTags(inputs: MergeInput): Tag32[] | undefined {
+  const result = new Array<Tag32>();
 
   const seenTags = new Set<string>();
   inputs.forEach(input => {
