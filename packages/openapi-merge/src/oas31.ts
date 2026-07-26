@@ -53,6 +53,15 @@ export type Tag32 = Swagger.Tag & {
   kind?: string;
 };
 
+/**
+ * A Server Object, including the 3.2 `name` field.
+ *
+ * `name` gives a server a stable identifier so tooling can refer to it.
+ */
+export type Server32 = Swagger.Server & {
+  name?: string;
+};
+
 /** A map of name to Path Item, the shape shared by `paths` and `webhooks`. */
 export type PathItemMap = { [key: string]: PathItem32 };
 
@@ -108,11 +117,12 @@ export type Components31 = Swagger.Components & {
  *   Objects in the document.
  * - `components` may carry `pathItems`.
  */
-export type OpenApiDocument = Omit<Swagger.SwaggerV3, 'paths' | 'components'> & {
+export type OpenApiDocument = Omit<Swagger.SwaggerV3, 'paths' | 'components' | 'tags' | 'servers'> & {
   paths?: PathItemMap;
   /** 3.2: the document's own identity URI. See the merge policy in oas32 tests. */
   $self?: string;
   tags?: Tag32[];
+  servers?: Server32[];
   webhooks?: PathItemMap;
   jsonSchemaDialect?: string;
   components?: Components31;

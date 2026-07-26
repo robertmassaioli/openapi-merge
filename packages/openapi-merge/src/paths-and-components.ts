@@ -84,6 +84,19 @@ function countOperationsInPathItem(pathItem: PathItem32): number {
   return getPathItemOperations(pathItem).length;
 }
 
+/**
+ * Whether a Path Item carries anything worth keeping.
+ *
+ * An operation count of zero is not sufficient: the spec allows a Path Item to
+ * be a Reference Object (`$ref` to a Path Item, typically in
+ * `components.pathItems`), which has no operations of its own but is the entire
+ * content of the entry. Dropping those made `components.pathItems` unusable,
+ * because nothing could reference one and survive.
+ */
+function pathItemHasContent(pathItem: PathItem32): boolean {
+  return pathItem.$ref !== undefined || countOperationsInPathItem(pathItem) > 0;
+}
+
 function dropPathItemsWithNoOperations(originalOas: OpenApiDocument): OpenApiDocument {
   const oas = _.cloneDeep(originalOas);
 
@@ -92,7 +105,7 @@ function dropPathItemsWithNoOperations(originalOas: OpenApiDocument): OpenApiDoc
     if (oas.paths.hasOwnProperty(path)) {
       const pathItem = oas.paths[path];
 
-      if (countOperationsInPathItem(pathItem) === 0) {
+      if (!pathItemHasContent(pathItem)) {
         delete oas.paths[path];
       }
     }
