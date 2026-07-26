@@ -1,9 +1,9 @@
-import { Swagger } from "@atlassian/atlassian-openapi";
+import { OpenApiDocument } from './oas31';
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 type Extensions = { [extensionKey: string]: any };
 
-function extractExtensions(input: Swagger.SwaggerV3): Extensions {
+function extractExtensions(input: OpenApiDocument): Extensions {
   const result: Extensions = {};
 
   const plainObject: Extensions = input;
@@ -43,7 +43,7 @@ function mergeExtensionsHelper(extensions: Extensions[]): Extensions {
   return result;
 }
 
-export function mergeExtensions(mergeTarget: Swagger.SwaggerV3, oass: Swagger.SwaggerV3[]): Swagger.SwaggerV3 {
+export function mergeExtensions(mergeTarget: OpenApiDocument, oass: OpenApiDocument[]): OpenApiDocument {
   return {
     ...mergeTarget,
     ...mergeExtensionsHelper([extractExtensions(mergeTarget), ...oass.map(extractExtensions)])

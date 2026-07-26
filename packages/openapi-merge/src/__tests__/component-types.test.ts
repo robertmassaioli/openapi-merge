@@ -13,7 +13,7 @@ function clone<A>(value: A): A {
 /** Narrows a MergeResult to its successful branch, failing the test otherwise. */
 function expectSuccess(result: MergeResult): SuccessfulMergeResult {
   if (isErrorResult(result)) {
-    fail(`Expected a successful merge, got: ${JSON.stringify(result, null, 2)}`);
+    throw new Error(`Expected a successful merge, got: ${JSON.stringify(result, null, 2)}`);
   }
   return result;
 }
@@ -148,7 +148,7 @@ describe('operationId conflict resolution', () => {
 
     const result = expectSuccess(merge(inputs));
 
-    expect(result.output.paths['/other'].get?.operationId).toBe('secondgetThing');
+    expect((result.output.paths ?? {})['/other'].get?.operationId).toBe('secondgetThing');
   });
 
   it('falls back to a numeric suffix when there is no dispute', () => {
@@ -157,7 +157,7 @@ describe('operationId conflict resolution', () => {
       toOAS({ '/other': { get: { operationId: 'getThing', responses: { '200': { description: 'ok' } } } } }),
     ])));
 
-    expect(result.output.paths['/other'].get?.operationId).toBe('getThing1');
+    expect((result.output.paths ?? {})['/other'].get?.operationId).toBe('getThing1');
   });
 
   it('falls back to a numeric suffix when the disputed id is also taken', () => {
@@ -172,7 +172,7 @@ describe('operationId conflict resolution', () => {
 
     const result = expectSuccess(merge(inputs));
 
-    expect(result.output.paths['/three'].get?.operationId).toBe('getThing1');
+    expect((result.output.paths ?? {})['/three'].get?.operationId).toBe('getThing1');
   });
 });
 
@@ -182,12 +182,12 @@ describe('pathModification.stripStart', () => {
   it('strips a prefix that is present', () => {
     const result = expectSuccess(merge([{ oas: toOAS(paths), pathModification: { stripStart: '/api' } }]));
 
-    expect(Object.keys(result.output.paths)).toEqual(['/thing']);
+    expect(Object.keys(result.output.paths ?? {})).toEqual(['/thing']);
   });
 
   it('leaves the path untouched when the prefix is absent', () => {
     const result = expectSuccess(merge([{ oas: toOAS(paths), pathModification: { stripStart: '/nope' } }]));
 
-    expect(Object.keys(result.output.paths)).toEqual(['/api/thing']);
+    expect(Object.keys(result.output.paths ?? {})).toEqual(['/api/thing']);
   });
 });

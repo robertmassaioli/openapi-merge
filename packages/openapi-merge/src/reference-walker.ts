@@ -1,5 +1,6 @@
 /* eslint-disable no-prototype-builtins */
 import { Swagger, SwaggerTypeChecks as TC } from "@atlassian/atlassian-openapi";
+import { Components31, getPaths, getWebhooks, OpenApiDocument, PathItemMap } from './oas31';
 
 export type Modify = (input: string) => string;
 
@@ -225,7 +226,7 @@ function walkPathItemReferences(pathItem: Swagger.PathItem, modify: Modify): voi
   }
 }
 
-export function walkComponentReferences(components: Swagger.Components, modify: Modify): void {
+export function walkComponentReferences(components: Components31, modify: Modify): void {
   if (components.schemas !== undefined) {
     for (const schemaKey in components.schemas) {
       if (components.schemas.hasOwnProperty(schemaKey)) {
@@ -290,12 +291,29 @@ export function walkComponentReferences(components: Swagger.Components, modify: 
     }
   }
 
+  // 3.1 component type: a map of Path Items, walked like any other.
+  if (components.pathItems !== undefined) {
+    walkPathItemMapReferences(components.pathItems, modify);
+  }
+
   if (components.callbacks !== undefined) {
     for (const componentKey in components.callbacks) {
       if (components.callbacks.hasOwnProperty(componentKey)) {
         const callback = components.callbacks[componentKey];
         walkCallbackReferences(callback, modify);
       }
+    }
+  }
+}
+
+/**
+ * Walk a map of Path Items. Shared by `paths`, `webhooks` and
+ * `components.pathItems`, which are structurally identical.
+ */
+export function walkPathItemMapReferences(items: PathItemMap, modify: Modify): void {
+  for (const key in items) {
+    if (items.hasOwnProperty(key)) {
+      walkPathItemReferences(items[key], modify);
     }
   }
 }
@@ -309,7 +327,13 @@ export function walkPathReferences(paths: Swagger.Paths, modify: Modify): void {
   }
 }
 
-export function walkAllReferences(oas: Swagger.SwaggerV3, modify: Modify): void {
-  walkPathReferences(oas.paths, modify);
+export function walkAllReferences(oas: OpenApiDocument, modify: Modify): void {
+  walkPathReferences(getPaths(oas), modify);
+
+  // 3.1: webhooks are Path Items and carry references exactly as paths do.
+  // Missing them is how a $ref inside a webhook survived into the output while
+  // the component it pointed at was renamed underneath it.
+  walkPathItemMapReferences(getWebhooks(oas), modify);
+
   if (oas.components !== undefined) walkComponentReferences(oas.components, modify);
 }

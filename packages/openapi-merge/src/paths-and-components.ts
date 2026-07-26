@@ -5,10 +5,13 @@ import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";
 import { deepEquality } from "./component-equivalence";
 import { applyDispute, getDispute } from './dispute';
+import { Components31, getPaths, getWebhooks, OpenApiDocument, PathItemMap } from './oas31';
 
 export type PathAndComponents = {
   paths: Swagger.Paths;
-  components: Swagger.Components;
+  /** 3.1 only; empty for 3.0 inputs, which cannot declare webhooks. */
+  webhooks: PathItemMap;
+  components: Components31;
 };
 
 function removeFromStart(input: string, trim: string): string {
@@ -87,7 +90,7 @@ function countOperationsInPathItem(pathItem: Swagger.PathItem): number {
   return count;
 }
 
-function dropPathItemsWithNoOperations(originalOas: Swagger.SwaggerV3): Swagger.SwaggerV3 {
+function dropPathItemsWithNoOperations(originalOas: OpenApiDocument): OpenApiDocument {
   const oas = _.cloneDeep(originalOas);
 
   for (const path in oas.paths) {
@@ -182,6 +185,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
   const seenOperationIds = new Set<string>();
 
   const result: PathAndComponents = {
+    webhooks: {},
     paths: {},
     components: {},
   };
@@ -200,7 +204,10 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       // For each component in the original input, place it in the output with deduplicate taking place
     if (oas.components !== undefined) {
       const resultLookup = new SwaggerLookup.InternalLookup({ openapi: '3.0.1', info: { title: 'dummy', version: '0' }, paths: {}, components: result.components });
-      const currentLookup = new SwaggerLookup.InternalLookup(oas);
+      // InternalLookup is 3.0-shaped and needs a concrete `paths`. A 3.1
+      // document may legitimately have none, and the lookup only resolves
+      // component `$ref`s, so an empty object is equivalent for its purposes.
+      const currentLookup = new SwaggerLookup.InternalLookup({ ...oas, paths: getPaths(oas) });
       if (oas.components.schemas !== undefined) {
         result.components.schemas = result.components.schemas || {};
 
@@ -266,6 +273,16 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
         });
       }
 
+      // pathItems (3.1): a component type like any other, deduplicated and
+      // renamed on conflict with the same machinery.
+      if (oas.components.pathItems !== undefined) {
+        result.components.pathItems = result.components.pathItems || {};
+
+        processComponents(result.components.pathItems, oas.components.pathItems, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
+          referenceModification[`#/components/pathItems/${from}`] = `#/components/pathItems/${to}`;
+        });
+      }
+
       // callbacks
       if (oas.components.callbacks !== undefined) {
         result.components.callbacks = result.components.callbacks || {};
@@ -296,11 +313,38 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
         };
       }
 
-      const copyPathItem = oas.paths[originalPath];
+      const copyPathItem = getPaths(oas)[originalPath];
 
       ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
 
       result.paths[newPath] = copyPathItem;
+    }
+
+    // Webhooks (3.1) are a map of Path Items keyed by an event name. They merge
+    // like paths -- same duplicate rule, same operationId uniqueness, same
+    // reference rewriting -- but pathModification deliberately does NOT apply:
+    // a webhook key is an event name, not a URL path, so prepending "/api" to
+    // it would be meaningless.
+    const webhookNames = Object.keys(getWebhooks(oas));
+
+    for (let webhookIndex = 0; webhookIndex < webhookNames.length; webhookIndex++) {
+      const webhookName = webhookNames[webhookIndex];
+
+      if (result.webhooks[webhookName] !== undefined) {
+        return {
+          type: 'duplicate-webhooks',
+          message: `Input ${inputIndex}: The webhook '${webhookName}' has already been added by another input file`
+        };
+      }
+
+      const copyWebhook = getWebhooks(oas)[webhookName];
+
+      const webhookOpIdError = ensureUniqueOperationIds(copyWebhook, seenOperationIds, dispute);
+      if (webhookOpIdError !== undefined) {
+        return webhookOpIdError;
+      }
+
+      result.webhooks[webhookName] = copyWebhook;
     }
 
     // Update the references to point to the right location
