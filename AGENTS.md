@@ -362,6 +362,50 @@ typecheck takes about 0.6s, which is why it is affordable on every commit.
 
 Use `bun run lint:eslint` if you deliberately want the lint half alone.
 
+### Test organisation
+
+Each test file covers **one concept**, not one source module. A concept may span
+several source files (references are walked in `reference-walker.ts` but rewritten
+in `paths-and-components.ts`) and one source file may serve several concepts, so
+naming suites after modules put unrelated tests together and split related ones
+apart.
+
+`packages/openapi-merge/src/__tests__/`
+
+| Suite | Concept |
+| --- | --- |
+| `merge-basics.test.ts` | the smallest contracts of `merge` itself |
+| `versions.test.ts` | version parsing, the supported set, refusing unsupported/mixed inputs, output version |
+| `paths.test.ts` | path keys, duplicates, templating, `pathModification` |
+| `path-items.test.ts` | what a Path Item may hold, the nine methods plus `additionalOperations`, when one counts as empty |
+| `components.test.ts` | component deduplication, disputes, renaming, every component type |
+| `component-equivalence.test.ts` | the shallow/deep equality helpers behind deduplication |
+| `references.test.ts` | the reference walker, and rewriting references when a target is renamed |
+| `operation-ids.test.ts` | `operationId` uniqueness across every operation slot |
+| `operation-selection.test.ts` | `includeTags`/`excludeTags` filtering |
+| `document-metadata.test.ts` | `info`, `tags`, `servers`, `security`, `externalDocs`, extensions, `jsonSchemaDialect`, `$self` |
+| `webhooks.test.ts` | 3.1 webhooks, and `paths` becoming optional |
+| `schema-objects.test.ts` | Schema Object contents, and what they mean for deduplication |
+
+`packages/openapi-merge-cli/src/__tests__/`
+
+| Suite | Concept |
+| --- | --- |
+| `cli-merging.test.ts` | driving the real CLI through a successful merge |
+| `cli-output.test.ts` | output format and indentation |
+| `cli-remote-inputs.test.ts` | `inputURL` over a real in-process HTTP server |
+| `cli-failure-modes.test.ts` | what fails, which exit code, and that no output is written |
+| `cli-output-safety.test.ts` | `outputRoot` / `--restrict-output-to` |
+| `cli-invocation.test.ts` | argv parsing and isolation between `main()` calls |
+| `exit-codes.test.ts` | the `ExitCode` enum's numbering contract |
+| `load-configuration.test.ts` | config loading, schema validation, semantic checks |
+| `file-loading.test.ts`, `formatting.test.ts`, `path-resolution.test.ts` | the named helper modules |
+
+Shared fixtures live in `__tests__/_helpers/` and are excluded from coverage by
+the `**/__tests__/**` ignore pattern. Put a builder there rather than redefining
+it per suite, so a test can move between suites without dragging a private copy
+of its helpers along.
+
 ### Code coverage
 
 Both packages run `bun test --coverage` as their `test` script, so coverage is

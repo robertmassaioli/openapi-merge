@@ -1,35 +1,34 @@
-import { merge } from '..';
+import { merge } from '../index';
 import { Swagger } from '@atlassian/atlassian-openapi';
-import { isErrorResult, MergeResult, SingleMergeInput } from '../data';
 import {
-  parseOpenApiVersion,
-  SUPPORTED_MINOR_VERSIONS,
-  toMinorVersion,
-  validateInputVersions,
+  parseOpenApiVersion, SUPPORTED_MINOR_VERSIONS, toMinorVersion, validateInputVersions,
 } from '../openapi-version';
+import { SingleMergeInput, isErrorResult } from '../data';
+import { doc31, doc32, expectSuccess, expectMergeError, ok, op } from './_helpers/documents';
 
-/** A minimal document declaring an arbitrary version, including invalid ones. */
+/**
+ * OpenAPI version handling: parsing the `openapi` field, which versions are
+ * supported, refusing unsupported and mixed inputs, and which version the
+ * merged document declares.
+ *
+ * The supported set is a single constant, and this suite pins its contract so
+ * that widening it is always a deliberate act with a failing test to update.
+ */
+
+/** A document declaring an arbitrary version, including invalid ones. */
 function oasAtVersion(version: unknown): Swagger.SwaggerV3 {
-  const doc: Record<string, unknown> = {
+  const d: Record<string, unknown> = {
     info: { title: 'Test', version: '1.0.0' },
-    paths: { '/thing': { get: { responses: { '200': { description: 'ok' } } } } },
+    paths: { '/thing': { get: { responses: ok } } },
   };
   if (version !== undefined) {
-    doc.openapi = version;
+    d.openapi = version;
   }
-  return doc as unknown as Swagger.SwaggerV3;
+  return d as unknown as Swagger.SwaggerV3;
 }
 
 function inputsAt(...versions: unknown[]): SingleMergeInput[] {
   return versions.map(v => ({ oas: oasAtVersion(v) }));
-}
-
-function expectError(result: MergeResult, type: string): string {
-  if (!isErrorResult(result)) {
-    throw new Error(`Expected an error, got a successful merge: ${JSON.stringify(result, null, 2)}`);
-  }
-  expect(result.type).toBe(type);
-  return result.message;
 }
 
 describe('parseOpenApiVersion', () => {
@@ -101,7 +100,7 @@ describe('validateInputVersions', () => {
 
 describe('merge - unsupported versions', () => {
   it('rejects a 3.3 input and names the index and version', () => {
-    const message = expectError(merge(inputsAt('3.3.0')), 'unsupported-openapi-version');
+    const message = expectMergeError(merge(inputsAt('3.3.0')), 'unsupported-openapi-version');
 
     expect(message).toContain('Input 0');
     expect(message).toContain('3.3.0');
@@ -114,25 +113,25 @@ describe('merge - unsupported versions', () => {
   });
 
   it('names the offending input when it is not the first', () => {
-    const message = expectError(merge(inputsAt('3.0.3', '3.0.0', '3.3.0')), 'unsupported-openapi-version');
+    const message = expectMergeError(merge(inputsAt('3.0.3', '3.0.0', '3.3.0')), 'unsupported-openapi-version');
 
     expect(message).toContain('Input 2');
   });
 
   it('rejects a document with no openapi field', () => {
-    const message = expectError(merge(inputsAt(undefined)), 'unsupported-openapi-version');
+    const message = expectMergeError(merge(inputsAt(undefined)), 'unsupported-openapi-version');
 
     expect(message).toContain('no "openapi" field');
   });
 
   it('rejects a malformed version and quotes what it found', () => {
-    const message = expectError(merge(inputsAt('3.0')), 'unsupported-openapi-version');
+    const message = expectMergeError(merge(inputsAt('3.0')), 'unsupported-openapi-version');
 
     expect(message).toContain('"3.0"');
   });
 
   it('rejects a 2.0 (Swagger) input', () => {
-    expect(expectError(merge(inputsAt('2.0.0')), 'unsupported-openapi-version')).toContain('2.0.0');
+    expect(expectMergeError(merge(inputsAt('2.0.0')), 'unsupported-openapi-version')).toContain('2.0.0');
   });
 });
 
@@ -140,7 +139,7 @@ describe('merge - mixed versions', () => {
   it('rejects inputs that disagree on minor version', () => {
     // Reachable for the first time in phase 2: both 3.0 and 3.1 are supported
     // individually, so the mixed rule is what stops them being merged together.
-    const message = expectError(merge(inputsAt('3.0.3', '3.1.0')), 'mixed-openapi-versions');
+    const message = expectMergeError(merge(inputsAt('3.0.3', '3.1.0')), 'mixed-openapi-versions');
 
     expect(message).toContain('3.0.x');
     expect(message).toContain('3.1.x');
@@ -181,7 +180,7 @@ describe('merge - version checking runs first', () => {
     // should be merged at all.
     const result = merge(inputsAt('3.3.0', '3.3.0'));
 
-    expectError(result, 'unsupported-openapi-version');
+    expectMergeError(result, 'unsupported-openapi-version');
   });
 
   it('still merges valid 3.0 inputs normally', () => {
@@ -199,5 +198,84 @@ describe('merge - version checking runs first', () => {
       throw new Error(`Expected a successful merge, got: ${result.message}`);
     }
     expect(Object.keys(result.output.paths ?? {}).sort()).toEqual(['/other', '/thing']);
+  });
+});
+
+describe('output version negotiation', () => {
+  it('declares the highest patch among 3.1 inputs', () => {
+    const output = expectSuccess(merge([
+      { oas: doc31({ openapi: '3.1.0', paths: {} }) },
+      { oas: doc31({ openapi: '3.1.1', paths: {} }) },
+    ]));
+
+    expect(output.openapi).toBe('3.1.1');
+  });
+
+  it('declares the input version for 3.0 rather than a hard-coded 3.0.3', () => {
+    const output = expectSuccess(merge([{ oas: doc31({ openapi: '3.0.0', paths: {} }) }]));
+
+    expect(output.openapi).toBe('3.0.0');
+  });
+
+  it('declares the highest patch among 3.0 inputs', () => {
+    const output = expectSuccess(merge([
+      { oas: doc31({ openapi: '3.0.0', paths: { '/a': { get: { responses: ok } } } }) },
+      { oas: doc31({ openapi: '3.0.3', paths: { '/b': { get: { responses: ok } } } }) },
+    ]));
+
+    expect(output.openapi).toBe('3.0.3');
+  });
+});
+
+describe('3.1 edge: version rules', () => {
+  it('refuses a 3.0 input mixed with a 3.1 input', () => {
+    expectMergeError(merge([
+      { oas: doc31({ openapi: '3.0.3', paths: { '/a': { get: op('a') } } }) },
+      { oas: doc31({ openapi: '3.1.1', paths: { '/b': { get: op('b') } } }) },
+    ]), 'mixed-openapi-versions');
+  });
+
+  it('accepts differing 3.1 patch versions and reports the highest', () => {
+    const output = expectSuccess(merge([
+      { oas: doc31({ openapi: '3.1.0', paths: { '/a': { get: op('a') } } }) },
+      { oas: doc31({ openapi: '3.1.1', paths: { '/b': { get: op('b') } } }) },
+    ]));
+
+    expect(output.openapi).toBe('3.1.1');
+  });
+});
+
+describe('3.2 edge: version rules', () => {
+  it('refuses a 3.1 input mixed with a 3.2 input', () => {
+    expectMergeError(merge([
+      { oas: doc32({ openapi: '3.1.1', paths: { '/a': { get: op('a') } } }) },
+      { oas: doc32({ openapi: '3.2.0', paths: { '/b': { get: op('b') } } }) },
+    ]), 'mixed-openapi-versions');
+  });
+
+  it('refuses a 3.3 input, which does not exist yet', () => {
+    expectMergeError(merge([
+      { oas: doc32({ openapi: '3.3.0', paths: { '/a': { get: op('a') } } }) },
+    ]), 'unsupported-openapi-version');
+  });
+});
+
+describe('3.2 - version rules', () => {
+  it('refuses a mix of 3.1 and 3.2 inputs', () => {
+    const result = merge([
+      { oas: doc32({ openapi: '3.1.1', paths: { '/a': { get: op('getA') } } }) },
+      { oas: doc32({ openapi: '3.2.0', paths: { '/b': { get: op('getB') } } }) },
+    ]);
+
+    if (!isErrorResult(result)) {
+      throw new Error('Expected a mixed-openapi-versions error');
+    }
+    expect(result.type).toBe('mixed-openapi-versions');
+  });
+
+  it('declares 3.2.0 on the output', () => {
+    const output = expectSuccess(merge([{ oas: doc32({ paths: { '/a': { get: op('getA') } } }) }]));
+
+    expect(output.openapi).toBe('3.2.0');
   });
 });

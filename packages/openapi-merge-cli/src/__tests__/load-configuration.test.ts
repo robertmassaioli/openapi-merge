@@ -1,8 +1,8 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { Configuration } from '../data';
-import { loadConfiguration } from '../load-configuration';
+import { Configuration, Indent } from '../data';
+import { loadConfiguration, validateConfigurationSemantics } from '../load-configuration';
 
 let tmpDir: string;
 
@@ -187,5 +187,52 @@ describe('loadConfiguration - semantic validation', () => {
     }));
 
     expect(expectConfig(await loadConfiguration(configPath)).output).toBe('./out.json');
+  });
+});
+
+describe('validateConfigurationSemantics', () => {
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  const baseConfig: any = { inputs: [], output: 'merged.json' };
+
+  it('accepts a config with no formatting block', () => {
+    expect(validateConfigurationSemantics(baseConfig)).toBeUndefined();
+  });
+
+  it('accepts spaces with a YAML output', () => {
+    const config = { ...baseConfig, output: 'merged.yaml',
+      formatting: { indent: { style: 'spaces', width: 4 } as Indent } };
+    expect(validateConfigurationSemantics(config)).toBeUndefined();
+  });
+
+  it('accepts spaces with a JSON output', () => {
+    const config = { ...baseConfig, output: 'merged.json',
+      formatting: { indent: { style: 'spaces', width: 4 } as Indent } };
+    expect(validateConfigurationSemantics(config)).toBeUndefined();
+  });
+
+  it('accepts tabs with a JSON output', () => {
+    const config = { ...baseConfig, output: 'merged.json',
+      formatting: { indent: { style: 'tabs' } as Indent } };
+    expect(validateConfigurationSemantics(config)).toBeUndefined();
+  });
+
+  it('rejects tabs with a .yaml output', () => {
+    const config = { ...baseConfig, output: 'merged.yaml',
+      formatting: { indent: { style: 'tabs' } as Indent } };
+    const err = validateConfigurationSemantics(config);
+    expect(err).toContain('Tab indentation is not supported for YAML');
+    expect(err).toContain('merged.yaml');
+  });
+
+  it('rejects tabs with a .yml output', () => {
+    const config = { ...baseConfig, output: 'merged.yml',
+      formatting: { indent: { style: 'tabs' } as Indent } };
+    expect(validateConfigurationSemantics(config)).toContain('YAML');
+  });
+
+  it('is case-insensitive on the output extension', () => {
+    const config = { ...baseConfig, output: 'MERGED.YAML',
+      formatting: { indent: { style: 'tabs' } as Indent } };
+    expect(validateConfigurationSemantics(config)).toContain('YAML');
   });
 });

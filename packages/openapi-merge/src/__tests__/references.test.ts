@@ -1,25 +1,21 @@
+import { merge } from '../index';
 import { Swagger } from '@atlassian/atlassian-openapi';
+import { SingleMergeInput } from '../data';
 import {
-  walkAllReferences,
-  walkCallbackReferences,
-  walkComponentReferences,
-  walkExampleReferences,
-  walkHeaderReferences,
-  walkLinkReferences,
-  walkParameterReferences,
-  walkPathReferences,
-  walkRequestBodyReferences,
-  walkResponseReferences,
-  walkSchemaReferences,
+  walkAllReferences, walkCallbackReferences, walkComponentReferences, walkExampleReferences,
+  walkHeaderReferences, walkLinkReferences, walkParameterReferences, walkPathReferences,
+  walkRequestBodyReferences, walkResponseReferences, walkSchemaReferences,
 } from '../reference-walker';
+import { at, doc30, doc31, doc32, expectSuccess, ok, op, pathKeys, schema, schemaKeys } from './_helpers/documents';
+import { Modify } from '../reference-walker';
 
 /**
- * Every walker takes a node and a `Modify` callback and rewrites `$ref` strings
- * in place. Two things are worth asserting for each: that the right refs are
- * *reached* (collect them), and that the mutation is actually written back
- * (rename them). `collect` does the former; `rename` does the latter.
+ * Run a walker and collect every reference it reaches, without changing them.
+ *
+ * Asserting on the collected list proves the walker *visits* a construct;
+ * `rename` below proves the mutation is written back.
  */
-function collect(walk: (modify: (ref: string) => string) => void): string[] {
+function collect(walk: (modify: Modify) => void): string[] {
   const seen: string[] = [];
   walk(ref => {
     seen.push(ref);
@@ -29,6 +25,19 @@ function collect(walk: (modify: (ref: string) => string) => void): string[] {
 }
 
 const rename = (ref: string): string => `${ref}-renamed`;
+
+/**
+ * References, and keeping them correct when the thing they point at moves.
+ *
+ * Two halves. First, the walker itself: every construct that can hold a `$ref`
+ * must be reached, or a reference survives into the output pointing at a name
+ * that no longer exists. Second, the end-to-end guarantee -- when a component is
+ * renamed to resolve a dispute, every reference to it follows, wherever it lives
+ * (schemas, callbacks, webhooks, `query` operations, custom verbs).
+ *
+ * Also records the pointer forms the walker does NOT know about: discriminator
+ * mappings and Link `operationRef`s. See ai-planning/spec-edge-case-findings.md.
+ */
 
 describe('walkSchemaReferences', () => {
   it('rewrites a top-level reference', () => {
@@ -403,5 +412,186 @@ describe('walkAllReferences', () => {
     };
 
     expect(collect(m => walkAllReferences(oas, m))).toEqual(['#/only']);
+  });
+});
+
+describe('3.0 edge: references', () => {
+  it('rewrites a reference whose target is itself a reference', () => {
+    // Alias -> Thing, where Thing is disputed and renamed. The alias must follow.
+    const output = expectSuccess(merge([
+      { oas: doc30({
+        paths: { '/a': { get: op('a') } },
+        components: { schemas: { Thing: { type: 'string' } } },
+      }) },
+      { oas: doc30({
+        paths: { '/b': { get: op('b') } },
+        components: { schemas: {
+          Thing: { type: 'number' },
+          Alias: { $ref: '#/components/schemas/Thing' },
+        } },
+      }) },
+    ]));
+
+    expect((output.components?.schemas?.Alias as { $ref: string }).$ref).toBe('#/components/schemas/Thing1');
+  });
+
+  it('KNOWN GAP (issues #99/#106): a discriminator mapping is not rewritten on rename', () => {
+    // The oneOf $ref follows the rename but the discriminator mapping value,
+    // which points at the same schema, does not. Already tracked by
+    // issues/proposal-99-discriminator-mapping-prefix.md and
+    // issues/proposal-106-discriminator-mappings.md.
+    const output = expectSuccess(merge([
+      { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: { type: 'string' } } } }) },
+      { oas: doc30({
+        paths: { '/b': { get: op('b') } },
+        components: { schemas: {
+          Dog: { type: 'object' },
+          Pet: {
+            oneOf: [{ $ref: '#/components/schemas/Dog' }],
+            discriminator: { propertyName: 'kind', mapping: { dog: '#/components/schemas/Dog' } },
+          },
+        } },
+      }) },
+    ]));
+
+    const pet = output.components?.schemas?.Pet as Record<string, Record<string, unknown>>;
+    expect((pet.oneOf as unknown as Array<{ $ref: string }>)[0].$ref).toBe('#/components/schemas/Dog1');
+    // Still pointing at the pre-rename name -- this is the bug.
+    expect((pet.discriminator.mapping as Record<string, string>).dog).toBe('#/components/schemas/Dog');
+  });
+
+  it('deduplicates identical components rather than renaming them', () => {
+    const identical = schema({ type: 'string', description: 'shared' });
+    const output = expectSuccess(merge([
+      { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { schemas: { S: { ...identical } } } }) },
+      { oas: doc30({ paths: { '/b': { get: op('b') } }, components: { schemas: { S: { ...identical } } } }) },
+    ]));
+
+    expect(schemaKeys(output)).toEqual(['S']);
+  });
+});
+
+describe('3.0 edge: callbacks and links', () => {
+  it('rewrites a reference inside a callback', () => {
+    const inputs: SingleMergeInput[] = [
+      { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { schemas: { Thing: { type: 'string' } } } }) },
+      { oas: doc30({
+        paths: { '/b': { post: {
+          operationId: 'b',
+          responses: ok,
+          callbacks: { onEvent: { '{$request.body#/url}': { post: {
+            responses: ok,
+            requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/Thing' } } } },
+          } } } },
+        } } },
+        components: { schemas: { Thing: { type: 'number' } } },
+      }) },
+    ];
+
+    const output = expectSuccess(merge(inputs));
+
+    const ref = at(output.paths?.['/b'], 'post', 'callbacks', 'onEvent',
+      '{$request.body#/url}', 'post', 'requestBody', 'content', 'application/json', 'schema', '$ref');
+    expect(ref).toBe('#/components/schemas/Thing1');
+  });
+
+  it('KNOWN GAP: a link operationRef is not rewritten when the path it targets changes', () => {
+    // A Link's operationRef is a URI pointing at an Operation. When
+    // pathModification renames the path, the reference is left dangling.
+    const output = expectSuccess(merge([
+      {
+        oas: doc30({ paths: { '/thing': { get: op('getThing') }, '/other': { get: {
+          operationId: 'other',
+          responses: { '200': { description: 'ok', links: {
+            next: { operationRef: '#/paths/~1thing/get' },
+          } } },
+        } } } }),
+        pathModification: { prepend: '/api' },
+      },
+    ]));
+
+    // Still points at the pre-prepend location.
+    expect(at(output.paths?.['/api/other'], 'get', 'responses', '200', 'links', 'next', 'operationRef'))
+      .toBe('#/paths/~1thing/get');
+    expect(pathKeys(output)).toEqual(['/api/other', '/api/thing']);
+  });
+});
+
+describe('3.1 - references inside webhooks', () => {
+  it('rewrites a $ref inside a webhook when its component is renamed', () => {
+    // The inverse of the orphaned-component failure recorded in
+    // proposal-openapi-3.2-support.md: the webhook was dropped, its $ref went
+    // with it, and the schema it pointed at survived with nothing referencing
+    // it. Both inputs define a different `Pet`, so the second is renamed and
+    // the webhook's reference must follow.
+    const first: SingleMergeInput = { oas: doc31({
+      paths: { '/pets': { get: { operationId: 'listPets', responses: ok } } },
+      components: { schemas: { Pet: { type: 'string' } } },
+    }) };
+    const second: SingleMergeInput = { oas: doc31({
+      webhooks: { newPet: { post: {
+        operationId: 'onNewPet',
+        requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/Pet' } } } },
+        responses: ok,
+      } } },
+      components: { schemas: { Pet: { type: 'number' } } },
+    }) };
+
+    const output = expectSuccess(merge([first, second]));
+
+    const body = output.webhooks?.newPet.post?.requestBody;
+    const ref = (body as { content: { [k: string]: { schema: { $ref: string } } } })
+      .content['application/json'].schema.$ref;
+
+    expect(Object.keys(output.components?.schemas ?? {}).sort()).toEqual(['Pet', 'Pet1']);
+    expect(ref).toBe('#/components/schemas/Pet1');
+  });
+});
+
+describe('3.2 - references inside the new slots', () => {
+  it('rewrites a $ref inside a query operation when its component is renamed', () => {
+    const output = expectSuccess(merge([
+      { oas: doc32({
+        paths: { '/a': { get: op('getA') } },
+        components: { schemas: { Thing: { type: 'string' } } },
+      }) },
+      { oas: doc32({
+        paths: { '/search': { query: {
+          operationId: 'searchQ',
+          requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/Thing' } } } },
+          responses: ok,
+        } } },
+        components: { schemas: { Thing: { type: 'number' } } },
+      }) },
+    ]));
+
+    const body = output.paths?.['/search'].query?.requestBody;
+    const ref = (body as { content: { [k: string]: { schema: { $ref: string } } } })
+      .content['application/json'].schema.$ref;
+
+    expect(ref).toBe('#/components/schemas/Thing1');
+  });
+
+  it('rewrites a $ref inside an additionalOperations verb', () => {
+    const output = expectSuccess(merge([
+      { oas: doc32({
+        paths: { '/a': { get: op('getA') } },
+        components: { schemas: { Thing: { type: 'string' } } },
+      }) },
+      { oas: doc32({
+        paths: { '/cache': { additionalOperations: { PURGE: {
+          operationId: 'purge',
+          requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/Thing' } } } },
+          responses: ok,
+        } } } },
+        components: { schemas: { Thing: { type: 'number' } } },
+      }) },
+    ]));
+
+    const body = output.paths?.['/cache'].additionalOperations?.PURGE.requestBody;
+    const ref = (body as { content: { [k: string]: { schema: { $ref: string } } } })
+      .content['application/json'].schema.$ref;
+
+    expect(ref).toBe('#/components/schemas/Thing1');
   });
 });

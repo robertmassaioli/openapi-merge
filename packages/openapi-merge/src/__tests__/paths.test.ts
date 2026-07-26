@@ -1,6 +1,8 @@
-import { merge } from "..";
-import { toOAS } from "./oas-generation";
-import { expectMergeResult, toMergeInputs, expectErrorType } from "./test-utils";
+import { merge } from '../index';
+import { Swagger } from '@atlassian/atlassian-openapi';
+import { doc30, expectMergeError, expectSuccess, op, pathKeys } from './_helpers/documents';
+import { toOAS } from "./_helpers/oas-generation";
+import { expectMergeResult, toMergeInputs, expectErrorType } from "./_helpers/test-utils";
 import { SingleMergeInput } from "../data";
 
 describe('OAS Path Merge', () => {
@@ -229,342 +231,106 @@ describe('OAS Path Merge', () => {
     expectErrorType(merge([firstInput, secondInput]), 'duplicate-paths');
   });
 
-  describe('Tag Exclusion', () => {
-    it('should strip out Path Items with no operations', () => {
-      const first = toOAS({
-        '/path/a': {
-          get: {
-            responses: {}
-          }
-        },
-        '/path/b': {
-          servers: []
-        },
-        '/path/emptyTags': {
-          delete: {
-            tags: [],
-            responses: {}
-          }
-        },
-        '/path/noTags': {
-          head: {
-            responses: {}
-          }
-        }
-      });
+});
 
-      const second = toOAS({
-        '/path/b': {
-          get: {
-            responses: {}
-          }
-        }
-      });
+describe('3.0 edge: path templating equivalence', () => {
+  it('KNOWN GAP: does not detect that /pets/{petId} and /pets/{name} are the same path', () => {
+    // Spec, Paths Object: "Templated paths with the same hierarchy but different
+    // templated names MUST NOT exist as they are identical." The spec names this
+    // exact pair as "identical and invalid".
+    //
+    // The merge compares path strings, so it emits both and produces an invalid
+    // document. Pinned rather than asserted-correct; fixing it means comparing
+    // paths by their template shape.
+    const output = expectSuccess(merge([
+      { oas: doc30({ paths: { '/pets/{petId}': { get: op('byId') } } }) },
+      { oas: doc30({ paths: { '/pets/{name}': { get: op('byName') } } }) },
+    ]));
 
-      const output = toOAS({
-        '/path/a': {
-          get: {
-            responses: {}
-          }
-        },
-        '/path/b': {
-          get: {
-            responses: {}
-          }
-        },
-        '/path/emptyTags': {
-          delete: {
-            tags: [],
-            responses: {}
-          }
-        },
-        '/path/noTags': {
-          head: {
-            responses: {}
-          }
-        }
-      });
+    expect(pathKeys(output)).toEqual(['/pets/{name}', '/pets/{petId}']);
+  });
 
-      expectMergeResult(merge([{ oas: first }, { oas: second }]), {
-        output
-      });
-    });
+  it('detects a genuinely identical path string as a duplicate', () => {
+    // The string-equality case the implementation does handle.
+    expectMergeError(merge([
+      { oas: doc30({ paths: { '/pets/{petId}': { get: op('a') } } }) },
+      { oas: doc30({ paths: { '/pets/{petId}': { get: op('b') } } }) },
+    ]), 'duplicate-paths');
+  });
 
-    it('should remove operations that have been excluded', () => {
-      const first = toOAS({
-        '/path/a': {
-          get: {
-            tags: ['included'],
-            responses: {}
-          }
-        },
-        '/path/b': {
-          servers: []
-        },
-        '/path/c': {
-          get: {
-            tags: ['excluded'],
-            responses: {}
-          }
-        },
-        '/path/d': {
-          get: {
-            tags: ['included', 'excluded'],
-            responses: {}
-          }
-        },
-        '/path/emptyTags': {
-          delete: {
-            tags: [],
-            responses: {}
-          }
-        },
-        '/path/noTags': {
-          head: {
-            responses: {}
-          }
-        }
-      });
+  it('treats paths differing only in case as distinct', () => {
+    // Paths are case-sensitive; /Pets and /pets are different resources.
+    const output = expectSuccess(merge([
+      { oas: doc30({ paths: { '/pets': { get: op('lower') } } }) },
+      { oas: doc30({ paths: { '/Pets': { get: op('upper') } } }) },
+    ]));
 
-      const second = toOAS({
-        '/path/b': {
-          get: {
-            responses: {}
-          }
-        }
-      });
+    expect(pathKeys(output)).toEqual(['/Pets', '/pets']);
+  });
 
-      const output = toOAS({
-        '/path/a': {
-          get: {
-            tags: ['included'],
-            responses: {}
-          }
-        },
-        '/path/b': {
-          get: {
-            responses: {}
-          }
-        },
-        '/path/emptyTags': {
-          delete: {
-            tags: [],
-            responses: {}
-          }
-        },
-        '/path/noTags': {
-          head: {
-            responses: {}
-          }
-        }
-      });
+  it('treats a trailing slash as a distinct path', () => {
+    const output = expectSuccess(merge([
+      { oas: doc30({ paths: { '/pets': { get: op('noSlash') } } }) },
+      { oas: doc30({ paths: { '/pets/': { get: op('slash') } } }) },
+    ]));
 
-      expectMergeResult(merge([{ oas: first, operationSelection: { excludeTags: ['excluded'] }}, { oas: second }]), {
-        output
-      });
-    });
+    expect(pathKeys(output)).toEqual(['/pets', '/pets/']);
+  });
 
-    it('should include operations that have been included', () => {
-      const first = toOAS({
-        '/path/a': {
-          get: {
-            tags: ['included'],
-            responses: {}
-          }
-        },
-        '/path/b': {
-          servers: []
-        },
-        '/path/c': {
-          get: {
-            tags: ['excluded'],
-            responses: {}
-          }
-        },
-        '/path/d': {
-          get: {
-            tags: ['included', 'excluded'],
-            responses: {}
-          }
-        },
-        '/path/emptyTags': {
-          delete: {
-            tags: [],
-            responses: {}
-          }
-        },
-        '/path/noTags': {
-          head: {
-            responses: {}
-          }
-        }
-      });
+  it('passes through a path that repeats a template expression', () => {
+    // Spec: "Each template expression MUST NOT appear more than once in a single
+    // path template." The merge is not a validator and does not reject it.
+    const output = expectSuccess(merge([
+      { oas: doc30({ paths: { '/a/{id}/b/{id}': { get: op('dup') } } }) },
+    ]));
 
-      const second = toOAS({
-        '/path/b': {
-          get: {
-            responses: {}
-          }
-        }
-      });
+    expect(pathKeys(output)).toEqual(['/a/{id}/b/{id}']);
+  });
+});
 
-      const output = toOAS({
-        '/path/a': {
-          get: {
-            tags: ['included'],
-            responses: {}
-          }
-        },
-        '/path/b': {
-          get: {
-            responses: {}
-          }
-        },
-        '/path/d': {
-          get: {
-            tags: ['included', 'excluded'],
-            responses: {}
-          }
-        }
-      });
+describe('3.0 edge: pathModification', () => {
+  it('produces an empty path key when stripStart consumes the whole path', () => {
+    // Documents the actual result; an empty path key is not a valid path, so
+    // this is a case worth knowing about when configuring stripStart.
+    const output = expectSuccess(merge([
+      { oas: doc30({ paths: { '/api': { get: op('a') } } }), pathModification: { stripStart: '/api' } },
+    ]));
 
-      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'] }}, { oas: second }]), {
-        output
-      });
-    });
+    expect(pathKeys(output)).toEqual(['']);
+  });
 
-    it('should follow exclusion precidence to inclusion', () => {
-      const first = toOAS({
-        '/path/a': {
-          get: {
-            tags: ['included'],
-            responses: {}
-          }
-        },
-        '/path/b': {
-          servers: []
-        },
-        '/path/c': {
-          get: {
-            tags: ['excluded'],
-            responses: {}
-          }
-        },
-        '/path/d': {
-          get: {
-            tags: ['included', 'excluded'],
-            responses: {}
-          }
-        },
-        '/path/emptyTags': {
-          delete: {
-            tags: [],
-            responses: {}
-          }
-        },
-        '/path/noTags': {
-          head: {
-            responses: {}
-          }
-        }
-      });
+  it('applies stripStart before prepend', () => {
+    const output = expectSuccess(merge([
+      {
+        oas: doc30({ paths: { '/rest/thing': { get: op('a') } } }),
+        pathModification: { stripStart: '/rest', prepend: '/v2' },
+      },
+    ]));
 
-      const second = toOAS({
-        '/path/b': {
-          get: {
-            responses: {}
-          }
-        }
-      });
+    expect(pathKeys(output)).toEqual(['/v2/thing']);
+  });
 
-      const output = toOAS({
-        '/path/a': {
-          get: {
-            tags: ['included'],
-            responses: {}
-          }
-        },
-        '/path/b': {
-          get: {
-            responses: {}
-          }
-        }
-      });
+  it('detects a duplicate created by pathModification rather than present in the inputs', () => {
+    // Neither input has a duplicate path; prepending creates one.
+    expectMergeError(merge([
+      { oas: doc30({ paths: { '/thing': { get: op('a') } } }) },
+      { oas: doc30({ paths: { '/api/thing': { get: op('b') } } }), pathModification: { stripStart: '/api' } },
+    ]), 'duplicate-paths');
+  });
+});
 
-      expectMergeResult(merge([{ oas: first, operationSelection: { includeTags: ['included'], excludeTags: ['excluded'] }}, { oas: second }]), {
-        output
-      });
-    });
+describe('pathModification.stripStart', () => {
+  const paths: Swagger.Paths = { '/api/thing': { get: { responses: { '200': { description: 'ok' } } } } };
 
-    it('should filter top level tags definitions', () => {
-      const first = toOAS({
-        '/path/a': {
-          get: {
-            tags: ['included'],
-            responses: {}
-          }
-        },
-        '/path/b': {
-          servers: []
-        },
-        '/path/c': {
-          get: {
-            tags: ['excluded'],
-            responses: {}
-          }
-        },
-        '/path/d': {
-          get: {
-            tags: ['included', 'excluded'],
-            responses: {}
-          }
-        }
-      });
+  it('strips a prefix that is present', () => {
+    const result = expectSuccess(merge([{ oas: toOAS(paths), pathModification: { stripStart: '/api' } }]));
 
-      first.tags = [{
-        name: 'included',
-        description: 'This tag is included'
-      }, {
-        name: 'excluded',
-        description: 'This tag is excluded'
-      }, {
-        name: 'unused',
-        description: 'This tag is not used'
-      }];
+    expect(Object.keys(result.paths ?? {})).toEqual(['/thing']);
+  });
 
-      const second = toOAS({
-        '/path/b': {
-          get: {
-            responses: {}
-          }
-        }
-      });
+  it('leaves the path untouched when the prefix is absent', () => {
+    const result = expectSuccess(merge([{ oas: toOAS(paths), pathModification: { stripStart: '/nope' } }]));
 
-      const output = toOAS({
-        '/path/a': {
-          get: {
-            tags: ['included'],
-            responses: {}
-          }
-        },
-        '/path/b': {
-          get: {
-            responses: {}
-          }
-        }
-      });
-
-      output.tags = [{
-        name: 'included',
-        description: 'This tag is included'
-      }, {
-        name: 'unused',
-        description: 'This tag is not used'
-      }];
-
-      expectMergeResult(merge([{ oas: first, operationSelection: { excludeTags: ['excluded'] } }, { oas: second }]), {
-        output
-      });
-    });
+    expect(Object.keys(result.paths ?? {})).toEqual(['/api/thing']);
   });
 });
