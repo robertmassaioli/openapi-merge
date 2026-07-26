@@ -177,3 +177,96 @@ out fine:
    pointer form (`discriminator.mapping`, `discriminator.defaultMapping`,
    `operationRef`). Closes two open issues.
 4. §2.3, §2.6, §2.7 — leave unless someone asks.
+
+---
+
+# Addendum: Conceptual Coverage Review
+
+**Date:** 2026-07-26
+
+## A0. The question
+
+Line coverage was ~98% and function coverage ~99%, so the question was not "what
+is uncovered" but **"what conceptual area has no test, even though its lines run
+incidentally?"** Those are the gaps that high coverage numbers hide.
+
+Method: enumerate every exported symbol and check whether any test names it; then
+probe the behaviours a caller depends on that no construct-named suite would own.
+
+## A1. A real bug: two ErrorTypes were dead code
+
+`ErrorType` declares seven values. Two — `component-definition-conflict` and
+`operation-id-conflict` — had **zero** assertions anywhere, and probing showed
+why: they were unreachable.
+
+`processComponents` and `ensureUniqueOperationIds` both *return* an
+`ErrorMergeResult`, and **all nine `processComponents` call sites plus the paths
+`ensureUniqueOperationIds` call discarded it.** The consequence was not a missing
+error message but **silent data loss**:
+
+```
+input 0: Thing, Thing1 .. Thing999   (all names taken)
+input 1: Thing (a different definition)
+
+before: 1000 schemas out, exit success, input 1's Thing present NOWHERE
+after : component-definition-conflict
+```
+
+Only one of the ten call sites checked the result — the `webhooks` one added in
+phase 2, which is why the equivalent webhook error was reachable and these were
+not.
+
+**Fixed**, and in fixing it the nine near-identical component blocks collapsed
+into one data-driven loop. That duplication was the root cause twice over: it is
+how `pathItems` came to be missing when 3.1 support landed, *and* how the error
+return came to be dropped in nine places at once. All 244 pre-existing tests
+passed through the refactor unchanged.
+
+## A2. Behaviours that worked but had no test
+
+Each of these is correct today and now has one. They are the ones where a
+regression would be silent, or would surface as a hang rather than a failure.
+
+| Area | Why it matters |
+| --- | --- |
+| **Cyclic `$ref` comparison** | `component-equivalence` has a `ReferenceRecord` whose entire purpose is stopping `Node → Node` recursing forever. Nothing exercised it; a regression would appear as a stack overflow, not an assertion failure. Now covered for self-reference and mutual cycles. |
+| **External `$ref` preservation** | `other.yaml#/components/schemas/Thing` and absolute URLs are left untouched. If the walker ever started rewriting them it would corrupt every cross-document reference while producing output that still looked plausible. |
+| **Input immutability** | `merge` clones its inputs at every stage. Untested, so nothing stopped a future change from mutating a caller's document. Also means `merge` is safely re-callable with the same inputs. |
+| **Input order independence** | Contents follow first-wins, but the *shape* of the result should not depend on ordering. |
+| **Non-ASCII content** | Paths, path parameters, `operationId`s and component names survive. Note `Café` is not a legal component name per the key regex — the merge preserves and renames it anyway, consistent with the "not a validator" theme in §2.1/§2.2. |
+| **`isErrorResult`** | The exported guard consumers branch on had no direct test. |
+
+## A3. A comment that was wrong
+
+`components.test.ts` claimed "merge mutates its inputs". It does not — it clones.
+The *practice* the comment defended (a fresh copy per input) is still right, but
+for a different reason: passing the same object twice would make deduplication
+succeed by identity rather than by comparison. Corrected, with a pointer to the
+test that now proves it.
+
+## A4. Areas deliberately left uncovered
+
+- **`cli.ts`** — the entrypoint, its shebang and its uncaught-exception handlers.
+  Unmeasurable in-process (importing it runs the CLI) and Bun collects no
+  coverage from subprocesses, so a subprocess smoke test would improve
+  correctness confidence without moving any number. Worth doing; not done here.
+- **`fix-schema.ts`** — writes `configuration.schema.json` on import. Testing it
+  requires extracting its body into a function, which is a production change for
+  a build script.
+- **`examples-for-schema.ts`** — a list of literal example values consumed by
+  schema generation. A test would restate the data. The one worthwhile test would
+  be that it stays in sync with the `Dispute` union; low value today.
+- **`--version` / `--help`** — commander wiring, verified manually against the
+  built binary but not in-suite.
+- **`scripts/coverage-summary.ts`** — the script that reports coverage has no
+  tests of its own. A dev tool, but the irony is noted.
+
+## A5. What this says about the method
+
+Every finding in A1 and A2 sat inside code that coverage already counted as
+executed. Line coverage told us nothing about any of them, and the two dead
+`ErrorType`s had been dead through every previous round of this work — including
+the round that added 65 spec-derived edge cases.
+
+Enumerating the *declared* surface (exported symbols, every value of a union) and
+asking "what asserts this?" found what coverage could not.

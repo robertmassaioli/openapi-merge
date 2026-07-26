@@ -18,7 +18,14 @@ import { doc30, doc31, expectSuccess, ok, op, schemaKeys } from './_helpers/docu
  * unnoticed.
  */
 
-/** A fresh copy per input: merge mutates its inputs, so sharing one would not prove deduplication. */
+/**
+ * A fresh copy per input.
+ *
+ * Not because merge mutates its inputs -- it clones them, and
+ * merge-contracts.test.ts proves it -- but because passing the *same object* as
+ * two inputs would make deduplication trivially succeed by identity rather than
+ * by comparison, which is the thing under test.
+ */
 function clone<A>(value: A): A {
   return JSON.parse(JSON.stringify(value));
 }

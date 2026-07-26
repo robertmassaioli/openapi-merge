@@ -202,88 +202,55 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       // document may legitimately have none, and the lookup only resolves
       // component `$ref`s, so an empty object is equivalent for its purposes.
       const currentLookup = new SwaggerLookup.InternalLookup({ ...oas, paths: getPaths(oas) });
-      if (oas.components.schemas !== undefined) {
-        result.components.schemas = result.components.schemas || {};
+      // Every deduplicated component type goes through the same machinery. Kept
+      // as one list rather than nine near-identical blocks: the duplication is
+      // how `pathItems` came to be missing when 3.1 support landed, and how the
+      // error return below came to be dropped in all nine places.
+      const DEDUPLICATED_COMPONENT_TYPES = [
+        'schemas', 'responses', 'parameters', 'examples', 'requestBodies',
+        'headers', 'links', 'pathItems', 'callbacks',
+      ] as const;
 
-        processComponents(result.components.schemas, oas.components.schemas, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/schemas/${from}`] = `#/components/schemas/${to}`;
-        });
+      // Indexing a heterogeneous record by a dynamic key: every value here is a
+      // `{ [name: string]: A }`, but TypeScript cannot prove the A matches
+      // across the union, so the maps are addressed through one narrow cast.
+      // Runtime behaviour is identical to the nine explicit blocks this replaced.
+      const incomingComponents = oas.components as unknown as Record<string, Components<unknown> | undefined>;
+      const resultComponents = result.components as unknown as Record<string, Components<unknown> | undefined>;
+
+      for (const componentType of DEDUPLICATED_COMPONENT_TYPES) {
+        const incoming = incomingComponents[componentType];
+        if (incoming === undefined) {
+          continue;
+        }
+
+        const target = resultComponents[componentType] ?? {};
+        resultComponents[componentType] = target;
+
+        // The returned error was previously discarded at all nine call sites,
+        // which made 'component-definition-conflict' unreachable and silently
+        // dropped the component instead of reporting it.
+        const componentError = processComponents(
+          target,
+          incoming,
+          deepEquality(resultLookup, currentLookup),
+          dispute,
+          (from: string, to: string) => {
+            referenceModification[`#/components/${componentType}/${from}`] = `#/components/${componentType}/${to}`;
+          },
+        );
+
+        if (componentError !== undefined) {
+          return componentError;
+        }
       }
 
-      if (oas.components.responses !== undefined) {
-        result.components.responses = result.components.responses || {};
-
-        processComponents(result.components.responses, oas.components.responses, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/responses/${from}`] = `#/components/responses/${to}`;
-        });
-      }
-
-      if (oas.components.parameters !== undefined) {
-        result.components.parameters = result.components.parameters || {};
-
-        processComponents(result.components.parameters, oas.components.parameters, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/parameters/${from}`] = `#/components/parameters/${to}`;
-        });
-      }
-
-      // examples
-      if (oas.components.examples !== undefined) {
-        result.components.examples = result.components.examples || {};
-
-        processComponents(result.components.examples, oas.components.examples, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/examples/${from}`] = `#/components/examples/${to}`;
-        });
-      }
-
-      // requestBodies
-      if (oas.components.requestBodies !== undefined) {
-        result.components.requestBodies = result.components.requestBodies || {};
-
-        processComponents(result.components.requestBodies, oas.components.requestBodies, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/requestBodies/${from}`] = `#/components/requestBodies/${to}`;
-        });
-      }
-
-      // headers
-      if (oas.components.headers !== undefined) {
-        result.components.headers = result.components.headers || {};
-
-        processComponents(result.components.headers, oas.components.headers, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/headers/${from}`] = `#/components/headers/${to}`;
-        });
-      }
-
-      // security schemes are different, we just take the security schemes from the first file that has any
-      if (oas.components.securitySchemes !== undefined && Object.keys(oas.components.securitySchemes).length > 0 && result.components.securitySchemes === undefined) {
+      // Security schemes are not deduplicated: we take them wholesale from the
+      // first input that declares any.
+      if (oas.components.securitySchemes !== undefined
+        && Object.keys(oas.components.securitySchemes).length > 0
+        && result.components.securitySchemes === undefined) {
         result.components.securitySchemes = oas.components.securitySchemes;
-      }
-
-      // links
-      if (oas.components.links !== undefined) {
-        result.components.links = result.components.links || {};
-
-        processComponents(result.components.links, oas.components.links, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/links/${from}`] = `#/components/links/${to}`;
-        });
-      }
-
-      // pathItems (3.1): a component type like any other, deduplicated and
-      // renamed on conflict with the same machinery.
-      if (oas.components.pathItems !== undefined) {
-        result.components.pathItems = result.components.pathItems || {};
-
-        processComponents(result.components.pathItems, oas.components.pathItems, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/pathItems/${from}`] = `#/components/pathItems/${to}`;
-        });
-      }
-
-      // callbacks
-      if (oas.components.callbacks !== undefined) {
-        result.components.callbacks = result.components.callbacks || {};
-
-        processComponents(result.components.callbacks, oas.components.callbacks, deepEquality(resultLookup, currentLookup), dispute, (from: string, to: string) => {
-          referenceModification[`#/components/callbacks/${from}`] = `#/components/callbacks/${to}`;
-        });
       }
     }
 
@@ -309,7 +276,11 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
       const copyPathItem = getPaths(oas)[originalPath];
 
-      ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
+      // Previously discarded, which made 'operation-id-conflict' unreachable.
+      const pathOpIdError = ensureUniqueOperationIds(copyPathItem, seenOperationIds, dispute);
+      if (pathOpIdError !== undefined) {
+        return pathOpIdError;
+      }
 
       result.paths[newPath] = copyPathItem;
     }
