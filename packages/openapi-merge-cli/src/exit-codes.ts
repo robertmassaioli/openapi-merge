@@ -20,6 +20,7 @@
  * | 6         | ExitCode.ErrorInputUrlClientStatus     | An `inputURL` returned 4xx               |
  * | 7         | ExitCode.ErrorInputUrlServerStatus     | An `inputURL` returned 5xx               |
  * | 8         | ExitCode.ErrorInputUrlUnexpectedStatus | `inputURL` non-2xx, neither 4xx nor 5xx  |
+ * | 9         | ExitCode.ErrorOpenApiVersion           | Input version unsupported or inconsistent |
  */
 export enum ExitCode {
   /**
@@ -150,4 +151,20 @@ export enum ExitCode {
    * the printed status is the thing worth reading.
    */
   ErrorInputUrlUnexpectedStatus = 8,
+
+  /**
+   * An input declared an OpenAPI version this tool cannot merge, declared none
+   * at all, or the inputs did not agree on a single `major.minor` version.
+   *
+   * Separate from {@link ExitCode.ErrorMerging} because the remedy is entirely
+   * different and lives outside this tool: `3` means the documents genuinely
+   * conflict and the merge configuration needs to change, whereas `9` means the
+   * documents were never eligible to be merged together and the *inputs* need
+   * to change -- convert them to one version, or upgrade openapi-merge.
+   *
+   * Before this code existed the tool merged such inputs anyway, under 3.0
+   * assumptions, silently dropping everything it did not recognise and exiting
+   * 0. A loud failure here is the entire point.
+   */
+  ErrorOpenApiVersion = 9,
 }

@@ -53,7 +53,7 @@ In `packages/openapi-merge/src/paths-and-components.ts` (around line 25–74 in 
 
 ### Related issues
 
-This is the same root cause as **#99** ("Mapping resolution under dispute prefix") and is part of the broader dispute-completeness cluster (#40, #105, #106) identified in `issue-triage-value-vs-effort.md` section 3.2.
+This is the same root cause as **#99** ("Mapping resolution under dispute prefix") and is part of the broader dispute-completeness cluster (#40, #105, #106) identified in `../issue-triage-value-vs-effort.md` section 3.2.
 
 ---
 

@@ -162,6 +162,7 @@ branch on them.
 | `6` | An `inputURL` responded with a **4xx** status |
 | `7` | An `inputURL` responded with a **5xx** status |
 | `8` | An `inputURL` responded with some other non-2xx status |
+| `9` | An input declared an unsupported OpenAPI version, or the inputs disagreed |
 
 Codes `6`–`8` are separate from `2` on purpose. `2` means an input could not be
 obtained at all — a missing file, an unreachable host, content that parses as
@@ -177,6 +178,21 @@ They are separate from each other so that CI can branch on **retryability**:
 * `8` is anything else outside the 2xx range. Ordinary redirects are followed
   automatically and never surface; in practice this is a `304 Not Modified`
   from a caching proxy. Read the printed status.
+
+### OpenAPI version support
+
+This tool merges **OpenAPI 3.0.x** documents. Every input must declare a full
+`openapi` version (for example `"3.0.3"`), and all inputs must agree on the
+`major.minor` version — patch differences such as `3.0.0` and `3.0.3` are fine,
+since they are the same feature set.
+
+An input declaring 3.1 or 3.2, or no version at all, exits with code `9` and a
+message naming the offending input. Previously such documents were merged under
+3.0 assumptions and anything unrecognised was silently discarded, so if you were
+relying on that behaviour, the merge was losing data.
+
+To merge 3.1 or 3.2 documents today, convert your inputs to a single 3.0
+version first.
 
 For example, retrying only on a server-side failure:
 

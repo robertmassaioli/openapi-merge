@@ -8,7 +8,7 @@ const pjson = require('../package.json');
 import { merge, MergeInput } from 'openapi-merge';
 import fs from 'fs';
 import path from 'path';
-import { isErrorResult, SingleMergeInput } from "openapi-merge/dist/data";
+import { ErrorMergeResult, isErrorResult, SingleMergeInput } from "openapi-merge/dist/data";
 import { Swagger } from "@atlassian/atlassian-openapi";
 import { dump as dumpYaml } from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
@@ -101,6 +101,22 @@ export class InputUrlStatusError extends Error {
       return ExitCode.ErrorInputUrlServerStatus;
     }
     return ExitCode.ErrorInputUrlUnexpectedStatus;
+  }
+}
+
+/**
+ * Version problems get their own exit code because their remedy is different:
+ * `ErrorMerging` means the documents conflict and the merge config needs to
+ * change; `ErrorOpenApiVersion` means they were never eligible to be merged
+ * together and the inputs themselves need to change.
+ */
+function exitCodeForMergeError(type: ErrorMergeResult['type']): ExitCode {
+  switch (type) {
+    case 'unsupported-openapi-version':
+    case 'mixed-openapi-versions':
+      return ExitCode.ErrorOpenApiVersion;
+    default:
+      return ExitCode.ErrorMerging;
   }
 }
 
@@ -236,7 +252,7 @@ export async function main(): Promise<void> {
 
   if (isErrorResult(mergeResult)) {
     console.error(`Error merging files: ${mergeResult.message} (${mergeResult.type})`);
-    process.exit(ExitCode.ErrorMerging);
+    process.exit(exitCodeForMergeError(mergeResult.type));
     return;
   }
 

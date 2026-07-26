@@ -5,6 +5,7 @@ import { mergePathsAndComponents } from './paths-and-components';
 import { mergeExtensions } from './extensions';
 import { Swagger } from '@atlassian/atlassian-openapi';
 import { mergeInfos } from './info';
+import { validateInputVersions } from './openapi-version';
 
 export { isErrorResult };
 export type { MergeInput, MergeResult, PathModification, OperationSelection };
@@ -27,6 +28,14 @@ function getFirstMatching<A, B>(inputs: Array<A>, extract: (input: A) => B | und
 export function merge(inputs: MergeInput): MergeResult {
   if (inputs.length === 0) {
     return { type: 'no-inputs', message: 'You must provide at least one OAS file as an input.' };
+  }
+
+  // Runs before any merging so that a version problem never leaves a partially
+  // merged result, and so that the constructs a newer version would introduce
+  // are never silently walked past by 3.0-shaped logic.
+  const versionError = validateInputVersions(inputs);
+  if (versionError !== undefined) {
+    return versionError;
   }
 
   const pathAndComponentResult = mergePathsAndComponents(inputs);

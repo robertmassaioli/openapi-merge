@@ -278,6 +278,7 @@ fails the build rather than someone's pipeline.
 | `6`  | `ErrorInputUrlClientStatus` | An `inputURL` returned a 4xx status       |
 | `7`  | `ErrorInputUrlServerStatus` | An `inputURL` returned a 5xx status       |
 | `8`  | `ErrorInputUrlUnexpectedStatus` | `inputURL` non-2xx, neither 4xx nor 5xx |
+| `9`  | `ErrorOpenApiVersion`  | Input version unsupported, or inputs disagreed  |
 
 The three URL-status codes are split by **responsibility**, so callers can
 branch on retryability: 4xx will fail identically on retry, 5xx may not. A

@@ -135,9 +135,9 @@ The current CLI README includes a simple example but does not show the `includeT
 
 ## 5. Cross-Links to Related Proposals
 
-- **[#111 — Support wildcards in include/excludeTags](ai-planning/proposal-111-wildcard-tags.md)**: Once merged, users can write `"includeTags": ["service-*"]` to match any tag starting with `"service-"`. This would allow even more flexible filtering.
-- **[#112 — Per-input tag injection](ai-planning/proposal-112-merge-into-tag.md)**: Allows automatic tag assignment to operations without modifying the source OpenAPI files. Complementary to `includeTags`.
-- **[#71 — Configurable duplicate path handling](ai-planning/proposal-71-skip-duplicate-paths.md)**: Addresses conflict resolution when two inputs have overlapping paths (orthogonal to tag-based filtering).
+- **[#111 — Support wildcards in include/excludeTags](ai-planning/issues/proposal-111-wildcard-tags.md)**: Once merged, users can write `"includeTags": ["service-*"]` to match any tag starting with `"service-"`. This would allow even more flexible filtering.
+- **[#112 — Per-input tag injection](ai-planning/issues/proposal-112-merge-into-tag.md)**: Allows automatic tag assignment to operations without modifying the source OpenAPI files. Complementary to `includeTags`.
+- **[#71 — Configurable duplicate path handling](ai-planning/issues/proposal-71-skip-duplicate-paths.md)**: Addresses conflict resolution when two inputs have overlapping paths (orthogonal to tag-based filtering).
 
 ---
 
