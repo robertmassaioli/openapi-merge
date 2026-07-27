@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
       with:
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
       with:
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
       with:
@@ -54,7 +54,7 @@ jobs:
       run: bun scripts/coverage-summary.ts
     - name: Upload coverage
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-lcov
         path: packages/*/coverage/lcov.info
