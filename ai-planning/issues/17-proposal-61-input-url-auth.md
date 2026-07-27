@@ -423,6 +423,6 @@ A dedicated `--header` CLI flag (e.g., `-H "Authorization: Bearer ..."`) is defe
 
 - **Node `fetch` API (isomorphic-fetch):** https://github.com/matthew-andrews/isomorphic-fetch
 - **URL parsing:** https://nodejs.org/api/url.html#url_the_whatwg_url_api
-- **Related proposal #93:** `ai-planning/issues/proposal-93-absolute-paths.md` (security model, threat analysis)
+- **Related proposal #93:** `ai-planning/issues/03-proposal-93-absolute-paths.md` (security model, threat analysis)
 - **Related proposal #45:** No-config mode (deferred CLI flag work)
 - **Issue #61:** https://github.com/robertmassaioli/openapi-merge/issues/61

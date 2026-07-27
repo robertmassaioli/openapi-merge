@@ -91,7 +91,7 @@ Add an optional `info?: Partial<Swagger.Info>` field to the CLI `Configuration` 
 
 ### Option B: Library-Level Option
 
-Introduce an optional second argument to `merge()`: `merge(inputs, options?: { info?: Partial<Swagger.Info> })`, following the pattern established in [proposal-76](ai-planning/issues/proposal-76-openapi-version.md). The library applies the override in `mergeInfos()`. The CLI then passes `config.info` as `options.info` when calling `merge()`.
+Introduce an optional second argument to `merge()`: `merge(inputs, options?: { info?: Partial<Swagger.Info> })`, following the pattern established in [proposal-76](04-proposal-76-openapi-version.md). The library applies the override in `mergeInfos()`. The CLI then passes `config.info` as `options.info` when calling `merge()`.
 
 **Pros:**
 - Both library and CLI consumers benefit.

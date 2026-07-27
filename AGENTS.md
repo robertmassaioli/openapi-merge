@@ -411,7 +411,7 @@ of its helpers along.
 Both packages run `bun test --coverage` as their `test` script, so coverage is
 collected on every local run and in CI. Configuration lives in each package's
 `bunfig.toml`. Full background, including the measurements behind every number
-here, is in `ai-planning/proposal-code-coverage.md`.
+here, is in `ai-planning/21-proposal-code-coverage.md`.
 
 **If you add a source file to `openapi-merge-cli`, add an import line to
 `src/__tests__/_coverage-preload.ts`.** Bun's coverage is runtime-instrumented:

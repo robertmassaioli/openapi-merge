@@ -15,7 +15,7 @@ The library never reads the `openapi` field of any input. It cannot tell a 3.1
 document from a 3.0 one, merges everything under 3.0 assumptions, and stamps the
 result `3.0.3` — losing `webhooks`, `components.pathItems` and whole path items
 silently, with exit code 0. The evidence is in
-[`proposal-openapi-3.2-support.md`](proposal-openapi-3.2-support.md) §0.
+[`24-proposal-openapi-3.2-support.md`](24-proposal-openapi-3.2-support.md) §0.
 
 **Phase 1 makes the library honest about what it supports, and nothing else.**
 
@@ -43,11 +43,11 @@ phases 2 and 3 never happen.
 
 - Changing the emitted output version. Today it is `3.0.3` unconditionally, and
   within 3.0.x that relabelling is safe (see
-  [`issues/proposal-76-openapi-version.md`](issues/proposal-76-openapi-version.md)).
+  [`issues/04-proposal-76-openapi-version.md`](issues/04-proposal-76-openapi-version.md)).
   Phase 2 has to revisit it; phase 1 does not.
 - Supporting 3.1 or 3.2. That is phases 2 and 3.
 - Converting between versions. See
-  [`proposal-mixed-version-inputs.md`](proposal-mixed-version-inputs.md) — and
+  [`25-proposal-mixed-version-inputs.md`](25-proposal-mixed-version-inputs.md) — and
   note it is blocked on phase 2, not on this.
 - Validating documents against the OpenAPI JSON Schema. Worth doing, separately.
 
@@ -151,8 +151,8 @@ phases 2 and 3 are never funded.
 | Phase | Proposal | Delivers |
 | --- | --- | --- |
 | **1** | this document | detect and refuse; nothing silent |
-| **2** | `proposal-oas-phase2-31-support.md` | merge 3.1 — webhooks, `pathItems`, `jsonSchemaDialect`, optional `paths` |
-| **3** | `proposal-oas-phase3-32-support.md` | merge 3.2 — `query`, `additionalOperations`, `$self`, tag `kind`/`parent`/`summary` |
+| **2** | `27-proposal-oas-phase2-31-support.md` | merge 3.1 — webhooks, `pathItems`, `jsonSchemaDialect`, optional `paths` |
+| **3** | `28-proposal-oas-phase3-32-support.md` | merge 3.2 — `query`, `additionalOperations`, `$self`, tag `kind`/`parent`/`summary` |
 
 Each phase widens `SUPPORTED_MINOR_VERSIONS` by exactly one entry, and each ends
 in a state that is shippable on its own.

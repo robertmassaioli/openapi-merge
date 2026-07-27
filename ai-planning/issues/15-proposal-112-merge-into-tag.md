@@ -368,9 +368,9 @@ Create or extend `packages/openapi-merge/src/__tests__/tag-injection.test.ts` wi
 
 ## 8. Cross-References & Related Proposals
 
-- **[proposal-111-wildcard-tags.md](proposal-111-wildcard-tags.md):** Tag-matching design for `includeTags`/`excludeTags`. This proposal does **not** use wildcards; it injects literal tag names. Future enhancement could allow `tag.name` to expand via wildcards, but out of scope here.
-- **[proposal-102-global-info-override.md](proposal-102-global-info-override.md):** Global `info` override at merge time. The `appendInputDescription` mechanism here reuses the same Markdown-heading logic as the `description.append` feature there.
-- **[proposal-60-x-tag-groups.md](proposal-60-x-tag-groups.md):** Concatenation of `x-tagGroups` across inputs. An injected tag may warrant inclusion in a group; future work could auto-register via an optional `group` field on `TagInjection`.
+- **[08-proposal-111-wildcard-tags.md](08-proposal-111-wildcard-tags.md):** Tag-matching design for `includeTags`/`excludeTags`. This proposal does **not** use wildcards; it injects literal tag names. Future enhancement could allow `tag.name` to expand via wildcards, but out of scope here.
+- **[14-proposal-102-global-info-override.md](14-proposal-102-global-info-override.md):** Global `info` override at merge time. The `appendInputDescription` mechanism here reuses the same Markdown-heading logic as the `description.append` feature there.
+- **[12-proposal-60-x-tag-groups.md](12-proposal-60-x-tag-groups.md):** Concatenation of `x-tagGroups` across inputs. An injected tag may warrant inclusion in a group; future work could auto-register via an optional `group` field on `TagInjection`.
 
 ---
 

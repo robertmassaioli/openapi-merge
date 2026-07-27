@@ -359,5 +359,5 @@ Add a new section after the existing config-file section:
 ## 12. References
 
 - **Commander.js documentation:** https://github.com/tj/commander.js
-- **Proposal #93 (Absolute paths):** See `ai-planning/issues/proposal-93-absolute-paths.md`
+- **Proposal #93 (Absolute paths):** See `ai-planning/issues/03-proposal-93-absolute-paths.md`
 - **Issue #45:** https://github.com/robertmassaioli/openapi-merge/issues/45

@@ -253,7 +253,7 @@ which is worth doing anyway.
 **Do not start §4.3** without first deciding the mixed-version policy, because
 every other choice in it follows from that.
 
-## 6. Relationship to `issues/proposal-76-openapi-version.md`
+## 6. Relationship to `issues/04-proposal-76-openapi-version.md`
 
 Proposal 76 covers which version *label* to emit and correctly states that
 3.0 → 3.1 is not backwards compatible. It assumes every input is 3.0.x and the

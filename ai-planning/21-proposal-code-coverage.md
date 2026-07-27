@@ -443,7 +443,7 @@ zero is red on arrival.
 | --- | --- | --- |
 | 1 | Library ignore patterns + `{ lines = 0.30, functions = 0.40 }` | ✅ gate now (see caveat) |
 | 2 | CLI preload + ignore patterns; publish the honest 50/66 baseline | ❌ no gate yet |
-| 3 | Land CLI tests (see `proposal-cli-test-coverage.md`) | — |
+| 3 | Land CLI tests (see `20-proposal-cli-test-coverage.md`) | — |
 | 4 | Add a CLI per-file floor just under its new weakest file | ✅ gate then |
 | 5 | Ratchet both upward as tests land; never lower a floor to make a build pass | — |
 
@@ -497,7 +497,7 @@ top-level declarations executing at import time. `src/index.ts` at
 
 ---
 
-## 7. Relationship to `proposal-cli-test-coverage.md`
+## 7. Relationship to `20-proposal-cli-test-coverage.md`
 
 That proposal is about **writing CLI tests**; this one is about **measuring what
 they cover**. They are complements: §3.2 here makes the gap that proposal
@@ -641,7 +641,7 @@ every file in `packages/*/src/__tests__/`:
 | --- | --- |
 | Framework imports (`bun:test`, `@jest/globals`, `vitest`) | **none** — the tests rely purely on globals |
 | Mocks / spies (`mock()`, `spyOn`, `jest.*`, `vi.*`) | **none** |
-| Lifecycle hooks (`beforeEach`, `afterAll`, …) | **none** at the time of writing — `beforeEach`/`afterEach` were introduced later by `proposal-closing-coverage-gaps.md`. Portability is unaffected: they are globals in every Jest-compatible runner. |
+| Lifecycle hooks (`beforeEach`, `afterAll`, …) | **none** at the time of writing — `beforeEach`/`afterEach` were introduced later by `22-proposal-closing-coverage-gaps.md`. Portability is unaffected: they are globals in every Jest-compatible runner. |
 | Snapshot assertions | **none** |
 | Distinct matchers used | **6**: `toBe`, `toBeInstanceOf`, `toBeUndefined`, `toContain`, `toEqual`, `toThrow` |
 
@@ -897,7 +897,7 @@ But adopt three corrections from this addendum regardless of runner:
    Vitest, with `configuration.schema.json` left byte-identical.
 3. **Record the migration trigger (§A6.3).** Adopt Vitest if any of these becomes a
    requirement, because Bun cannot provide them at any price:
-   - branch coverage is needed (e.g. to satisfy `proposal-cli-test-coverage.md`'s
+   - branch coverage is needed (e.g. to satisfy `20-proposal-cli-test-coverage.md`'s
      80%-branches criterion, currently unsatisfiable — see §7);
    - a **global** coverage gate is needed rather than a per-file floor;
    - an HTML or Cobertura report is needed for CI surfacing;

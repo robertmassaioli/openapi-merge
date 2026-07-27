@@ -5,7 +5,7 @@
 **Scope:** `packages/openapi-merge`, `packages/openapi-merge-cli`
 **Date:** 2026-07-26
 **Branch:** `feat/openapi-31-support`
-**Phase:** 2 of 3 — follows [`proposal-oas-phase1-version-checking.md`](proposal-oas-phase1-version-checking.md)
+**Phase:** 2 of 3 — follows [`26-proposal-oas-phase1-version-checking.md`](26-proposal-oas-phase1-version-checking.md)
 
 ---
 
@@ -23,7 +23,7 @@ adding the four structural things 3.1 introduced and then widening
 | `jsonSchemaDialect` | carry it through |
 
 **A correction to an earlier proposal.**
-[`proposal-openapi-3.2-support.md`](proposal-openapi-3.2-support.md) §2.4 called
+[`24-proposal-openapi-3.2-support.md`](24-proposal-openapi-3.2-support.md) §2.4 called
 `@atlassian/atlassian-openapi` a *hard blocker*, on the grounds that it types
 `paths` as required and knows no 3.1 constructs. That is true but not blocking:
 3.1 can be modelled as a **local type delta** over the existing types, verified
@@ -59,7 +59,7 @@ critical path and should not be bundled into a feature change.
 
 - 3.2. That is phase 3.
 - Automatic upconversion of 3.0 inputs to 3.1. See
-  [`proposal-mixed-version-inputs.md`](proposal-mixed-version-inputs.md); it is
+  [`25-proposal-mixed-version-inputs.md`](25-proposal-mixed-version-inputs.md); it is
   unblocked *by* this phase, not part of it.
 - Replacing `@atlassian/atlassian-openapi` (see §0).
 - Validating output against the published JSON Schema. Worth doing; separate.
@@ -96,7 +96,7 @@ the inputs**, which is well-defined because phase 1 guarantees they all share a
 **This changes 3.0 behaviour**: inputs that all declare `3.0.0` now produce
 `3.0.0` rather than `3.0.3`. That is more honest, and re-labelling within 3.0.x
 is safe in both directions
-([`issues/proposal-76-openapi-version.md`](issues/proposal-76-openapi-version.md) §1),
+([`issues/04-proposal-76-openapi-version.md`](issues/04-proposal-76-openapi-version.md) §1),
 so no document becomes invalid. It is called out here because it is user-visible
 and issue #76 is about exactly this field — #76 should build its configurable
 strategy on top of this, not alongside it.
@@ -115,7 +115,7 @@ strategy on top of this, not alongside it.
 - every existing 3.0 test still passes unchanged.
 
 The end-to-end assertion that matters: **the exact 3.1 document from
-`proposal-openapi-3.2-support.md` §0 — which used to merge to exit 0 with its
+`24-proposal-openapi-3.2-support.md` §0 — which used to merge to exit 0 with its
 webhooks silently deleted — now merges with its webhooks intact.**
 
 ## 5. Natural stopping point
@@ -132,4 +132,4 @@ stop if 3.2 is never funded.
 | Widening the `oas` type is a public API change for library consumers | It *widens* (accepts more), so existing callers still compile. Ship with the minor bump. |
 | Webhooks reuse the paths machinery but are not paths | Tests assert webhooks and paths do not collide with each other |
 | Output version change surprises 3.0 users | §3.3; documented in the README and the changelog note |
-| 3.1 schema-dialect semantics (`nullable` etc.) affect deduplication | Out of scope: within a single version there is one dialect, and phase 1 forbids mixing. Recorded in `proposal-mixed-version-inputs.md` §7 |
+| 3.1 schema-dialect semantics (`nullable` etc.) affect deduplication | Out of scope: within a single version there is one dialect, and phase 1 forbids mixing. Recorded in `25-proposal-mixed-version-inputs.md` §7 |

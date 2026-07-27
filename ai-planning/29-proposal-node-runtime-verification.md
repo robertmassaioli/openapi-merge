@@ -31,7 +31,7 @@ are actively promising a platform on which the tool cannot start.
 Cause: `commander@15` is `type: module` and declares `engines: node >=22.12.0`.
 Our build emits CommonJS, and `require()` of an ESM module is unsupported before
 Node 20.19 / 22.12. The upgrade that introduced it
-([`proposal-dependency-updates.md`](proposal-dependency-updates.md) phase 6) was
+([`23-proposal-dependency-updates.md`](23-proposal-dependency-updates.md) phase 6) was
 verified under Bun and under the local Node, both of which are new enough.
 
 This proposal is the CI job that would have caught it, plus the smaller
@@ -93,7 +93,7 @@ The job must install what npm would publish, not what the working tree contains.
 That is the only way to catch:
 
 - a `files` field that omits `dist` — exactly what
-  [`proposal-dependency-updates.md`](proposal-dependency-updates.md) found, where
+  [`23-proposal-dependency-updates.md`](23-proposal-dependency-updates.md) found, where
   `bun publish` shipped two files and no build output;
 - an override masking a direct dependency (§2.1);
 - a missing runtime asset such as `dist/configuration.schema.json`;
@@ -203,7 +203,7 @@ this is a proposal rather than a commit.
   — the wrong target. The suite stays on Bun; this job covers the boundary the
   suite cannot see.
 - Publishing from Node. `bun publish` is fine once
-  [`proposal-dependency-updates.md`](proposal-dependency-updates.md)'s `files`
+  [`23-proposal-dependency-updates.md`](23-proposal-dependency-updates.md)'s `files`
   fix is in place.
 - Testing on Windows or other platforms. Worth considering separately; the
   runtime boundary is the pressing gap.

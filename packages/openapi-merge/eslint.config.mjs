@@ -24,7 +24,7 @@ export default tseslint.config(
         ...globals.node,
         // The suites call describe/it/expect/fail as globals rather than
         // importing them, which keeps them runnable under any Jest-compatible
-        // runner. See ai-planning/proposal-code-coverage.md §A2.
+        // runner. See ai-planning/21-proposal-code-coverage.md §A2.
         ...globals.jest,
       },
     },
