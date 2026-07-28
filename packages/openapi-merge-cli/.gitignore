@@ -16,3 +16,5 @@
 # Generated files
 /result.swagger.yaml
 /out
+# Bun writes these while compiling; a stray one was committed once (60MB).
+*.bun-build
