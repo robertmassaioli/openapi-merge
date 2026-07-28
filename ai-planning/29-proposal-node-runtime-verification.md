@@ -1,6 +1,10 @@
 # Implementation Proposal: Build with Bun, Verify on Node
 
-**Status:** 📝 Proposal — awaiting decision on §5 (the support floor)
+**Status:** 📝 Proposal — **reduced in scope by
+[`30-proposal-bundle-the-cli.md`](30-proposal-bundle-the-cli.md)**, which fixes
+the bug diagnosed here by bundling rather than by raising the support floor. The
+diagnosis below stands; §5's recommendation is reversed and the §4 matrix
+collapses to a single job. See 30 §7 for what remains.
 **Type:** CI / release safety
 **Scope:** `.github/workflows/branch-test.yml`, both `package.json` files
 **Date:** 2026-07-27
