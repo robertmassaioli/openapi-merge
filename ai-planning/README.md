@@ -61,8 +61,8 @@ dependency health, build migrations. Named by topic rather than by issue number.
 | [`26-proposal-oas-phase1-version-checking.md`](26-proposal-oas-phase1-version-checking.md) | Phase 1: detect the input versions and refuse mixed majors |
 | [`27-proposal-oas-phase2-31-support.md`](27-proposal-oas-phase2-31-support.md) | Phase 2: merging OpenAPI 3.1, including webhooks |
 | [`28-proposal-oas-phase3-32-support.md`](28-proposal-oas-phase3-32-support.md) | Phase 3: merging OpenAPI 3.2 |
-| [`29-proposal-node-runtime-verification.md`](29-proposal-node-runtime-verification.md) | Building with Bun while proving the artifacts run on Node |
-| [`30-proposal-bundle-the-cli.md`](30-proposal-bundle-the-cli.md) | Bundling the CLI so it runs under both Node and Bun; reduces 29 |
+| [`29-proposal-node-runtime-verification.md`](29-proposal-node-runtime-verification.md) | ✅ Building with Bun while proving the artifacts run on Node |
+| [`30-proposal-bundle-the-cli.md`](30-proposal-bundle-the-cli.md) | ✅ Bundling the CLI so it runs under both Node and Bun; reduces 29 |
 | [`issue-triage-value-vs-effort.md`](issue-triage-value-vs-effort.md) | Value/effort scoring of every open issue; the index into `issues/` |
 | [`spec-edge-case-findings.md`](spec-edge-case-findings.md) | Divergences between the merge and the spec, found by edge-case testing |
 | [`bun-tsgo-migration-build-timings.md`](bun-tsgo-migration-build-timings.md) | Measured build timings for the Bun + tsgo migration |

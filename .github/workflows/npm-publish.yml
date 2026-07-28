@@ -15,9 +15,24 @@ jobs:
       with:
         bun-version: 1.3.14
     - run: bun install --frozen-lockfile
+    - name: Set up Node (the floor of our declared engines range)
+      uses: actions/setup-node@v7
+      with:
+        node-version: '18'
     - run: bun run lint
     - run: bun run test
     - run: bun run build
+    # The gate that would have stopped the broken release: pack, install with
+    # npm, and run the artifacts under the OLDEST Node we claim to support.
+    #
+    # `bun run test` cannot catch this -- it imports src/ under Bun. This runs
+    # the tarball. It also fails if dist/index.js is not bundled, which is the
+    # regression that a stray `tsgo` invocation would otherwise reintroduce
+    # silently. See ai-planning/29-proposal-node-runtime-verification.md.
+    - name: Verify the packed artifacts on Node and Bun
+      run: ./scripts/verify-node-runtime.sh
+      env:
+        RUNTIMES: node bun
     - name: Publish packages whose version has been updated
       run: |
         echo "//registry.npmjs.org/:_authToken=${NPM_AUTH_TOKEN}" >> ~/.npmrc

@@ -1,10 +1,10 @@
 # Implementation Proposal: Build with Bun, Verify on Node
 
-**Status:** 📝 Proposal — **reduced in scope by
-[`30-proposal-bundle-the-cli.md`](30-proposal-bundle-the-cli.md)**, which fixes
-the bug diagnosed here by bundling rather than by raising the support floor. The
-diagnosis below stands; §5's recommendation is reversed and the §4 matrix
-collapses to a single job. See 30 §7 for what remains.
+**Status:** ✅ Implemented, in the reduced form that
+[`30-proposal-bundle-the-cli.md`](30-proposal-bundle-the-cli.md) made possible —
+see §10. The diagnosis below stands in full; **§5's recommendation is reversed**
+(the floor stays at 18, because bundling made the claim true) and the §4 matrix
+no longer needs to test dependency floors.
 **Type:** CI / release safety
 **Scope:** `.github/workflows/branch-test.yml`, both `package.json` files
 **Date:** 2026-07-27
@@ -225,3 +225,82 @@ this is a proposal rather than a commit.
   transitive copies and reported the wrong versions.
 - Absence of Bun-specific APIs in shipped source confirmed by grep over
   `packages/*/src` excluding tests.
+
+---
+
+## 10. What was implemented
+
+`scripts/verify-node-runtime.sh`, wired into two workflows.
+
+The script builds, `npm pack`s both packages, installs the tarballs **with npm**
+into a directory outside the workspace, and runs 23 assertions against the
+installed artifacts for each runtime in `$RUNTIMES` (default: `node bun`).
+
+Measured on the implementation branch:
+
+```
+Node 18.20.8   23/23        <- was completely broken before bundling
+Node 22.22.2   23/23
+Node 25.5.0    23/23
+Bun 1.3.14     23/23
+               ------
+               92 passed, 0 failed
+```
+
+### 10.1 Where it runs
+
+| Workflow | When | Runtimes |
+| --- | --- | --- |
+| `branch-test.yml` → `node-compat` | every branch push | Node 18, 20, 22, 24 (matrix, `fail-fast: false`) × Node + Bun |
+| `npm-publish.yml` | before `publish-changed.sh` | Node 18 (the declared floor) + Bun |
+
+The publish gate is the one that matters: it is what would have stopped the
+broken release. Node 20 is covered in CI, which retires the "safe inference"
+caveat this proposal previously carried.
+
+### 10.2 Assertions, against §3.3
+
+All six original cases are present. Added:
+
+- **`--help`** — commander's other entry point.
+- **JSON output with explicit indent** — the `formatting` path (issue #114).
+- **A config supplied as YAML** — routes `js-yaml` into ajv in one path.
+- **Four more ajv cases** — missing-required, wrong-type, additional-property
+  (the schema is `--noExtraProps`), and malformed JSON. Plus the tabs-and-`.yaml`
+  semantic check, which lives *after* validation and proves post-ajv code is
+  reachable from the bundle.
+- **`require('openapi-merge-cli')` exposes `main`, `ExitCode` and
+  `InputUrlStatusError`** — the `main: dist/index` path, which tsgo declares and
+  nothing previously executed.
+- **Two bundling guards** — the tarball's `dist/index.js` must contain inlined
+  dependency code and must *not* contain `require("commander")`. The bundle
+  overwrites tsgo's output, so a stray `tsgo` run silently restores the
+  unbundled file; it works on a modern Node and fails on 18. That is the exact
+  bug this proposal exists for, and it is now a one-grep guard.
+
+`inputURL` deserves a note: `format: "uri"` is the only thing that forces
+`ajv-formats`' machinery to load, so it is the case that would surface §4.3's
+unresolved dynamic `require()`s. It asserts **exit 6**, not 5 — the URL 404s, so
+it exercises `ErrorInputUrlClientStatus` as well, proving the 4xx/5xx split
+survived bundling.
+
+### 10.3 A bug found in the verification itself
+
+The pass/fail counters were shell variables, and scenarios ran inside
+`( cd "$CONSUMER" && run_scenarios ... )`. Subshell increments are discarded, so
+a run with **six visible FAIL lines** summarised as `0 failed` — and exited 0.
+The counters are now append-only files, and the `cd` happens once outside any
+subshell.
+
+Worth recording because a verification script that cannot fail is worse than
+none: it converts a real breakage into a green tick. The six failures were all
+mistakes in the assertions (stdout vs stderr, and the exit-6 case above), not in
+the product — but they were only noticed because the FAIL lines were read rather
+than the summary trusted.
+
+### 10.4 §2.1 resolved
+
+The `js-yaml` override is gone. Bundling did not make it moot as predicted — it
+*froze* it, compiling `js-yaml@4.3.0` into a package that declares `^5.2.2`.
+Details in 30 §10.3, including the discovery that Bun ignores nested
+`overrides`.

@@ -1,6 +1,7 @@
 # Implementation Proposal: Bundle the CLI Into One File
 
-**Status:** 📝 Proposal — awaiting decision on §6
+**Status:** ✅ Implemented — see §10 for what the implementation changed about
+this document. The §6 decision was taken as recommended: bundle.
 **Type:** Build / release
 **Scope:** `packages/openapi-merge-cli` build and `package.json`
 **Date:** 2026-07-28
@@ -90,9 +91,8 @@ Targeting Node produces a file that runs under both.
 
 ### 2.1 The `--format=cjs` trap
 
-This is the single most important line in this document for whoever implements
-it. `--target=node` **alone is not enough** — Bun's default output format is
-ESM, and the result fails in a way that is easy to miss:
+`--target=node` **alone is not enough** — Bun's default output format is ESM,
+and the result fails in a way that is easy to miss:
 
 ```
 bun build src/cli.ts --target=node --outfile=cli.js
@@ -206,20 +206,33 @@ its own `LICENSE` in `node_modules`. Bundled, it does not. This needs a
 generated third-party notice file in the tarball — small, but it is a real
 obligation and it is easy to forget.
 
-## 5. Scope: bundle the binary, keep tsgo for the rest
+## 5. Scope: bundle `index.ts`, keep tsgo for the declarations
 
-`openapi-merge-cli` declares `main: dist/index`, so it is importable as a
-library as well as runnable as a CLI. "Bundle the bin" and "replace tsgo for
-this package" are different changes, and only the first is proposed here:
+**This section originally proposed bundling `dist/cli.js` and leaving
+`dist/index.js` to tsgo. That was wrong, and the implementation does the
+opposite.**
+
+`src/cli.ts` is a twenty-line wrapper: it imports `main` from `.` and installs
+two process-level error handlers. So `dist/cli.js` was never the file with the
+problem — the `require("commander")` lives in whatever `cli.js` points at.
+Bundling `cli.ts` would have fixed the `bin` and left `require('openapi-merge-cli')`
+— which `main: dist/index` publicly offers — still throwing `ERR_REQUIRE_ESM` on
+Node 18. Bundling both would duplicate ~800 KB for nothing.
+
+Bundling the module *underneath* both entry points fixes both with one bundle:
 
 | Output | Built by | Why |
 | --- | --- | --- |
-| `dist/cli.js` (the `bin`) | `bun build --target=node --format=cjs` | the artifact with the runtime problem |
-| `dist/index.js`, `dist/*.d.ts` | tsgo, unchanged | the importable entry point and its types |
+| `dist/index.js` (+ `.js.map`) | `bun build --target=node --format=cjs --outdir=dist` | the module both entry points reach |
+| `dist/cli.js` (the `bin`) | tsgo, unchanged | a wrapper that `require('.')`s the bundle |
+| `dist/*.d.ts` | tsgo, unchanged | declarations, still generated from source |
 
-So the declared `dependencies` still matter for anyone doing
-`require('openapi-merge-cli')`, and they stay declared. Only the executable
-stops resolving them at runtime.
+Verified: `require('openapi-merge-cli')` exposes all three declared exports
+(`main`, `ExitCode`, `InputUrlStatusError`) from the CJS bundle, so the tsgo
+`.d.ts` and the runtime shape still agree.
+
+The declared `dependencies` stay declared — that is what `npm audit` and
+Dependabot read (§4.1) — they are simply no longer resolved at runtime.
 
 ## 6. The decision this needs
 
@@ -285,3 +298,88 @@ described.
 - The library was checked separately under Node 18 via `require('openapi-merge')`
   from the installed tarball: it works today. **The breakage is CLI-only**, which
   is what confines this proposal to one package.
+
+## 10. What implementation changed about this proposal
+
+Recorded because the corrections are the useful part.
+
+### 10.1 §5 had the wrong entry point
+
+Proposed bundling the `bin`; the implementation bundles `index.ts`, which is what
+the `bin` reaches. §5 is rewritten above with the reasoning. Bundling as
+originally written would have left the `main: dist/index` path broken on Node 18
+— the same bug, in the entry point nobody was looking at.
+
+### 10.2 `--outfile` and `--sourcemap` cannot be combined (Bun 1.3.14)
+
+Not a documented limitation, and it fails silently in the worst way. With both
+flags, `bun build` **reports writing the files it was asked for, exits 0, and
+ignores `--outfile` entirely** — the output lands beside the *entrypoint*:
+
+```
+$ bun build src/entry.ts --format=cjs --target=node \
+    --outfile=dist/entry.js --sourcemap=linked
+  entry.js      1.41 KB    (entry point)      <- reported
+  entry.js.map  289 bytes  (source map)       <- reported
+$ ls dist/   ->  (empty)
+$ ls src/    ->  entry.js  entry.js.map  entry.ts
+```
+
+Live consequences, both hit during implementation: `dist/index.js` silently kept
+the *unbundled* tsgo output while the build reported success, and an 819 KB
+bundle was quietly written into `src/`, where the next lint run tripped over it.
+
+`--outdir=dist` works correctly and is what the build script uses. Do not
+reintroduce `--outfile`.
+
+### 10.3 §4.1 understated the position, and §2.1 is now resolved
+
+The proposal argued bundling makes the `js-yaml` override moot. It is stronger
+than that: bundling **freezes** whatever the override resolved. The first build
+inlined `js-yaml@4.3.0` into an artifact whose package declares `^5.2.2` — proposal
+29 §2.1's mismatch, no longer merely installed but compiled in and published.
+
+So it was fixed rather than noted. Findings:
+
+- Bun **does not support nested `overrides`**. It prints
+  `warn: Bun currently does not support nested "overrides"` and ignores them, so
+  scoping the override to the dev-tool chain that needed it is not available.
+- The override is **obsolete**. It was added to lift a transitive `js-yaml@3`
+  advisory out of the dev tooling; those tools have since moved to 4.x on their
+  own, so removing it reintroduces nothing.
+
+Dropped `js-yaml` from `overrides`. The CLI now resolves and bundles the
+`js-yaml@5.2.2` it declares. All 373 unit tests pass, and the full artifact
+verification passes on Node 18, 22, 25 and Bun. `fast-uri` keeps its override.
+
+### 10.4 What was measured after implementation
+
+| | |
+| --- | --- |
+| Bundle | 0.83 MB, 112 modules, ~25 ms |
+| Source map | 1.88 MB (`--sourcemap=linked`), published |
+| Attributed packages | 12, generated from the source map (§4.4) |
+| Verification | 23 checks × 4 runtimes = **92 passed, 0 failed** |
+| Runtimes proven | Node 18.20.8, 22.22.2, 25.5.0, Bun 1.3.14 |
+
+### 10.5 Tarball size
+
+The source map is inside `dist/`, so `files: ["dist"]` publishes it. Measured
+with `npm pack --dry-run`:
+
+```
+543 KB packed, 2761 KB unpacked, 35 files
+  1837 KB  dist/index.js.map
+   810 KB  dist/index.js
+    33 KB  dist/configuration.schema.json
+    15 KB  dist/THIRD-PARTY-NOTICES.txt
+```
+
+The map is the single largest entry — larger than the bundle it describes — and
+publishing it is a deliberate choice, not an oversight. Without it a stack trace
+from a user reports a line number inside an 810 KB generated file, which is
+close to useless for a bug report. 543 KB packed is unremarkable for a
+development CLI, and it is downloaded once per install rather than per run.
+
+Dropping `--sourcemap=linked` is a one-word change if the size ever matters more
+than the diagnostics.

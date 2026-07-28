@@ -47,7 +47,9 @@
     "openapi-merge": "^1.4.0"
   },
   "scripts": {
-    "build": "tsgo --project tsconfig.build.json",
+    "build": "tsgo --project tsconfig.build.json && bun run build:bundle && bun run build:notices",
+    "build:bundle": "bun build src/index.ts --target=node --format=cjs --outdir=dist --sourcemap=linked",
+    "build:notices": "bun ../../scripts/generate-third-party-notices.ts",
     "typecheck": "tsgo --project . --noEmit",
     "prepare": "bun run --cwd ../openapi-merge build && bun run gen-schema && bun run build",
     "prepublishOnly": "bun run --cwd ../openapi-merge build && bun run gen-schema && bun run build",

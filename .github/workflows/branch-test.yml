@@ -34,6 +34,41 @@ jobs:
     # Distinct from the typecheck above: this one actually emits, so it also
     # covers declaration output and anything that only breaks when writing dist/.
     - run: bun run build
+  node-compat:
+    name: Node ${{ matrix.node }} runs the published artifacts
+    runs-on: ubuntu-latest
+    strategy:
+      # Report every broken version, not just the first one to fail.
+      fail-fast: false
+      matrix:
+        # Every Node major inside the declared `engines: { node: ">=18" }` range,
+        # plus the current release. 18 is the floor and the important one: it was
+        # completely broken by commander@15 until the CLI became a bundle, and it
+        # is the only entry that actually tests the promise we publish.
+        node: ['18', '20', '22', '24']
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.3.14
+    - name: Set up Node ${{ matrix.node }}
+      uses: actions/setup-node@v7
+      with:
+        node-version: ${{ matrix.node }}
+    - run: bun install --frozen-lockfile
+    # Built by Bun, then exercised by Node -- which is the entire point. The
+    # script packs both packages with npm, installs the tarballs with npm into a
+    # directory outside the workspace, and drives the installed binary.
+    #
+    # `bun` is in RUNTIMES on every matrix entry. That repeats the Bun pass four
+    # times, which costs a few seconds and means any single green job proves the
+    # artifact under both runtimes.
+    - run: ./scripts/verify-node-runtime.sh
+      env:
+        RUNTIMES: node bun
+
   test:
     name: Test and Coverage
     runs-on: ubuntu-latest
