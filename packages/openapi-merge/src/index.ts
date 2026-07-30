@@ -58,7 +58,7 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
     return pathAndComponentResult;
   }
 
-  const { paths, webhooks, components: retComponents } = pathAndComponentResult;
+  const { paths, webhooks, components: retComponents, security } = pathAndComponentResult;
 
   const components = Object.keys(retComponents).length === 0 ? undefined : retComponents;
 
@@ -70,7 +70,10 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
       info: mergeInfos(inputs),
       servers: mergeServers(inputs, options?.serversStrategy),
       externalDocs: getFirstMatching(inputs, input => input.oas.externalDocs),
-      security: getFirstMatching(inputs, input => input.oas.security),
+      // Comes back from mergePathsAndComponents rather than being read off the
+      // inputs here: still first-wins, but after security-scheme renames have
+      // been applied to it (issue #33).
+      security,
       tags: mergeTags(inputs),
       paths,
       // Omitted entirely for 3.0 documents, which cannot declare webhooks.
