@@ -187,6 +187,40 @@ describe('OAS Security', () => {
     expect(Object.keys(output.components?.securitySchemes ?? {}).sort()).toEqual(['firstScheme', 'secondScheme']);
   });
 
+  it('should take the first available security scheme definition', () => {
+    const first = toOAS({});
+
+    first.security = [{ "first scheme": [] }];
+
+    const second = toOAS({}, {
+      securitySchemes: {
+        secondScheme: {
+          type: 'apiKey',
+          name: 'second scheme',
+          in: 'query'
+        }
+      }
+    });
+
+    second.security = [{ "second scheme": [] }];
+
+    const output = toOAS({}, {
+      securitySchemes: {
+        secondScheme: {
+          type: 'apiKey',
+          name: 'second scheme',
+          in: 'query'
+        }
+      }
+    });
+
+    output.security = [{ "first scheme": [] }];
+
+    expectMergeResult(merge(toMergeInputs([first, second])), {
+      output
+    });
+  });
+
   it('takes top-level security from a later input when the first declares none', () => {
     const first = toOAS({}, {
       securitySchemes: {
