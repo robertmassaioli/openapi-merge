@@ -130,3 +130,58 @@ describe('main - serversStrategy (issue #4)', () => {
     expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
   });
 });
+
+/**
+ * Issue #71: duplicate-path policy reaching the library from a config file.
+ *
+ * Library behaviour is covered by the openapi-merge suite; these assert the
+ * wiring -- that the per-input field survives schema validation and is actually
+ * passed through `convertInputs`, which is the part that would silently do
+ * nothing if the plumbing were wrong.
+ */
+describe('main - duplicatePathHandling (issue #71)', () => {
+  it('fails on a duplicate path by default', async () => {
+    cli.writeJson('a.json', oas({ '/same': getPath('fromA') }));
+    cli.writeJson('b.json', oas({ '/same': getPath('fromB') }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }, { inputFile: './b.json' }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorMerging);
+  });
+
+  it('keeps the first definition with skip-later', async () => {
+    cli.writeJson('a.json', oas({ '/same': getPath('fromA') }));
+    cli.writeJson('b.json', oas({ '/same': getPath('fromB') }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }, { inputFile: './b.json', duplicatePathHandling: 'skip-later' }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+    expect(JSON.parse(cli.read()).paths['/same'].get.operationId).toBe('fromA');
+  });
+
+  it('takes the last definition with prefer-later', async () => {
+    cli.writeJson('a.json', oas({ '/same': getPath('fromA') }));
+    cli.writeJson('b.json', oas({ '/same': getPath('fromB') }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }, { inputFile: './b.json', duplicatePathHandling: 'prefer-later' }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+    expect(JSON.parse(cli.read()).paths['/same'].get.operationId).toBe('fromB');
+  });
+
+  it('rejects an unknown policy value against the generated schema', async () => {
+    cli.writeJson('a.json', oas({ '/a': getPath('getA') }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json', duplicatePathHandling: 'last-one-wins' }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
+  });
+});

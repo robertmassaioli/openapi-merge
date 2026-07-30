@@ -2,7 +2,7 @@
 
 **Issue:** [#71 — Possible to skip duplicate paths?](https://github.com/robertmassaioli/openapi-merge/issues/71)
 
-**Status:** Proposal
+**Status:** ✅ Implemented — see §10
 
 **Value:** 4 | **Effort:** 3 | **ROI:** Medium
 
@@ -263,3 +263,68 @@ We do **not** recommend adding a `skipped` field to `MergeResult.output` because
 1. **Decision:** Approve per-input `duplicatePathHandling` design vs. alternative (global option).
 2. **Coordination:** Plan parallelization with #8 and #109 as a unified "Conflict Policies" release.
 3. **Implementation:** Start with per-method granularity built-in (higher effort upfront, better UX long-term).
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/71-skip-duplicate-paths`. §4.1's three-value
+`duplicatePathHandling`, per input, defaulting to `'error'` so nothing that
+worked before behaves differently.
+
+### 10.1 On `SingleMergeInputBase`, not `SingleMergeInputV2`
+
+§4.1 puts it on `SingleMergeInputV2`. It went on the shared base instead, so it
+also works with the deprecated `disputePrefix` form. There is no reason a policy
+about paths should be unavailable to someone who has not yet migrated their
+dispute configuration.
+
+### 10.2 Two operationId bugs the design did not anticipate
+
+Neither is visible from the proposal, and both produce a valid-looking document
+with wrong names.
+
+**Skipped paths must not consume operationIds.** `'skip-later'` returns before
+`ensureUniqueOperationIds`. Registering the ids of a path that is not going into
+the output would push an unrelated later operation onto a numeric suffix, for a
+collision with something that was discarded.
+
+**Replaced paths must release theirs.** Under `'prefer-later'` the earlier
+definition leaves the output, so its ids have to leave `seenOperationIds` with
+it. Without that, two inputs that both define `getThing` on the same path yield
+an output where the surviving operation is called `getThing1` and `getThing`
+exists nowhere. Handled by a new `releaseOperationIds`; both cases are tested.
+
+### 10.3 Webhooks too
+
+Not mentioned in the proposal. Webhooks collide by event name through the same
+code shape and produced the same unconditional `duplicate-webhooks` error, so
+the policy applies there as well. It would be arbitrary for the same
+configuration to resolve a path collision and hard-fail an event-name one.
+
+### 10.4 §4.3 per-method granularity deliberately not implemented
+
+§4.3 recommends letting a later input add `POST /x` beside an earlier `GET /x`.
+Left out, because it raises questions the proposal does not answer: what
+happens to the path item's own `summary`, `description`, `parameters` and
+`$ref` when two inputs disagree about them? Merging *inside* a path item is a
+different feature from choosing *between* path items, and #8 and #109 will need
+that discussion anyway. Whole-path-item semantics are what §4.2 specifies and
+are predictable to explain.
+
+### 10.5 Verification
+
+- 11 tests in `paths.test.ts`. **7 fail against `origin/main`**, confirmed in a
+  detached worktree; the other four assert the unchanged default, including
+  that duplicate webhooks still error.
+- 4 CLI tests in `cli-merging.test.ts` for the wiring, including ajv rejecting
+  an unknown policy value.
+- Gate green: lint, 398 tests, 48 artifact checks.
+
+### 10.6 This unblocks #8 and #109
+
+Both were deferred in the sweep ledger pending this mechanism. Each is now one
+additional value in `DuplicatePathHandling` plus its tests — #8 wants the
+dispute prefix applied to a duplicate instead of erroring, #109 wants a
+designated input to win, which `'prefer-later'` may already cover.
