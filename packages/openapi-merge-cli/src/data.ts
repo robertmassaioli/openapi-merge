@@ -290,6 +290,19 @@ export type Configuration = {
    * @pattern ^3\.[0-9]+\.[0-9]+$
    */
   openapiVersion?: string;
+
+  /**
+   * Drop components that nothing in the merged output references (issue #94).
+   *
+   * Defaults to false. Useful with `operationSelection`, where excluding tags
+   * removes operations but would otherwise leave the schemas only those
+   * operations used behind. A component still referenced by another surviving
+   * endpoint is kept.
+   *
+   * Off by default because pruning is destructive: a document may carry
+   * definitions referenced only from outside it.
+   */
+  pruneUnusedComponents?: boolean;
 };
 
 /**

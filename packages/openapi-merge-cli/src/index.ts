@@ -300,6 +300,7 @@ export async function main(): Promise<void> {
   const mergeResult = merge(inputs, {
     serversStrategy: config.serversStrategy,
     openapiVersion: config.openapiVersion,
+    pruneUnusedComponents: config.pruneUnusedComponents,
   });
 
   if (isErrorResult(mergeResult)) {
