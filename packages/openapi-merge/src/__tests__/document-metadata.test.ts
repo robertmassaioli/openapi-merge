@@ -768,3 +768,114 @@ describe('servers strategy (issue #4)', () => {
     expect(inputs[1].oas.servers).toEqual([{ url: 'https://second.example.com' }]);
   });
 });
+
+/**
+ * Issue #60: `x-tagGroups` concatenates across inputs.
+ *
+ * Every other `x-` extension stays first-wins because its semantics are opaque
+ * -- concatenating a vendor extension this library does not understand could
+ * corrupt it. `x-tagGroups` is the exception: its shape is fixed
+ * (`{ name, tags }`), widely relied on by ReDoc, and concatenation loses
+ * nothing.
+ *
+ * The inconsistency this fixes: tags from later inputs were already merged into
+ * the top-level `tags` array while their groups were dropped, so a ReDoc
+ * sidebar lost the structure for tags that were present in the document.
+ */
+describe('x-tagGroups (issue #60)', () => {
+  const withGroups = (pathName: string, groups: unknown) => ({
+    oas: {
+      ...doc30({ paths: { [pathName]: { get: op(pathName.slice(1)) } } }),
+      'x-tagGroups': groups,
+    } as OpenApiDocument,
+  });
+
+  it('concatenates groups from every input', () => {
+    const output = expectSuccess(
+      merge([
+        withGroups('/a', [{ name: 'User', tags: ['get-user'] }]),
+        withGroups('/b', [{ name: 'Admin', tags: ['admin-only'] }]),
+      ]),
+    );
+
+    expect(at(output, 'x-tagGroups')).toEqual([
+      { name: 'User', tags: ['get-user'] },
+      { name: 'Admin', tags: ['admin-only'] },
+    ]);
+  });
+
+  it('combines the tags of groups that share a name', () => {
+    const output = expectSuccess(
+      merge([
+        withGroups('/a', [{ name: 'User', tags: ['get-user', 'put-user'] }]),
+        withGroups('/b', [{ name: 'User', tags: ['delete-user'] }]),
+      ]),
+    );
+
+    expect(at(output, 'x-tagGroups')).toEqual([
+      { name: 'User', tags: ['get-user', 'put-user', 'delete-user'] },
+    ]);
+  });
+
+  it('deduplicates a tag listed by two inputs under the same group', () => {
+    const output = expectSuccess(
+      merge([
+        withGroups('/a', [{ name: 'User', tags: ['shared', 'a-only'] }]),
+        withGroups('/b', [{ name: 'User', tags: ['shared', 'b-only'] }]),
+      ]),
+    );
+
+    expect(at(output, 'x-tagGroups')).toEqual([
+      { name: 'User', tags: ['shared', 'a-only', 'b-only'] },
+    ]);
+  });
+
+  it('keeps the order in which groups were first seen', () => {
+    const output = expectSuccess(
+      merge([
+        withGroups('/a', [{ name: 'Second', tags: ['x'] }]),
+        withGroups('/b', [{ name: 'First', tags: ['y'] }, { name: 'Second', tags: ['z'] }]),
+      ]),
+    );
+
+    expect((at(output, 'x-tagGroups') as Array<{ name: string }>).map(g => g.name)).toEqual(['Second', 'First']);
+  });
+
+  it('drops a group that ends up with no tags', () => {
+    const output = expectSuccess(merge([withGroups('/a', [{ name: 'Empty', tags: [] }])]));
+
+    // An empty group renders as an empty heading in the ReDoc sidebar.
+    expect(at(output, 'x-tagGroups')).toBeUndefined();
+  });
+
+  it('leaves other x- extensions first-wins', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: { ...doc30({ paths: { '/a': { get: op('a') } } }), 'x-vendor': { a: 1 } } as OpenApiDocument },
+        { oas: { ...doc30({ paths: { '/b': { get: op('b') } } }), 'x-vendor': { b: 2 } } as OpenApiDocument },
+      ]),
+    );
+
+    expect(at(output, 'x-vendor')).toEqual({ a: 1 });
+  });
+
+  it('does not touch x-tagGroups of an unrecognised shape', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: { ...doc30({ paths: { '/a': { get: op('a') } } }), 'x-tagGroups': 'not-an-array' } as OpenApiDocument },
+        withGroups('/b', [{ name: 'User', tags: ['x'] }]),
+      ]),
+    );
+
+    // First-wins on something we do not understand beats mangling it.
+    expect(at(output, 'x-tagGroups')).toBe('not-an-array');
+  });
+
+  it('merges groups sharing a name within a single input', () => {
+    const output = expectSuccess(
+      merge([withGroups('/a', [{ name: 'User', tags: ['one'] }, { name: 'User', tags: ['two'] }])]),
+    );
+
+    expect(at(output, 'x-tagGroups')).toEqual([{ name: 'User', tags: ['one', 'two'] }]);
+  });
+});
