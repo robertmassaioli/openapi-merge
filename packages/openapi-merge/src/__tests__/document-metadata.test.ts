@@ -154,14 +154,20 @@ describe('OAS Info', () => {
 });
 
 describe('OAS Security', () => {
-  it('if the first file has a security definition then only that should be taken', () => {
+  /**
+   * Top-level `security` is first-wins; `securitySchemes` is NOT.
+   *
+   * Changed by issue #33. This test previously asserted that a later input's
+   * schemes were discarded along with its `security` array, which is the bug
+   * that issue reported: an operation could require a scheme the merged
+   * document did not define. The two are now decided separately -- the
+   * document-level requirement still comes from the first input that states
+   * one, while every input's schemes are merged into the lookup table.
+   */
+  it('takes top-level security from the first input, but merges all schemes', () => {
     const first = toOAS({}, {
       securitySchemes: {
-        firstScheme: {
-          type: 'apiKey',
-          name: 'first scheme',
-          in: 'query'
-        }
+        firstScheme: { type: 'apiKey', name: 'first scheme', in: 'query' }
       }
     });
 
@@ -169,31 +175,16 @@ describe('OAS Security', () => {
 
     const second = toOAS({}, {
       securitySchemes: {
-        secondScheme: {
-          type: 'apiKey',
-          name: 'second scheme',
-          in: 'query'
-        }
+        secondScheme: { type: 'apiKey', name: 'second scheme', in: 'query' }
       }
     });
 
     second.security = [{ "second scheme": [] }];
 
-    const output = toOAS({}, {
-      securitySchemes: {
-        firstScheme: {
-          type: 'apiKey',
-          name: 'first scheme',
-          in: 'query'
-        }
-      }
-    });
+    const output = expectSuccess(merge(toMergeInputs([first, second])));
 
-    output.security = [{ "first scheme": [] }];
-
-    expectMergeResult(merge(toMergeInputs([first, second])), {
-      output
-    });
+    expect(output.security).toEqual([{ "first scheme": [] }]);
+    expect(Object.keys(output.components?.securitySchemes ?? {}).sort()).toEqual(['firstScheme', 'secondScheme']);
   });
 
   it('should take the first available security scheme definition', () => {
@@ -230,44 +221,26 @@ describe('OAS Security', () => {
     });
   });
 
-  it('shoud take the first top level security requirements definition', () => {
+  it('takes top-level security from a later input when the first declares none', () => {
     const first = toOAS({}, {
       securitySchemes: {
-        firstScheme: {
-          type: 'apiKey',
-          name: 'first scheme',
-          in: 'query'
-        }
+        firstScheme: { type: 'apiKey', name: 'first scheme', in: 'query' }
       }
     });
 
     const second = toOAS({}, {
       securitySchemes: {
-        secondScheme: {
-          type: 'apiKey',
-          name: 'second scheme',
-          in: 'query'
-        }
+        secondScheme: { type: 'apiKey', name: 'second scheme', in: 'query' }
       }
     });
 
     second.security = [{ "second scheme": [] }];
 
-    const output = toOAS({}, {
-      securitySchemes: {
-        firstScheme: {
-          type: 'apiKey',
-          name: 'first scheme',
-          in: 'query'
-        }
-      }
-    });
+    const output = expectSuccess(merge(toMergeInputs([first, second])));
 
-    output.security = [{ "second scheme": [] }];
-
-    expectMergeResult(merge(toMergeInputs([first, second])), {
-      output
-    });
+    expect(output.security).toEqual([{ "second scheme": [] }]);
+    // Both schemes survive now (issue #33); before, only firstScheme did.
+    expect(Object.keys(output.components?.securitySchemes ?? {}).sort()).toEqual(['firstScheme', 'secondScheme']);
   });
 
   it('should have no security definitions if none are defined', () => {
@@ -374,13 +347,16 @@ describe('extensions', () => {
 });
 
 describe('securitySchemes', () => {
-  it('takes the security schemes from the first input that declares any', () => {
+  // Issue #33 changed this from first-wins to a merge. Differently-named
+  // schemes from every input now coexist, which is what makes a later input's
+  // operations resolvable in the merged document.
+  it('merges differently-named schemes from every input', () => {
     const first = toOAS({}, { securitySchemes: { apiKey: { type: 'apiKey', name: 'key', in: 'header' } } });
     const second = toOAS({}, { securitySchemes: { basic: { type: 'http', scheme: 'basic' } } });
 
     const result = expectSuccess(merge(toMergeInputs([first, second])));
 
-    expect(Object.keys(result.components?.securitySchemes ?? {})).toEqual(['apiKey']);
+    expect(Object.keys(result.components?.securitySchemes ?? {}).sort()).toEqual(['apiKey', 'basic']);
   });
 
   it('falls through to a later input when the first declares none', () => {
