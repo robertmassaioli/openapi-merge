@@ -608,13 +608,14 @@ describe('3.2 edge: additive fields pass through', () => {
       } },
     }) }]));
 
+    // Single input, nothing renamed: the pointer must be untouched.
     expect(at(output.components?.schemas?.Pet, 'discriminator', 'defaultMapping'))
       .toBe('#/components/schemas/Dog');
   });
 
-  it('KNOWN GAP: discriminator defaultMapping is not rewritten on rename', () => {
-    // Same class of gap as the `mapping` field (issues #99/#106): the oneOf
-    // reference follows the rename, the discriminator pointer does not.
+  it('rewrites discriminator defaultMapping on rename (issue #106)', () => {
+    // Was pinned as a KNOWN GAP alongside `mapping` (#99). Both are pointers
+    // the walker could not see because they are not spelled `$ref`.
     const output = expectSuccess(merge([
       { oas: doc32({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: schema({ type: 'string' }) } } }) },
       { oas: doc32({
@@ -631,7 +632,7 @@ describe('3.2 edge: additive fields pass through', () => {
 
     expect(at(output.components?.schemas?.Pet, 'oneOf', '0', '$ref')).toBe('#/components/schemas/Dog1');
     expect(at(output.components?.schemas?.Pet, 'discriminator', 'defaultMapping'))
-      .toBe('#/components/schemas/Dog');
+      .toBe('#/components/schemas/Dog1');
   });
 
   it('carries itemSchema for sequential media types', () => {
