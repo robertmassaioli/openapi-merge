@@ -47,3 +47,91 @@ describe('main - option isolation between invocations', () => {
     expect(cli.stderr().join('\n')).toContain('Could not find or read');
   });
 });
+
+/**
+ * Issue #45: merging without a configuration file.
+ *
+ * Inputs can be given as positional arguments instead. These cover the wiring
+ * and the mode rules; the Configuration-building itself is unit-tested in
+ * synthesize-configuration.test.ts, where the output defaulting can be asserted
+ * without depending on the working directory.
+ */
+describe('positional inputs, no config file (issue #45)', () => {
+  it('merges two positional files', async () => {
+    const a = cli.writeJson('a.json', oas({ '/a': getPath('getA') }));
+    const b = cli.writeJson('b.json', oas({ '/b': getPath('getB') }));
+    const out = path.join(cli.dir(), 'out.json');
+
+    expect(await cli.run(a, b, '-o', out)).toBe(ExitCode.Success);
+
+    expect(Object.keys(JSON.parse(fs.readFileSync(out, 'utf8')).paths).sort()).toEqual(['/a', '/b']);
+  });
+
+  it('merges a single positional file', async () => {
+    const a = cli.writeJson('a.json', oas({ '/a': getPath('getA') }));
+    const out = path.join(cli.dir(), 'out.json');
+
+    expect(await cli.run(a, '-o', out)).toBe(ExitCode.Success);
+
+    expect(Object.keys(JSON.parse(fs.readFileSync(out, 'utf8')).paths)).toEqual(['/a']);
+  });
+
+  it('applies --prepend to every positional input', async () => {
+    const a = cli.writeJson('a.json', oas({ '/a': getPath('getA') }));
+    const b = cli.writeJson('b.json', oas({ '/b': getPath('getB') }));
+    const out = path.join(cli.dir(), 'out.json');
+
+    expect(await cli.run(a, b, '-o', out, '--prepend', '/api')).toBe(ExitCode.Success);
+
+    expect(Object.keys(JSON.parse(fs.readFileSync(out, 'utf8')).paths).sort()).toEqual(['/api/a', '/api/b']);
+  });
+
+  it('applies --dispute-prefix to every positional input', async () => {
+    // Both inputs define a different `Thing`, so without a dispute the second
+    // would be renamed `Thing1`; with one it takes the prefix instead.
+    const a = cli.writeJson('a.json', {
+      ...(oas({ '/a': getPath('getA') }) as Record<string, unknown>),
+      components: { schemas: { Thing: { type: 'string' } } },
+    });
+    const b = cli.writeJson('b.json', {
+      ...(oas({ '/b': getPath('getB') }) as Record<string, unknown>),
+      components: { schemas: { Thing: { type: 'number' } } },
+    });
+    const out = path.join(cli.dir(), 'out.json');
+
+    expect(await cli.run(a, b, '-o', out, '--dispute-prefix', 'Svc')).toBe(ExitCode.Success);
+
+    expect(Object.keys(JSON.parse(fs.readFileSync(out, 'utf8')).components.schemas).sort()).toEqual([
+      'SvcThing',
+      'Thing',
+    ]);
+  });
+
+  it('refuses --config together with positional inputs', async () => {
+    const a = cli.writeJson('a.json', oas({ '/a': getPath('getA') }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+    });
+
+    expect(await cli.run(a, '-c', config)).toBe(ExitCode.ErrorLoadingConfig);
+    expect(cli.stderr().join('\n')).toContain('Cannot use both --config and positional');
+  });
+
+  it('still uses the config file when no positional inputs are given', async () => {
+    cli.writeJson('a.json', oas({ '/a': getPath('getA') }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+    expect(Object.keys(JSON.parse(cli.read()).paths)).toEqual(['/a']);
+  });
+
+  it('reports a missing positional input rather than merging nothing', async () => {
+    const out = path.join(cli.dir(), 'out.json');
+
+    expect(await cli.run(path.join(cli.dir(), 'nope.json'), '-o', out)).toBe(ExitCode.ErrorLoadingInputs);
+  });
+});
