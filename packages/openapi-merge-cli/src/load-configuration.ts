@@ -37,10 +37,15 @@ export function validateConfigurationSemantics(config: Configuration): string | 
   return undefined;
 }
 
-async function validateConfiguration(rawData: string): Promise<Configuration | string> {
+/**
+ * Validates an already-parsed configuration against the generated schema.
+ *
+ * Exported so that a configuration synthesized from command-line arguments
+ * (issue #45) is checked by exactly the same schema as one read from a file,
+ * rather than by a second, drifting set of checks.
+ */
+export function validateConfigurationData(data: unknown): Configuration | string {
   try {
-    const data = await readYamlOrJSON(rawData);
-
     const ajv = new Ajv();
     addFormats(ajv);
     const validate = ajv.compile(ConfigurationSchema);
@@ -57,6 +62,14 @@ async function validateConfiguration(rawData: string): Promise<Configuration | s
     }
 
     return config;
+  } catch (e) {
+    return `Could not parse configuration: ${e}`;
+  }
+}
+
+async function validateConfiguration(rawData: string): Promise<Configuration | string> {
+  try {
+    return validateConfigurationData(await readYamlOrJSON(rawData));
   } catch (e) {
     return `Could not parse configuration: ${e}`;
   }
