@@ -1,4 +1,5 @@
 import { Swagger } from '@atlassian/atlassian-openapi';
+import { OpenAPIV3, OpenAPIV3_1 } from 'openapi-types';
 
 /**
  * OpenAPI 3.1 modelled as a delta over the 3.0 types.
@@ -137,3 +138,26 @@ export function getPaths(oas: OpenApiDocument): Swagger.Paths {
 export function getWebhooks(oas: OpenApiDocument): PathItemMap {
   return oas.webhooks ?? {};
 }
+
+/**
+ * A document this library will accept as merge input (issue #75).
+ *
+ * `OpenApiDocument` is how this library models a specification. Consumers
+ * frequently arrive with `OpenAPIV3.Document` or `OpenAPIV3_1.Document`
+ * instead, because that is what `@apidevtools/swagger-parser` and most other
+ * tooling returns. The two describe the *same JSON* -- they differ only in how
+ * strictly each models it. `openapi-types` marks `PathsObject` values as
+ * possibly `undefined` and types several component maps more loosely, so
+ * assignment fails in a dozen nested places even though every value is
+ * structurally fine at runtime.
+ *
+ * Widening each field individually was tried and abandoned: the mismatches
+ * cascade through `paths`, `components.responses`, `headers` and further down,
+ * and loosening all of them would weaken the types this library relies on
+ * internally for no benefit.
+ *
+ * Accepting the union instead keeps full checking inside the library while
+ * letting a caller pass what their parser gave them. `merge()` narrows once, at
+ * the boundary, where the reasoning lives.
+ */
+export type MergeInputDocument = OpenApiDocument | OpenAPIV3.Document | OpenAPIV3_1.Document;

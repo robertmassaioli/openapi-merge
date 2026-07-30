@@ -1,4 +1,4 @@
-import { ErrorMergeResult, MergeInput } from './data';
+import { ErrorMergeResult, NarrowedMergeInput } from './data';
 
 /**
  * All OpenAPI version handling lives here so that widening support is a
@@ -74,7 +74,7 @@ function describeSupported(supported: ReadonlyArray<string>): string {
  * the caller can actually do.
  */
 export function validateInputVersions(
-  inputs: MergeInput,
+  inputs: NarrowedMergeInput,
   /**
    * Which minor versions to accept. Defaults to what this library actually
    * supports; parameterised so the mixed-version rule can be tested
@@ -147,7 +147,7 @@ export function validateInputVersions(
  *
  * Returns undefined only when there are no inputs, which `merge` rejects first.
  */
-export function negotiateOutputVersion(inputs: MergeInput): string | undefined {
+export function negotiateOutputVersion(inputs: NarrowedMergeInput): string | undefined {
   let best: OpenApiVersion | undefined;
 
   for (const input of inputs) {
