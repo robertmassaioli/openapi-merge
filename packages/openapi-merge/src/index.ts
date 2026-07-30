@@ -1,5 +1,5 @@
 import { isPresent } from 'ts-is-present';
-import { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection, MergeOptions } from './data';
+import { MergeInput, NarrowedMergeInput, MergeResult, isErrorResult, PathModification, OperationSelection, MergeOptions } from './data';
 import { mergeTags } from './tags';
 import { mergePathsAndComponents } from './paths-and-components';
 import { mergeExtensions } from './extensions';
@@ -32,7 +32,7 @@ function getFirstMatching<A, B>(inputs: Array<A>, extract: (input: A) => B | und
  * value can change how relative `$ref`s resolve. It is therefore kept only in
  * the degenerate single-input case, where the output really is that document.
  */
-function mergeSelf(inputs: MergeInput): string | undefined {
+function mergeSelf(inputs: NarrowedMergeInput): string | undefined {
   return inputs.length === 1 ? inputs[0].oas.$self : undefined;
 }
 
@@ -44,15 +44,23 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
     return { type: 'no-inputs', message: 'You must provide at least one OAS file as an input.' };
   }
 
+  // The one place the input union is narrowed (issue #75). `openapi-types`
+  // documents describe the same JSON as ours and differ only in how strictly
+  // they model it -- `PathsObject` values are declared possibly-undefined,
+  // several component maps are looser -- so the cast is safe in the direction
+  // that matters: every value present at runtime is one this library can read.
+  // Nothing below this line sees the union.
+  const narrowedInputs = inputs as NarrowedMergeInput;
+
   // Runs before any merging so that a version problem never leaves a partially
   // merged result, and so that the constructs a newer version would introduce
   // are never silently walked past by 3.0-shaped logic.
-  const versionError = validateInputVersions(inputs);
+  const versionError = validateInputVersions(narrowedInputs);
   if (versionError !== undefined) {
     return versionError;
   }
 
-  const pathAndComponentResult = mergePathsAndComponents(inputs);
+  const pathAndComponentResult = mergePathsAndComponents(narrowedInputs);
 
   if (isErrorResult(pathAndComponentResult)) {
     return pathAndComponentResult;
@@ -64,25 +72,25 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
 
   const output: OpenApiDocument = mergeExtensions(
     {
-      // The version the inputs actually declared, rather than a hard-coded
+      // The version the narrowedInputs actually declared, rather than a hard-coded
       // 3.0.3. Well defined because every input shares a major.minor by now.
-      openapi: negotiateOutputVersion(inputs) ?? '3.0.3',
-      info: mergeInfos(inputs),
-      servers: mergeServers(inputs, options?.serversStrategy),
-      externalDocs: getFirstMatching(inputs, input => input.oas.externalDocs),
+      openapi: negotiateOutputVersion(narrowedInputs) ?? '3.0.3',
+      info: mergeInfos(narrowedInputs),
+      servers: mergeServers(narrowedInputs, options?.serversStrategy),
+      externalDocs: getFirstMatching(narrowedInputs, input => input.oas.externalDocs),
       // Comes back from mergePathsAndComponents rather than being read off the
       // inputs here: still first-wins, but after security-scheme renames have
       // been applied to it (issue #33).
       security,
-      tags: mergeTags(inputs),
+      tags: mergeTags(narrowedInputs),
       paths,
       // Omitted entirely for 3.0 documents, which cannot declare webhooks.
       webhooks: Object.keys(webhooks).length === 0 ? undefined : webhooks,
-      jsonSchemaDialect: getFirstMatching(inputs, input => input.oas.jsonSchemaDialect),
-      $self: mergeSelf(inputs),
+      jsonSchemaDialect: getFirstMatching(narrowedInputs, input => input.oas.jsonSchemaDialect),
+      $self: mergeSelf(narrowedInputs),
       components,
     },
-    inputs.map(input => input.oas)
+    narrowedInputs.map(input => input.oas)
   );
 
   return { output };

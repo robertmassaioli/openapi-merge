@@ -1,4 +1,4 @@
-import { MergeInput } from './data';
+import { NarrowedMergeInput } from './data';
 import { Server32 } from './oas31';
 
 /**
@@ -27,7 +27,7 @@ export const DEFAULT_SERVERS_STRATEGY: ServersStrategy = 'first';
  * first-wins everywhere else, so it does so here too rather than inventing a
  * new error for it.
  */
-export function mergeServers(inputs: MergeInput, strategy: ServersStrategy = DEFAULT_SERVERS_STRATEGY): Server32[] | undefined {
+export function mergeServers(inputs: NarrowedMergeInput, strategy: ServersStrategy = DEFAULT_SERVERS_STRATEGY): Server32[] | undefined {
   if (strategy === 'first') {
     const firstWithServers = inputs.find(input => input.oas.servers !== undefined);
     return firstWithServers?.oas.servers;

@@ -1,4 +1,4 @@
-import { MergeInput } from './data';
+import { NarrowedMergeInput } from './data';
 import { Tag32 } from './oas31';
 
 function getNonExcludedTags(originalTags: Tag32[], excludedTagNames: string[]): Tag32[] {
@@ -9,7 +9,7 @@ function getNonExcludedTags(originalTags: Tag32[], excludedTagNames: string[]): 
   return originalTags.filter(tag => !excludedTagNames.includes(tag.name));
 }
 
-export function mergeTags(inputs: MergeInput): Tag32[] | undefined {
+export function mergeTags(inputs: NarrowedMergeInput): Tag32[] | undefined {
   const result = new Array<Tag32>();
 
   const seenTags = new Set<string>();
