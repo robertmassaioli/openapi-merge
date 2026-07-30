@@ -2,7 +2,7 @@
 
 **Issue:** [#33 — Merge securitySchemes of input files](https://github.com/robertmassaioli/openapi-merge/issues/33)
 
-**Status:** Proposal
+**Status:** ✅ Implemented — see §10
 
 **Value:** 4 | **Effort:** 3 | **ROI:** High
 
@@ -339,3 +339,55 @@ it('should update per-operation security references when scheme is renamed', () 
 6. [ ] Run `yarn lint` to ensure compliance.
 
 7. [ ] (Optional) Update README or CHANGELOG to document the new behavior.
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/33-security-schemes`.
+
+### 10.1 The bucket list had moved
+
+§3.1 says to add a new conditional block after the `callbacks` block. That
+shape no longer exists: the nine near-identical blocks were collapsed into a
+`DEDUPLICATED_COMPONENT_TYPES` loop, so this is now one word added to a list.
+The special-case first-wins block for `securitySchemes` was deleted.
+
+### 10.2 Renames needed a second channel, not the reference walker
+
+§2 identified the important part and it is worth restating: a Security
+Requirement names its scheme as an **object key**, not a `$ref`. The
+`referenceModification` map only rewrites `#/components/...` strings, so a
+renamed scheme leaves every requirement pointing at a name that no longer
+exists — a document that looks valid and authorises nothing.
+
+Added `securitySchemeRenames`, populated from the same rename callback, applied
+by a new `renameSecurityRequirements` over the input's clone: the document-level
+`security` array and every operation's, across both `paths` and `webhooks`.
+
+### 10.3 Document-level `security` had to move upstream
+
+Not anticipated by the proposal. `index.ts` read `security` off the *original*
+inputs with `getFirstMatching`, so the rewritten copy was discarded and the
+top-level requirement kept the stale name. `PathAndComponents` now carries
+`security`, still first-wins but taken after renames. This was caught by a test,
+not by inspection.
+
+### 10.4 This is a behaviour change, and three existing tests said so
+
+Three tests asserted the old behaviour directly — that a later input's schemes
+are dropped. They encoded the bug, so they were rewritten to assert the new
+contract, with a comment saying what changed and why. Anyone relying on later
+inputs' schemes being discarded will see them appear.
+
+Note the two concerns stay separate, exactly as §2 argued: top-level `security`
+is still first-wins. Only `securitySchemes` merges.
+
+### 10.5 Verification
+
+- 7 new tests in `components.test.ts`, which owns component deduplication and
+  renaming. **5 fail against `origin/main`**, confirmed in a detached worktree.
+- 3 rewritten tests in `document-metadata.test.ts` covering the first-wins
+  top-level `security` that did *not* change.
+- Gate green: lint, 390 tests, 48 artifact checks across Node and Bun.

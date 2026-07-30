@@ -949,3 +949,137 @@ describe('3.0 edge: component naming rules', () => {
     expect((output.components?.schemas?.Thing2 as { type: string }).type).toBe('number');
   });
 });
+
+/**
+ * Issue #33: `securitySchemes` merges like every other component bucket.
+ *
+ * It used to be the one exception -- taken wholesale from the first input that
+ * declared any, and silently dropped from every other input. That produced
+ * documents whose operations required a scheme the document did not define.
+ *
+ * The interesting part is renaming. A Security Requirement names its scheme as
+ * an object KEY, not a `$ref`, so the reference walker that repairs
+ * `#/components/...` pointers after a rename cannot see it. A renamed scheme
+ * with unrepaired requirements yields a document that looks valid and
+ * authorises nothing, which is the failure these tests exist to prevent.
+ */
+describe('securitySchemes (issue #33)', () => {
+  const apiKey = (name: string): Swagger.SecurityScheme => ({ type: 'apiKey', in: 'header', name });
+  const secured = (operationId: string, scheme: string): Swagger.Operation => ({
+    operationId,
+    responses: ok,
+    security: [{ [scheme]: [] }],
+  });
+
+  it("keeps a second input's securitySchemes instead of dropping them", () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { securitySchemes: { first: apiKey('X-First') } } }) },
+        { oas: doc30({ paths: { '/b': { get: op('b') } }, components: { securitySchemes: { second: apiKey('X-Second') } } }) },
+      ]),
+    );
+
+    expect(Object.keys(output.components?.securitySchemes ?? {}).sort()).toEqual(['first', 'second']);
+  });
+
+  it('deduplicates identical schemes declared under the same name', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { securitySchemes: { shared: apiKey('X-Key') } } }) },
+        { oas: doc30({ paths: { '/b': { get: op('b') } }, components: { securitySchemes: { shared: apiKey('X-Key') } } }) },
+      ]),
+    );
+
+    expect(Object.keys(output.components?.securitySchemes ?? {})).toEqual(['shared']);
+  });
+
+  it('renames a conflicting scheme and rewrites the operation that requires it', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: { '/a': { get: secured('a', 'auth') } },
+            components: { securitySchemes: { auth: apiKey('X-First') } },
+          }),
+        },
+        {
+          oas: doc30({
+            paths: { '/b': { get: secured('b', 'auth') } },
+            components: { securitySchemes: { auth: apiKey('X-Second') } },
+          }),
+        },
+      ]),
+    );
+
+    const schemeNames = Object.keys(output.components?.securitySchemes ?? {}).sort();
+    expect(schemeNames).toEqual(['auth', 'auth1']);
+
+    // The renamed scheme must be the one the second input's operation requires.
+    expect(output.paths?.['/a']?.get?.security).toEqual([{ auth: [] }]);
+    expect(output.paths?.['/b']?.get?.security).toEqual([{ auth1: [] }]);
+  });
+
+  it('rewrites requirements when a dispute prefix renames the scheme', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc30({ paths: { '/a': { get: secured('a', 'auth') } }, components: { securitySchemes: { auth: apiKey('X-First') } } }) },
+        {
+          oas: doc30({
+            paths: { '/b': { get: secured('b', 'auth') } },
+            components: { securitySchemes: { auth: apiKey('X-Second') } },
+          }),
+          dispute: { prefix: 'Second', alwaysApply: true },
+        },
+      ]),
+    );
+
+    expect(output.components?.securitySchemes?.Secondauth).toBeDefined();
+    expect(output.paths?.['/b']?.get?.security).toEqual([{ Secondauth: [] }]);
+  });
+
+  it('rewrites the document-level security array of a renamed scheme', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: { '/a': { get: op('a') } },
+            security: [{ auth: [] }],
+            components: { securitySchemes: { auth: apiKey('X-First') } },
+          }),
+          dispute: { prefix: 'One', alwaysApply: true },
+        },
+      ]),
+    );
+
+    expect(output.components?.securitySchemes?.Oneauth).toBeDefined();
+    expect(output.security).toEqual([{ Oneauth: [] }]);
+  });
+
+  it('rewrites requirements on webhook operations too', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc31({
+            paths: {},
+            webhooks: { ping: { post: secured('ping', 'auth') } },
+            components: { securitySchemes: { auth: apiKey('X-First') } },
+          }),
+          dispute: { prefix: 'Hook', alwaysApply: true },
+        },
+      ]),
+    );
+
+    expect(output.components?.securitySchemes?.Hookauth).toBeDefined();
+    expect(output.webhooks?.ping?.post?.security).toEqual([{ Hookauth: [] }]);
+  });
+
+  it('leaves requirements alone when nothing was renamed', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc30({ paths: { '/a': { get: secured('a', 'auth') } }, components: { securitySchemes: { auth: apiKey('X-First') } } }) },
+      ]),
+    );
+
+    expect(output.paths?.['/a']?.get?.security).toEqual([{ auth: [] }]);
+  });
+});
