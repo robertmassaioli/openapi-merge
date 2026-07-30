@@ -12,6 +12,16 @@ export type PathAndComponents = {
   /** 3.1 only; empty for 3.0 inputs, which cannot declare webhooks. */
   webhooks: PathItemMap;
   components: Components31;
+  /**
+   * The document-level `security` array, first-wins as it has always been --
+   * but taken from the input AFTER its security-scheme renames were applied.
+   *
+   * It is returned from here rather than read from the untouched inputs in
+   * `index.ts` because only this function knows what got renamed (issue #33).
+   * Reading it upstream produced a document whose top-level requirement named
+   * a scheme that deduplication had since renamed away.
+   */
+  security?: Swagger.SecurityRequirement[];
 };
 
 function removeFromStart(input: string, trim: string): string {
@@ -166,6 +176,49 @@ function ensureUniqueOperationIds(pathItem: PathItem32, seenOperationIds: Set<st
 }
 
 /**
+ * Rewrites every security requirement that names a renamed security scheme.
+ *
+ * A Security Requirement Object is `{ <schemeName>: string[] }` -- the scheme
+ * is an object KEY, not a `$ref`. That makes it invisible to the reference
+ * walker that fixes up `#/components/...` pointers after deduplication, so
+ * without this a disputed scheme rename produces a document whose requirements
+ * name a scheme that is not in `components.securitySchemes`. Such a document
+ * looks fine and authorises nothing.
+ *
+ * Covers the document-level `security` array and the per-operation one, across
+ * both `paths` and `webhooks`. Mutates in place; the caller owns a deep clone.
+ */
+function renameSecurityRequirements(oas: OpenApiDocument, renames: { [from: string]: string }): void {
+  if (Object.keys(renames).length === 0) {
+    return;
+  }
+
+  const rewrite = (requirements: Swagger.SecurityRequirement[] | undefined): Swagger.SecurityRequirement[] | undefined => {
+    if (requirements === undefined) {
+      return undefined;
+    }
+    return requirements.map(requirement => {
+      const renamed: Swagger.SecurityRequirement = {};
+      for (const schemeName of Object.keys(requirement)) {
+        renamed[renames[schemeName] ?? schemeName] = requirement[schemeName];
+      }
+      return renamed;
+    });
+  };
+
+  oas.security = rewrite(oas.security);
+
+  for (const pathItemMap of [oas.paths, oas.webhooks]) {
+    for (const key of Object.keys(pathItemMap ?? {})) {
+      const pathItem = (pathItemMap ?? {})[key];
+      for (const { operation } of getPathItemOperations(pathItem)) {
+        operation.security = rewrite(operation.security);
+      }
+    }
+  }
+}
+
+/**
  * Merge algorithm:
  *
  * Generate reference mappings for the components. Eliminating duplicates.
@@ -195,6 +248,10 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
     // Original references will be transformed to new non-conflicting references
     const referenceModification: { [originalReference: string]: string } = {};
 
+    // Security schemes are addressed by name rather than by `$ref`, so their
+    // renames are tracked separately from `referenceModification` (issue #33).
+    const securitySchemeRenames: { [originalName: string]: string } = {};
+
       // For each component in the original input, place it in the output with deduplicate taking place
     if (oas.components !== undefined) {
       const resultLookup = new SwaggerLookup.InternalLookup({ openapi: '3.0.1', info: { title: 'dummy', version: '0' }, paths: {}, components: result.components });
@@ -208,7 +265,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       // error return below came to be dropped in all nine places.
       const DEDUPLICATED_COMPONENT_TYPES = [
         'schemas', 'responses', 'parameters', 'examples', 'requestBodies',
-        'headers', 'links', 'pathItems', 'callbacks',
+        'headers', 'links', 'pathItems', 'callbacks', 'securitySchemes',
       ] as const;
 
       // Indexing a heterogeneous record by a dynamic key: every value here is a
@@ -237,6 +294,9 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
           dispute,
           (from: string, to: string) => {
             referenceModification[`#/components/${componentType}/${from}`] = `#/components/${componentType}/${to}`;
+            if (componentType === 'securitySchemes') {
+              securitySchemeRenames[from] = to;
+            }
           },
         );
 
@@ -245,13 +305,16 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
         }
       }
 
-      // Security schemes are not deduplicated: we take them wholesale from the
-      // first input that declares any.
-      if (oas.components.securitySchemes !== undefined
-        && Object.keys(oas.components.securitySchemes).length > 0
-        && result.components.securitySchemes === undefined) {
-        result.components.securitySchemes = oas.components.securitySchemes;
-      }
+      // A renamed security scheme is not reachable through `referenceModification`.
+      // Security requirements name a scheme as an OBJECT KEY -- `{ apiKey: [] }`
+      // -- not as a `$ref`, so the reference walker never sees them and a rename
+      // would leave every requirement pointing at a scheme that no longer exists.
+      // Applied to this input's clone before its operations are copied out.
+      renameSecurityRequirements(oas, securitySchemeRenames);
+    }
+
+    if (result.security === undefined && oas.security !== undefined) {
+      result.security = oas.security;
     }
 
     // For each path, convert it into the right format (looking out for duplicates)
