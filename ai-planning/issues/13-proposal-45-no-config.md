@@ -1,6 +1,6 @@
 # Implementation Proposal: Issue #45 — Allow CLI Use Without a Config File
 
-**Status:** Proposal  
+**Status:** ✅ Implemented — see §10  
 **Value:** 3 / **Effort:** 2 / **ROI:** 4.0 (Quick Win)
 
 **Issue:** [robertmassaioli/openapi-merge#45](https://github.com/robertmassaioli/openapi-merge/issues/45)
@@ -361,3 +361,49 @@ Add a new section after the existing config-file section:
 - **Commander.js documentation:** https://github.com/tj/commander.js
 - **Proposal #93 (Absolute paths):** See `ai-planning/issues/03-proposal-93-absolute-paths.md`
 - **Issue #45:** https://github.com/robertmassaioli/openapi-merge/issues/45
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/45-no-config`. Built as designed — positional inputs, the three
+uniform flags, mixed files and URLs, and the exclusive-modes rule. Four notes.
+
+### 10.1 Validation is genuinely shared, via a new export
+
+§4b's "unified code path" needed one refactor to be true rather than
+aspirational: `validateConfiguration` only accepted a raw string. Split out
+`validateConfigurationData(data: unknown)`, now used by both the file path and
+the synthesized path, so a synthesized configuration is checked by exactly the
+same generated schema. Without that the two modes would have drifted the first
+time the schema changed.
+
+### 10.2 A synthesis error must not reach the schema validator
+
+Not in the proposal. `synthesizeConfiguration` returns `Configuration | string`,
+and feeding its error string to `validateConfigurationData` would have replaced
+"No input files or URLs were provided" with a schema type error about a string
+not being an object. The string is checked for first.
+
+### 10.3 `basePath` follows the mode
+
+Also not in the proposal, and it would have been a silent bug. `basePath` was
+`path.dirname(options.config || './')`, which is right for a config file and
+wrong for positional inputs — those are relative to the working directory, not
+to a config file that does not exist.
+
+### 10.4 The output default ignores a URL query string
+
+§3's rule is "extension of the first input". For `https://x/spec.yaml?v=2` the
+naive reading yields `merged.yaml?v=2`. The query is stripped first. Tested.
+
+### 10.5 Verification
+
+- 14 unit tests in `synthesize-configuration.test.ts`. The defaulting is tested
+  here rather than through the CLI deliberately: the resolved output path
+  depends on the working directory, so asserting it in-process would either
+  write into the repository or prove nothing.
+- 8 CLI tests in `cli-invocation.test.ts`, which owns argument handling.
+  **6 fail against `origin/main`**, confirmed in a detached worktree.
+- Gate green: lint, 405 tests, 48 artifact checks.
