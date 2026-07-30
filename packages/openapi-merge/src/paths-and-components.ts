@@ -124,6 +124,23 @@ function dropPathItemsWithNoOperations(originalOas: OpenApiDocument): OpenApiDoc
   return oas;
 }
 
+/**
+ * Un-registers the operationIds of a path item that is about to be replaced.
+ *
+ * Under `'prefer-later'` the earlier definition leaves the output, so its ids
+ * must leave `seenOperationIds` with it. Otherwise the winning operation
+ * collides with an id that is no longer present anywhere and gets renamed to
+ * `getThing1` -- leaving a document in which `getThing` does not exist and the
+ * surviving operation has a name nobody chose.
+ */
+function releaseOperationIds(pathItem: PathItem32, seenOperationIds: Set<string>): void {
+  for (const { operation } of getPathItemOperations(pathItem)) {
+    if (operation.operationId !== undefined) {
+      seenOperationIds.delete(operation.operationId);
+    }
+  }
+}
+
 function findUniqueOperationId(operationId: string, seenOperationIds: Set<string>, dispute: Dispute | undefined): string | ErrorMergeResult {
   // Ask `applyDispute` first rather than short-circuiting on "no conflict".
   //
@@ -256,6 +273,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
     const { oas: originalOas, pathModification, operationSelection } = input;
     const dispute = getDispute(input);
+    const duplicatePathHandling = input.duplicatePathHandling ?? 'error';
 
     const oas = dropPathItemsWithNoOperations(runOperationSelection(_.cloneDeep(originalOas), operationSelection));
 
@@ -344,11 +362,27 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       }
 
       // TODO perform more advanced matching for an existing path than an equals check
-      if (result.paths[newPath] !== undefined) {
+      if (result.paths[newPath] !== undefined && duplicatePathHandling === 'error') {
         return {
           type: 'duplicate-paths',
           message: `Input ${inputIndex}: The path '${originalPath}' maps to '${newPath}' and this has already been added by another input file`
         };
+      }
+
+      const isDuplicate = result.paths[newPath] !== undefined;
+
+      if (isDuplicate && duplicatePathHandling === 'skip-later') {
+        // Skipped before `ensureUniqueOperationIds`, deliberately: a path that
+        // is not going into the output must not consume operationIds, or it
+        // would push an unrelated later operation onto a numeric suffix for a
+        // collision with something that was discarded.
+        continue;
+      }
+
+      if (isDuplicate) {
+        // 'prefer-later' by elimination: 'error' returned and 'skip-later'
+        // continued above.
+        releaseOperationIds(result.paths[newPath], seenOperationIds);
       }
 
       const copyPathItem = getPaths(oas)[originalPath];
@@ -372,11 +406,19 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
     for (let webhookIndex = 0; webhookIndex < webhookNames.length; webhookIndex++) {
       const webhookName = webhookNames[webhookIndex];
 
-      if (result.webhooks[webhookName] !== undefined) {
+      if (result.webhooks[webhookName] !== undefined && duplicatePathHandling === 'error') {
         return {
           type: 'duplicate-webhooks',
           message: `Input ${inputIndex}: The webhook '${webhookName}' has already been added by another input file`
         };
+      }
+
+      if (result.webhooks[webhookName] !== undefined && duplicatePathHandling === 'skip-later') {
+        continue;
+      }
+
+      if (result.webhooks[webhookName] !== undefined) {
+        releaseOperationIds(result.webhooks[webhookName], seenOperationIds);
       }
 
       const copyWebhook = getWebhooks(oas)[webhookName];
