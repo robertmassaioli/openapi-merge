@@ -168,6 +168,23 @@ export interface ConfigurationInputFromUrl extends ConfigurationInputBase {
    * @pattern ^https?://
    */
   inputURL: string;
+
+  /**
+   * HTTP headers to send when fetching `inputURL` (issue #61).
+   *
+   * Values support environment-variable interpolation with `${VAR}`, so a
+   * credential never has to be written into a file that gets committed. A
+   * referenced variable that is not set fails the run with a message naming it,
+   * rather than sending an empty header and reporting the resulting 401 as if
+   * the server had rejected valid credentials.
+   *
+   * A generic map rather than a `bearer`/`basic` union: users need
+   * `X-API-Key` and similar just as often as `Authorization`, and one map
+   * covers every scheme without a new option per scheme.
+   *
+   * @examples require('./examples-for-schema.ts').InputUrlHeadersExamples
+   */
+  headers?: { [headerName: string]: string };
 }
 
 /**
