@@ -179,6 +179,20 @@ export type NarrowedMergeInput = Array<SingleMergeInput & { oas: OpenApiDocument
  */
 export interface MergeOptions {
   /**
+   * The `openapi` version string to emit (issue #76).
+   *
+   * By default the output declares the highest version the inputs declared,
+   * which is already well defined because every input must share a
+   * major.minor. Set this to pin an exact value -- typically a specific patch
+   * level a downstream tool insists on.
+   *
+   * Must be a supported version whose minor matches the inputs'. Emitting a
+   * different minor is refused rather than obeyed: it would declare
+   * conformance to a specification the merged document does not follow.
+   */
+  openapiVersion?: string;
+
+  /**
    * How to combine the top-level `servers` array. Defaults to `'first'`.
    * See {@link ServersStrategy} for why that is the default (issue #4).
    */

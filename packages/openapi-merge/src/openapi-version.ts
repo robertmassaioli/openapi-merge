@@ -147,6 +147,52 @@ export function validateInputVersions(
  *
  * Returns undefined only when there are no inputs, which `merge` rejects first.
  */
+/**
+ * Resolves an explicit output-version override against the inputs (issue #76).
+ *
+ * Returns the version to emit, or an error if the override cannot honestly be
+ * emitted for these inputs.
+ *
+ * The minor must match. 3.1 is not a compatible superset of 3.0 -- `nullable`
+ * became a type union, `exclusiveMinimum` changed from boolean to numeric --
+ * so relabelling 3.0 documents as 3.1 produces a document that declares
+ * conformance to rules its own contents break. Patch is free to differ, because
+ * within a minor the patch level carries no feature difference; that is exactly
+ * the latitude someone pinning "3.0.3" for a downstream tool needs.
+ */
+export function resolveOutputVersion(inputs: NarrowedMergeInput, override: string | undefined): string | undefined | ErrorMergeResult {
+  const negotiated = negotiateOutputVersion(inputs);
+
+  if (override === undefined) {
+    return negotiated;
+  }
+
+  const parsed = parseOpenApiVersion(override);
+  if (parsed === undefined || !SUPPORTED_MINOR_VERSIONS.includes(toMinorVersion(parsed))) {
+    return {
+      type: 'unsupported-openapi-version',
+      message:
+        `The requested output version '${String(override)}' is not one this library can emit. ` +
+        `Supported minor versions: ${SUPPORTED_MINOR_VERSIONS.join(', ')}.`,
+    };
+  }
+
+  // `negotiated` is undefined only when no input declared a parseable version,
+  // and validateInputVersions has already rejected that before we get here.
+  const inputsMinor = negotiated === undefined ? undefined : toMinorVersion(parseOpenApiVersion(negotiated) as OpenApiVersion);
+
+  if (inputsMinor !== undefined && toMinorVersion(parsed) !== inputsMinor) {
+    return {
+      type: 'mixed-openapi-versions',
+      message:
+        `The requested output version '${override}' does not match the inputs, which are ${inputsMinor}. ` +
+        `Emitting a different minor version would declare conformance to a specification the merged document does not follow.`,
+    };
+  }
+
+  return parsed.raw;
+}
+
 export function negotiateOutputVersion(inputs: NarrowedMergeInput): string | undefined {
   let best: OpenApiVersion | undefined;
 

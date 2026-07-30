@@ -544,3 +544,65 @@ matches the discriminated-union approach used in #114.
 - [ ] At no point does the tool re-label a document across `major.minor`
       lines automatically (§1 rule 2). Test cases above prove this for
       `highest-input`; `fixed` is explicit so the user owns the choice.
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/76-openapi-version`. This proposal predates the phased 3.1/3.2
+work, and half of it has already shipped: phase 1 replaced the hardcoded
+`'3.0.3'` with `negotiateOutputVersion`, which is §3's `'highest-input'`
+strategy. What remained was the ability to *choose*.
+
+### 10.1 A version string, not a three-way strategy union
+
+§3 proposes `{ strategy: 'fixed' | 'first-input' | 'highest-input' }`. Shipped
+as a plain `openapiVersion?: string` instead.
+
+Phase 1 changed what those strategies mean. Every input must now share a
+major.minor before merging begins, so `'first-input'` and `'highest-input'` can
+differ only in the patch digit — a distinction with no feature content and no
+plausible reason to configure. That leaves one real choice, "use the negotiated
+version or this exact one", which a string expresses without asking the caller
+to learn a tagged union.
+
+### 10.2 The minor is validated, not just the format
+
+§4 proposes a `^3\.0\.[0-9]+$` pattern check. That is now too narrow — 3.1 and
+3.2 are supported — and it misses the more important rule.
+
+`resolveOutputVersion` rejects a pin whose **minor** differs from the inputs',
+with `mixed-openapi-versions`. 3.1 is not a compatible superset of 3.0:
+`nullable` became a type union, `exclusiveMinimum` changed from boolean to
+numeric. Relabelling a 3.0 merge as 3.1 produces a document declaring
+conformance to rules its own contents break — silently, and only detected much
+later by someone else's validator. Differing *patch* is allowed, which is
+exactly the latitude someone pinning `3.0.3` for a downstream generator needs.
+
+An unsupported or unparseable value gets `unsupported-openapi-version`, reusing
+the existing error type rather than adding one for a case with the same remedy.
+
+### 10.3 Three silent no-op edits, caught by tests
+
+Worth recording as a process note. Three separate patches to the CLI applied
+cleanly against text that no longer existed on this branch, because `main` had
+moved on:
+
+- the `Configuration` type now ends with `serversStrategy` (#4), not `formatting`;
+- the merge call is `merge(inputs, { serversStrategy })`, not `merge(inputs)`;
+- and the `@pattern` JSDoc got double-escaped, producing `^3\\.` in the
+  generated schema — a regex matching a literal backslash.
+
+Each one failed silently: the file was written, nothing errored, and the
+feature simply did not work. All three were found by the CLI tests, not by
+reading the diff. The lesson for the rest of the sweep is to assert the anchor
+exists before replacing it, which the last of these patches does.
+
+### 10.4 Verification
+
+- 7 tests in `versions.test.ts`. **5 fail against `origin/main`**, confirmed in
+  a detached worktree.
+- 4 CLI tests in `cli-merging.test.ts`, including exit 9 for a mismatched minor
+  and ajv rejecting a malformed version against the generated pattern.
+- Gate green: lint, 395 tests, 48 artifact checks.

@@ -185,3 +185,53 @@ describe('main - duplicatePathHandling (issue #71)', () => {
     expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
   });
 });
+
+/**
+ * Issue #76: pinning the emitted OpenAPI version from a config file.
+ */
+describe('main - openapiVersion (issue #76)', () => {
+  it('negotiates from the inputs when unset', async () => {
+    cli.writeJson('a.json', { openapi: '3.0.1', info: { title: 'A', version: '1' }, paths: { '/a': getPath('getA') } });
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+    expect(JSON.parse(cli.read()).openapi).toBe('3.0.1');
+  });
+
+  it('emits the pinned version', async () => {
+    cli.writeJson('a.json', { openapi: '3.0.1', info: { title: 'A', version: '1' }, paths: { '/a': getPath('getA') } });
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+      openapiVersion: '3.0.3',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+    expect(JSON.parse(cli.read()).openapi).toBe('3.0.3');
+  });
+
+  it('exits 9 when the pinned minor does not match the inputs', async () => {
+    cli.writeJson('a.json', { openapi: '3.0.1', info: { title: 'A', version: '1' }, paths: { '/a': getPath('getA') } });
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+      openapiVersion: '3.1.0',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorOpenApiVersion);
+  });
+
+  it('rejects a malformed version against the generated schema', async () => {
+    cli.writeJson('a.json', { openapi: '3.0.1', info: { title: 'A', version: '1' }, paths: { '/a': getPath('getA') } });
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+      openapiVersion: 'latest',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
+  });
+});
