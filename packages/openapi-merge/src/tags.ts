@@ -1,12 +1,17 @@
 import { NarrowedMergeInput } from './data';
 import { Tag32 } from './oas31';
+import { TagMatcher } from './tag-matching';
 
 function getNonExcludedTags(originalTags: Tag32[], excludedTagNames: string[]): Tag32[] {
-  if (excludedTagNames.length === 0) {
+  // The same matcher the operation filter uses, so a wildcard cannot remove the
+  // operations while leaving their tag declarations behind in the output
+  // (issue #111).
+  const matcher = new TagMatcher(excludedTagNames);
+  if (matcher.isEmpty) {
     return originalTags;
   }
 
-  return originalTags.filter(tag => !excludedTagNames.includes(tag.name));
+  return originalTags.filter(tag => !matcher.matches(tag.name));
 }
 
 export function mergeTags(inputs: NarrowedMergeInput): Tag32[] | undefined {

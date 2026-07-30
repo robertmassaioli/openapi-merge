@@ -1,7 +1,7 @@
 import { merge } from '../index';
 import { toOAS } from './_helpers/oas-generation';
 import { expectMergeResult } from './_helpers/test-utils';
-import { doc32, expectSuccess, op } from './_helpers/documents';
+import { doc30, doc31, doc32, expectSuccess, op, pathKeys, tagged } from './_helpers/documents';
 
 /**
  * Operation selection: filtering operations by tag via `includeTags` and
@@ -389,5 +389,83 @@ describe('3.2 - tag selection covers the new slots', () => {
 
     expect(output.paths?.['/search'].query).toBeDefined();
     expect(output.paths?.['/search'].get).toBeUndefined();
+  });
+});
+
+/**
+ * Issue #111: wildcards driving a real merge.
+ *
+ * Tag selection was exact-match, so a team with `service-a`, `service-b`, …
+ * had to enumerate every tag and update the config whenever one appeared.
+ * Forgetting silently includes or excludes the wrong operations.
+ */
+describe('wildcard tag selection (issue #111)', () => {
+  const doc = () =>
+    doc30({
+      paths: {
+        '/a': { get: tagged('a', ['service-a']) },
+        '/b': { get: tagged('b', ['service-b']) },
+        '/other': { get: tagged('other', ['public']) },
+      },
+      tags: [{ name: 'service-a' }, { name: 'service-b' }, { name: 'public' }],
+    });
+
+  it('excludes every tag matching a wildcard', () => {
+    const output = expectSuccess(
+      merge([{ oas: doc(), operationSelection: { excludeTags: ['service-*'] } }]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/other']);
+  });
+
+  it('includes only the tags matching a wildcard', () => {
+    const output = expectSuccess(
+      merge([{ oas: doc(), operationSelection: { includeTags: ['service-*'] } }]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/a', '/b']);
+  });
+
+  it('removes wildcard-excluded tags from the top-level tags list', () => {
+    const output = expectSuccess(
+      merge([{ oas: doc(), operationSelection: { excludeTags: ['service-*'] } }]),
+    );
+
+    // Otherwise the operations go and their declarations stay, describing
+    // tags the document no longer uses.
+    expect(output.tags?.map(t => t.name)).toEqual(['public']);
+  });
+
+  it('still supports exact tags unchanged', () => {
+    const output = expectSuccess(
+      merge([{ oas: doc(), operationSelection: { excludeTags: ['service-a'] } }]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/b', '/other']);
+    expect(output.tags?.map(t => t.name)).toEqual(['service-b', 'public']);
+  });
+
+  it('mixes exact and wildcard patterns in one list', () => {
+    const output = expectSuccess(
+      merge([{ oas: doc(), operationSelection: { excludeTags: ['public', 'service-*'] } }]),
+    );
+
+    expect(pathKeys(output)).toEqual([]);
+  });
+
+  it('applies wildcards to webhook operations too', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc31({
+            paths: {},
+            webhooks: { ping: { post: tagged('ping', ['internal-ping']) }, keep: { post: tagged('keep', ['public']) } },
+          }),
+          operationSelection: { excludeTags: ['internal-*'] },
+        },
+      ]),
+    );
+
+    expect(Object.keys(output.webhooks ?? {})).toEqual(['keep']);
   });
 });
