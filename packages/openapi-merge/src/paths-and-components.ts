@@ -1,4 +1,4 @@
-import { MergeInput, ErrorMergeResult, Dispute } from "./data";
+import { NarrowedMergeInput, ErrorMergeResult, Dispute } from "./data";
 import { Swagger, SwaggerLookup } from "@atlassian/atlassian-openapi";
 import { walkAllReferences } from "./reference-walker";
 import _ from 'lodash';
@@ -175,7 +175,7 @@ function ensureUniqueOperationIds(pathItem: PathItem32, seenOperationIds: Set<st
  *
  * @param inputs
  */
-export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents | ErrorMergeResult {
+export function mergePathsAndComponents(inputs: NarrowedMergeInput): PathAndComponents | ErrorMergeResult {
   const seenOperationIds = new Set<string>();
 
   const result: PathAndComponents = {

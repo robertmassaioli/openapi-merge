@@ -1,5 +1,5 @@
 import { Swagger } from '@atlassian/atlassian-openapi';
-import { MergeInput, SingleMergeInput } from './data';
+import { NarrowedMergeInput, SingleMergeInput } from './data';
 import { isPresent } from 'ts-is-present';
 import _ from 'lodash';
 
@@ -23,7 +23,7 @@ function getInfoDescriptionWithHeading(mergeInput: SingleMergeInput): string | u
   return `${'#'.repeat(headingLevel)} ${title.value}\n\n${trimmedDescription}`;
 }
 
-export function mergeInfos(mergeInput: MergeInput): Swagger.Info {
+export function mergeInfos(mergeInput: NarrowedMergeInput): Swagger.Info {
   const finalInfo = _.cloneDeep(mergeInput[0].oas.info);
 
   const appendedDescriptions = mergeInput

@@ -1,4 +1,4 @@
-import { OpenApiDocument } from './oas31';
+import { MergeInputDocument, OpenApiDocument } from './oas31';
 
 import { ServersStrategy } from './servers';
 
@@ -41,7 +41,15 @@ export interface DisputeSuffix extends DisputeBase {
 export type Dispute = DisputePrefix | DisputeSuffix;
 
 export interface SingleMergeInputBase {
-  oas: OpenApiDocument;
+  /**
+   * The specification to merge.
+   *
+   * Accepts this library's own `OpenApiDocument` as well as
+   * `OpenAPIV3.Document` / `OpenAPIV3_1.Document` from `openapi-types`, so a
+   * document straight out of `@apidevtools/swagger-parser` needs no cast
+   * (issue #75). See {@link MergeInputDocument}.
+   */
+  oas: MergeInputDocument;
 
   pathModification?: PathModification;
 
@@ -121,6 +129,17 @@ export type DescriptionTitle = {
 };
 
 export type MergeInput = Array<SingleMergeInput>;
+
+/**
+ * A `MergeInput` after `merge()` has narrowed each `oas` at the boundary.
+ *
+ * The public input type accepts `openapi-types` documents as well as this
+ * library's own (issue #75). Every function below the entry point wants the
+ * single concrete type, so `merge()` narrows once and passes this onward --
+ * one cast, in one place, with the reasoning attached, instead of a union
+ * every internal function has to re-narrow.
+ */
+export type NarrowedMergeInput = Array<SingleMergeInput & { oas: OpenApiDocument }>;
 
 /**
  * Document-level options for a merge.

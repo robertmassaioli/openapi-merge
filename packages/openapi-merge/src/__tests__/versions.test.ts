@@ -3,7 +3,7 @@ import { Swagger } from '@atlassian/atlassian-openapi';
 import {
   parseOpenApiVersion, SUPPORTED_MINOR_VERSIONS, toMinorVersion, validateInputVersions,
 } from '../openapi-version';
-import { SingleMergeInput, isErrorResult } from '../data';
+import { NarrowedMergeInput, SingleMergeInput, isErrorResult } from '../data';
 import { doc31, doc32, expectSuccess, expectMergeError, ok, op } from './_helpers/documents';
 
 /**
@@ -27,7 +27,7 @@ function oasAtVersion(version: unknown): Swagger.SwaggerV3 {
   return d as unknown as Swagger.SwaggerV3;
 }
 
-function inputsAt(...versions: unknown[]): SingleMergeInput[] {
+function inputsAt(...versions: unknown[]): NarrowedMergeInput {
   return versions.map(v => ({ oas: oasAtVersion(v) }));
 }
 
