@@ -180,6 +180,7 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
         operationSelection: input.operationSelection,
         description: input.description,
         duplicatePathHandling: input.duplicatePathHandling,
+        tag: input.tag,
       };
 
       if ('dispute' in input) {

@@ -56,6 +56,30 @@ export type Dispute = DisputePrefix | DisputeSuffix;
  */
 export type DuplicatePathHandling = 'error' | 'skip-later' | 'prefer-later';
 
+/**
+ * A tag applied to every operation coming from one input (issue #112).
+ *
+ * Lets a merged document distinguish which service each operation came from
+ * without anybody editing the upstream specifications -- which is the point,
+ * since those are usually owned by another team.
+ */
+export type TagInjection = {
+  /**
+   * The tag to add to every operation from this input.
+   *
+   * @minLength 1
+   */
+  name: string;
+
+  /**
+   * Description for this tag in the output's top-level `tags` array.
+   *
+   * Ignored if another input already contributed a tag of the same name --
+   * first-wins, as everywhere else in this merge.
+   */
+  description?: string;
+};
+
 export interface SingleMergeInputBase {
   /**
    * The specification to merge.
@@ -90,6 +114,16 @@ export interface SingleMergeInputBase {
    * into the final resulting OpenAPI file
    */
   description?: DescriptionMergeBehaviour;
+
+  /**
+   * Add a tag to every operation from this input (issue #112).
+   *
+   * Applied *after* `operationSelection`, so an injected tag cannot influence
+   * the include/exclude rules that decided which operations survive. Injecting
+   * first would make `includeTags: ['billing']` match operations solely because
+   * this input injects `billing`, which reads as a filter doing nothing.
+   */
+  tag?: TagInjection;
 }
 
 /**

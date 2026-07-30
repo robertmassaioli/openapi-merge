@@ -3,6 +3,7 @@ import { Swagger, SwaggerLookup, SwaggerTypeChecks } from "@atlassian/atlassian-
 import { walkAllReferences } from "./reference-walker";
 import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";
+import { injectTag } from './tag-injection';
 import { deepEquality } from "./component-equivalence";
 import { applyDispute, getDispute } from './dispute';
 import { Components31, getPathItemOperations, getPaths, getWebhooks, OpenApiDocument, PathItem32, PathItemMap } from './oas31';
@@ -333,7 +334,13 @@ export function mergePathsAndComponents(inputs: NarrowedMergeInput): PathAndComp
     const dispute = getDispute(input);
     const duplicatePathHandling = input.duplicatePathHandling ?? 'error';
 
-    const oas = dropPathItemsWithNoOperations(runOperationSelection(_.cloneDeep(originalOas), operationSelection));
+    // Tag injection comes last: after selection has decided what survives, and
+    // after empty path items are dropped, so nothing is tagged that is not in
+    // the output (issue #112).
+    const oas = injectTag(
+      dropPathItemsWithNoOperations(runOperationSelection(_.cloneDeep(originalOas), operationSelection)),
+      input.tag,
+    );
 
     // Original references will be transformed to new non-conflicting references
     const referenceModification: { [originalReference: string]: string } = {};

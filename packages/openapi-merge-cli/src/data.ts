@@ -156,7 +156,36 @@ export interface ConfigurationInputBase {
    * input wins and the rest are additive".
    */
   duplicatePathHandling?: 'error' | 'skip-later' | 'prefer-later';
+
+  /**
+   * Add a tag to every operation from this input (issue #112).
+   *
+   * Lets the merged document say which service an operation came from without
+   * editing the upstream specification. Applied after `operationSelection`, so
+   * the injected tag cannot influence which operations survive.
+   *
+   * @examples require('./examples-for-schema.ts').TagInjectionExamples
+   */
+  tag?: TagInjectionConfig;
 }
+
+/**
+ * A tag applied to every operation from one input.
+ */
+export type TagInjectionConfig = {
+  /**
+   * The tag name to add.
+   *
+   * @minLength 1
+   */
+  name: string;
+
+  /**
+   * Description for the tag in the merged document's top-level `tags` array.
+   * First-wins if another input injects the same name.
+   */
+  description?: string;
+};
 
 /**
  * A single Configuration input from a File.
