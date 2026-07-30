@@ -1,6 +1,6 @@
 import { merge } from '../index';
 import { Swagger } from '@atlassian/atlassian-openapi';
-import { doc30, expectMergeError, expectSuccess, op, pathKeys } from './_helpers/documents';
+import { doc30, doc31, expectMergeError, expectSuccess, op, pathKeys } from './_helpers/documents';
 import { toOAS } from "./_helpers/oas-generation";
 import { expectMergeResult, toMergeInputs, expectErrorType } from "./_helpers/test-utils";
 import { SingleMergeInput } from "../data";
@@ -332,5 +332,131 @@ describe('pathModification.stripStart', () => {
     const result = expectSuccess(merge([{ oas: toOAS(paths), pathModification: { stripStart: '/nope' } }]));
 
     expect(Object.keys(result.paths ?? {})).toEqual(['/api/thing']);
+  });
+});
+
+/**
+ * Issue #71: configurable duplicate-path handling.
+ *
+ * A duplicate path was an unconditional hard error, which blocks the
+ * API-gateway case this tool targets -- two teams legitimately exposing the
+ * same route, where one of them should simply win.
+ *
+ * Per input rather than global, because what people want to express is "this
+ * one input wins and the rest are additive", which a single global setting
+ * cannot say. The default is unchanged, so nothing that worked before behaves
+ * differently.
+ */
+describe('duplicatePathHandling (issue #71)', () => {
+  const inputWith = (pathName: string, operationId: string, handling?: 'error' | 'skip-later' | 'prefer-later') => ({
+    oas: doc30({ paths: { [pathName]: { get: op(operationId) } } }),
+    ...(handling === undefined ? {} : { duplicatePathHandling: handling }),
+  });
+
+  it('still errors by default, with the option absent entirely', () => {
+    const result = merge([inputWith('/a', 'first'), inputWith('/a', 'second')]);
+
+    expectMergeError(result, 'duplicate-paths');
+  });
+
+  it("still errors when 'error' is set explicitly", () => {
+    const result = merge([inputWith('/a', 'first'), inputWith('/a', 'second', 'error')]);
+
+    expectMergeError(result, 'duplicate-paths');
+  });
+
+  it("keeps the earlier definition under 'skip-later'", () => {
+    const output = expectSuccess(merge([inputWith('/a', 'first'), inputWith('/a', 'second', 'skip-later')]));
+
+    expect(output.paths?.['/a']?.get?.operationId).toBe('first');
+  });
+
+  it("takes the later definition under 'prefer-later'", () => {
+    const output = expectSuccess(merge([inputWith('/a', 'first'), inputWith('/a', 'second', 'prefer-later')]));
+
+    expect(output.paths?.['/a']?.get?.operationId).toBe('second');
+  });
+
+  it('leaves non-colliding paths from the skipped input alone', () => {
+    const output = expectSuccess(
+      merge([
+        inputWith('/a', 'first'),
+        {
+          oas: doc30({ paths: { '/a': { get: op('second') }, '/b': { get: op('other') } } }),
+          duplicatePathHandling: 'skip-later' as const,
+        },
+      ]),
+    );
+
+    // Only the colliding path is dropped; the input is not discarded wholesale.
+    expect(pathKeys(output)).toEqual(['/a', '/b']);
+    expect(output.paths?.['/a']?.get?.operationId).toBe('first');
+    expect(output.paths?.['/b']?.get?.operationId).toBe('other');
+  });
+
+  it('does not consume operationIds from a skipped path', () => {
+    // A discarded path must not push a later, unrelated operation onto a
+    // numeric suffix by colliding with something that is not in the output.
+    const output = expectSuccess(
+      merge([
+        inputWith('/a', 'shared'),
+        { oas: doc30({ paths: { '/a': { get: op('ignored') } } }), duplicatePathHandling: 'skip-later' as const },
+        { oas: doc30({ paths: { '/c': { get: op('ignored') } } }) },
+      ]),
+    );
+
+    expect(output.paths?.['/c']?.get?.operationId).toBe('ignored');
+  });
+
+  it('releases the replaced operationId under prefer-later', () => {
+    // Without releasing it, the winning operation would collide with the id of
+    // the definition it just replaced and be renamed `shared1` -- leaving a
+    // document where `shared` exists nowhere.
+    const output = expectSuccess(
+      merge([
+        inputWith('/a', 'shared'),
+        { oas: doc30({ paths: { '/a': { get: op('shared') } } }), duplicatePathHandling: 'prefer-later' as const },
+      ]),
+    );
+
+    expect(output.paths?.['/a']?.get?.operationId).toBe('shared');
+  });
+
+  it('applies to a duplicate created by pathModification, not just to identical keys', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc30({ paths: { '/api/a': { get: op('first') } } }) },
+        {
+          oas: doc30({ paths: { '/a': { get: op('second') } } }),
+          pathModification: { prepend: '/api' },
+          duplicatePathHandling: 'skip-later',
+        },
+      ]),
+    );
+
+    expect(output.paths?.['/api/a']?.get?.operationId).toBe('first');
+  });
+
+  it('applies to webhooks, which collide by event name the same way', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc31({ paths: {}, webhooks: { ping: { post: op('firstPing') } } }) },
+        {
+          oas: doc31({ paths: {}, webhooks: { ping: { post: op('secondPing') } } }),
+          duplicatePathHandling: 'prefer-later',
+        },
+      ]),
+    );
+
+    expect(output.webhooks?.ping?.post?.operationId).toBe('secondPing');
+  });
+
+  it('still errors on duplicate webhooks by default', () => {
+    const result = merge([
+      { oas: doc31({ paths: {}, webhooks: { ping: { post: op('a') } } }) },
+      { oas: doc31({ paths: {}, webhooks: { ping: { post: op('b') } } }) },
+    ]);
+
+    expectMergeError(result, 'duplicate-webhooks');
   });
 });

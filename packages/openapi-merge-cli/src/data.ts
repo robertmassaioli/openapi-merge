@@ -143,6 +143,19 @@ export interface ConfigurationInputBase {
    * @examples require('./examples-for-schema.ts').DescriptionMergeBehaviourExamples
    */
   description?: DescriptionMergeBehaviour;
+
+  /**
+   * What to do when this input declares a path (or webhook) that an earlier
+   * input already contributed (issue #71).
+   *
+   * - `error` (default) — fail the merge, as it always has.
+   * - `skip-later` — keep the definition already present, drop this one.
+   * - `prefer-later` — replace the definition already present with this one.
+   *
+   * Per input rather than global, so a configuration can say "this gateway
+   * input wins and the rest are additive".
+   */
+  duplicatePathHandling?: 'error' | 'skip-later' | 'prefer-later';
 }
 
 /**
