@@ -245,6 +245,21 @@ export type Configuration = {
    *   URL. For documenting several microservices in one file.
    */
   serversStrategy?: 'first' | 'concat';
+
+  /**
+   * The `openapi` version string to write into the merged output (issue #76).
+   *
+   * By default the output declares the highest version the inputs declared.
+   * Set this to pin an exact value, typically a patch level a downstream
+   * generator insists on.
+   *
+   * The minor must match the inputs'. Emitting a different minor is refused
+   * rather than obeyed: it would declare conformance to a specification the
+   * merged document does not follow.
+   *
+   * @pattern ^3\.[0-9]+\.[0-9]+$
+   */
+  openapiVersion?: string;
 };
 
 /**

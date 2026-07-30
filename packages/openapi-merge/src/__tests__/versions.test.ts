@@ -4,6 +4,7 @@ import {
   parseOpenApiVersion, SUPPORTED_MINOR_VERSIONS, toMinorVersion, validateInputVersions,
 } from '../openapi-version';
 import { SingleMergeInput, isErrorResult } from '../data';
+import { OpenApiDocument } from '../oas31';
 import { doc31, doc32, expectSuccess, expectMergeError, ok, op } from './_helpers/documents';
 
 /**
@@ -277,5 +278,75 @@ describe('3.2 - version rules', () => {
     const output = expectSuccess(merge([{ oas: doc32({ paths: { '/a': { get: op('getA') } } }) }]));
 
     expect(output.openapi).toBe('3.2.0');
+  });
+});
+
+/**
+ * Issue #76: pinning the emitted `openapi` version.
+ *
+ * Phase 1 made the output version negotiated from the inputs rather than
+ * hardcoded, which is the right default. What was still missing is the ability
+ * to *choose* it -- typically to pin an exact patch level a downstream
+ * generator insists on.
+ *
+ * The minor is not negotiable. 3.1 is not a compatible superset of 3.0
+ * (`nullable` became a type union, `exclusiveMinimum` changed from boolean to
+ * numeric), so relabelling would declare conformance to rules the document's
+ * own contents break.
+ */
+describe('openapiVersion override (issue #76)', () => {
+  const at = (version: string) => ({
+    oas: { openapi: version, info: { title: 'T', version: '1' }, paths: {} } as OpenApiDocument,
+  });
+
+  it('negotiates from the inputs when no override is given', () => {
+    const output = expectSuccess(merge([at('3.0.1'), at('3.0.3')]));
+
+    expect(output.openapi).toBe('3.0.3');
+  });
+
+  it('emits an explicit patch version when pinned', () => {
+    const output = expectSuccess(merge([at('3.0.3')], { openapiVersion: '3.0.0' }));
+
+    // Deliberately lower than the input: pinning is for satisfying a
+    // downstream tool, and within a minor the patch carries no features.
+    expect(output.openapi).toBe('3.0.0');
+  });
+
+  it('accepts a pin equal to the negotiated version', () => {
+    const output = expectSuccess(merge([at('3.1.1')], { openapiVersion: '3.1.1' }));
+
+    expect(output.openapi).toBe('3.1.1');
+  });
+
+  it('refuses a pin whose minor differs from the inputs', () => {
+    const message = expectMergeError(merge([at('3.0.3')], { openapiVersion: '3.1.0' }), 'mixed-openapi-versions');
+
+    expect(message).toContain('3.1.0');
+    expect(message).toContain('3.0');
+  });
+
+  it('refuses a pin this library cannot emit at all', () => {
+    const message = expectMergeError(merge([at('3.0.3')], { openapiVersion: '4.0.0' }), 'unsupported-openapi-version');
+
+    expect(message).toContain('4.0.0');
+  });
+
+  it('refuses a pin that is not a version string', () => {
+    expectMergeError(merge([at('3.0.3')], { openapiVersion: 'latest' }), 'unsupported-openapi-version');
+  });
+
+  it('leaves the merged content untouched when pinning', () => {
+    const output = expectSuccess(
+      merge(
+        [
+          { oas: { openapi: '3.0.3', info: { title: 'A', version: '1' }, paths: { '/a': { get: { responses: { '200': { description: 'ok' } } } } } } as OpenApiDocument },
+        ],
+        { openapiVersion: '3.0.1' },
+      ),
+    );
+
+    expect(output.openapi).toBe('3.0.1');
+    expect(Object.keys(output.paths ?? {})).toEqual(['/a']);
   });
 });

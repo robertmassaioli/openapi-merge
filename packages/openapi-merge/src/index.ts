@@ -4,7 +4,7 @@ import { mergeTags } from './tags';
 import { mergePathsAndComponents } from './paths-and-components';
 import { mergeExtensions } from './extensions';
 import { mergeInfos } from './info';
-import { negotiateOutputVersion, validateInputVersions } from './openapi-version';
+import { resolveOutputVersion, validateInputVersions } from './openapi-version';
 import { OpenApiDocument } from './oas31';
 import { mergeServers, ServersStrategy } from './servers';
 
@@ -52,6 +52,11 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
     return versionError;
   }
 
+  const outputVersion = resolveOutputVersion(inputs, options?.openapiVersion);
+  if (outputVersion !== undefined && typeof outputVersion !== 'string') {
+    return outputVersion;
+  }
+
   const pathAndComponentResult = mergePathsAndComponents(inputs);
 
   if (isErrorResult(pathAndComponentResult)) {
@@ -66,7 +71,7 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
     {
       // The version the inputs actually declared, rather than a hard-coded
       // 3.0.3. Well defined because every input shares a major.minor by now.
-      openapi: negotiateOutputVersion(inputs) ?? '3.0.3',
+      openapi: outputVersion ?? '3.0.3',
       info: mergeInfos(inputs),
       servers: mergeServers(inputs, options?.serversStrategy),
       externalDocs: getFirstMatching(inputs, input => input.oas.externalDocs),
