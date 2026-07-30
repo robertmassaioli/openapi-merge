@@ -1,3 +1,4 @@
+import { Swagger } from '@atlassian/atlassian-openapi';
 import { OpenApiDocument } from './oas31';
 
 import { ServersStrategy } from './servers';
@@ -134,6 +135,19 @@ export type MergeInput = Array<SingleMergeInput>;
  * existed before the option did, so `merge(inputs)` is unchanged.
  */
 export interface MergeOptions {
+  /**
+   * Override fields of the merged `info` object (issue #102).
+   *
+   * `info` is otherwise taken from the first input, so a merged document is
+   * titled after whichever service happens to be listed first -- misleading for
+   * an aggregate API that is none of its inputs.
+   *
+   * Merged field by field, so overriding only `title` does not require
+   * restating the required `version`. Applied after description appending, so
+   * an explicit `description` wins over the appended one.
+   */
+  info?: Partial<Swagger.Info>;
+
   /**
    * How to combine the top-level `servers` array. Defaults to `'first'`.
    * See {@link ServersStrategy} for why that is the default (issue #4).

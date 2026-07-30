@@ -245,6 +245,30 @@ export type Configuration = {
    *   URL. For documenting several microservices in one file.
    */
   serversStrategy?: 'first' | 'concat';
+
+  /**
+   * Override fields of the merged `info` object (issue #102).
+   *
+   * Without this, `info` comes from the first input, so a merged document is
+   * titled after whichever service happens to be listed first. Merged field by
+   * field, so setting only `title` does not require restating `version`.
+   */
+  info?: ConfigurationInfoOverride;
+};
+
+/**
+ * The subset of `info` worth overriding from a configuration file.
+ *
+ * Deliberately not the full Info object: `version` and `title` are the ones
+ * people ask for, and description rounds it out. Kept narrow so the generated
+ * schema stays readable and `--noExtraProps` still catches typos.
+ */
+export type ConfigurationInfoOverride = {
+  /** @minLength 1 */
+  title?: string;
+  /** @minLength 1 */
+  version?: string;
+  description?: string;
 };
 
 /**
