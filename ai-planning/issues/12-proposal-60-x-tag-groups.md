@@ -1,6 +1,6 @@
 # Implementation Proposal: Issue #60 — Concatenate `x-tagGroups` Across Inputs
 
-**Status:** Proposal  
+**Status:** ✅ Implemented — see §10  
 **Value:** 3/5 — useful for ReDoc users who compose multiple specs with tag groups.  
 **Effort:** 2/5 — localized change to extension merge; no API changes required.
 
@@ -467,3 +467,52 @@ describe('x-tagGroups', () => {
 - Write and run tests: ~30 min.
 - **Total:** ~1.5 hours.
 
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/60-x-tag-groups`. §5's concatenation semantics implemented as
+written. Two deliberate departures from §4.
+
+### 10.1 Option A, not the recommended Option C
+
+§4 recommends shipping the `x-tagGroups` special case **and** a configurable
+`extensionMergeStrategies` map. Only the special case was built.
+
+The configurable half is speculative generality: no second extension has been
+asked for, it is public API that then has to be supported indefinitely, and it
+would collide with the `MergeOptions` bag #4 introduces. If a second ReDoc-style
+extension ever needs it, adding the mechanism at that point is no harder than
+adding it now — and by then its shape will be informed by two real cases rather
+than one hypothetical.
+
+Every other `x-` extension stays first-wins, which §3 already argues for:
+opaque semantics mean concatenation could corrupt a vendor's data in ways this
+library cannot detect.
+
+### 10.2 An unrecognised shape is left alone
+
+Not in the proposal. If any input's `x-tagGroups` is not an array of
+`{ name }` objects, the merge does not touch it and first-wins applies. Guessing
+at a structure we do not recognise is how a merge tool corrupts data it was only
+asked to carry through. Tested.
+
+### 10.3 §5.4 (tag filtering) deliberately not implemented
+
+§5.4 says a tag removed by `excludeTags` should also be removed from
+`x-tagGroups`. Left out on purpose. The obvious implementation — drop group
+entries whose tag is not in the merged top-level `tags` — would corrupt valid
+documents, because the specification does not require an operation's tag to be
+declared in `tags` at all. Doing it correctly means tracking which tags
+`operationSelection` actually removed, which is the same reachability problem as
+issue #94 (orphaned components after tag exclusion) and belongs with it.
+
+### 10.4 Verification
+
+- 8 tests in `document-metadata.test.ts`, which owns top-level document
+  metadata. **6 fail against `origin/main`**, confirmed in a detached worktree.
+- The other two are the guards that matter: other `x-` extensions stay
+  first-wins, and an unrecognised `x-tagGroups` shape is untouched.
+- Gate green: lint, 392 tests, 48 artifact checks.
