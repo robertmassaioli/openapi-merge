@@ -4,7 +4,7 @@
 **Type:** Feature / design
 **Scope:** `packages/openapi-merge`, `packages/openapi-merge-cli`
 **Date:** 2026-07-26
-**Depends on:** [`proposal-openapi-3.2-support.md`](proposal-openapi-3.2-support.md) §4.1 and §4.2
+**Depends on:** [`24-proposal-openapi-3.2-support.md`](24-proposal-openapi-3.2-support.md) §4.1 and §4.2
 
 ---
 
@@ -119,7 +119,7 @@ output is invalid in more places than before.
 
 **Conclusion:** auto-upgrade is not an alternative to teaching the merge about
 3.1 — it is strictly downstream of it. Shipping §4 below before
-`proposal-openapi-3.2-support.md` §4.2 would be a regression.
+`24-proposal-openapi-3.2-support.md` §4.2 would be a regression.
 
 ## 4. Proposed policy for mixed versions
 
@@ -179,7 +179,7 @@ If a library-level API is wanted later, it should be a separate entry point
 
 ## 6. What it would take
 
-Phases, assuming `proposal-openapi-3.2-support.md` §4.1 and §4.2 have landed.
+Phases, assuming `24-proposal-openapi-3.2-support.md` §4.1 and §4.2 have landed.
 
 | Phase | Work | Effort |
 | --- | --- | --- |
@@ -254,12 +254,12 @@ Honest limits, so nobody expects more than it delivers.
 
 ## 10. Relationship to other proposals
 
-- [`proposal-openapi-3.2-support.md`](proposal-openapi-3.2-support.md) — the
+- [`24-proposal-openapi-3.2-support.md`](24-proposal-openapi-3.2-support.md) — the
   prerequisite. Its §4.1 is phase 1 here; its §4.2 is phase 2 and a hard block
   on everything else. This document answers its open question 2 ("should
   mixed-version merges be allowed at all?"): yes, once §4.2 has landed, via
   normalisation — and no before that.
-- [`issues/proposal-76-openapi-version.md`](issues/proposal-76-openapi-version.md) —
+- [`issues/04-proposal-76-openapi-version.md`](issues/04-proposal-76-openapi-version.md) —
   owns the `MergeOptions` argument and the question of which version label to
   emit. The `openapi.target` option in §4 belongs there rather than being a
   second, parallel mechanism.

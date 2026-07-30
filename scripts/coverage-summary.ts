@@ -7,7 +7,7 @@
  * at 100% cancels out a 200-line file at 20%. That makes it useless for
  * tracking a package over time. This computes covered / total from the lcov
  * `LF`/`LH`/`FNF`/`FNH` records instead, which is what the number should mean.
- * See ai-planning/proposal-code-coverage.md §2.4.
+ * See ai-planning/21-proposal-code-coverage.md §2.4.
  *
  * Prints a Markdown table. When GITHUB_STEP_SUMMARY is set (i.e. in GitHub
  * Actions) it appends there too, so the numbers show up on the run page without

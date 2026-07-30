@@ -5,7 +5,7 @@
 **Scope:** `packages/openapi-merge`, `packages/openapi-merge-cli`
 **Date:** 2026-07-26
 **Branch:** `feat/openapi-32-support`
-**Phase:** 3 of 3 — follows [`proposal-oas-phase2-31-support.md`](proposal-oas-phase2-31-support.md)
+**Phase:** 3 of 3 — follows [`27-proposal-oas-phase2-31-support.md`](27-proposal-oas-phase2-31-support.md)
 
 ---
 
@@ -37,7 +37,7 @@ item by counting the eight classic methods, and `dropPathItemsWithNoOperations`
 **deletes any path item scoring zero**. A 3.2 path whose only operations are
 `query` and `additionalOperations` therefore scores 0 and the entire endpoint is
 silently deleted — measured in
-[`proposal-openapi-3.2-support.md`](proposal-openapi-3.2-support.md) §0.
+[`24-proposal-openapi-3.2-support.md`](24-proposal-openapi-3.2-support.md) §0.
 
 ## 1. Goals
 
@@ -53,7 +53,7 @@ silently deleted — measured in
 ## 2. Non-goals
 
 - Automatic upconversion between versions
-  ([`proposal-mixed-version-inputs.md`](proposal-mixed-version-inputs.md)).
+  ([`25-proposal-mixed-version-inputs.md`](25-proposal-mixed-version-inputs.md)).
 - Validating output against the published 3.2 JSON Schema. Still worth doing;
   still separate.
 - Replacing `@atlassian/atlassian-openapi`. Phase 2 showed the local type delta

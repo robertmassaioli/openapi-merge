@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: Set up Bun
       uses: oven-sh/setup-bun@v2
       with:
@@ -18,6 +18,26 @@ jobs:
     - run: bun run lint
     - run: bun run test
     - run: bun run build
+    # Deliberately placed AFTER lint/test/build and immediately before the
+    # verification step. `setup-node` changes the `node` on PATH for every
+    # subsequent step in the job, and the publish step below runs `node -e` /
+    # `node -p`; there is no reason to make the release path depend on the
+    # oldest Node we support, so the pin is scoped to the step that needs it.
+    - name: Set up Node (the floor of our declared engines range)
+      uses: actions/setup-node@v7
+      with:
+        node-version: '18'
+    # The gate that would have stopped the broken release: pack, install with
+    # npm, and run the artifacts under the OLDEST Node we claim to support.
+    #
+    # `bun run test` cannot catch this -- it imports src/ under Bun. This runs
+    # the tarball. It also fails if dist/index.js is not bundled, which is the
+    # regression that a stray `tsgo` invocation would otherwise reintroduce
+    # silently. See ai-planning/29-proposal-node-runtime-verification.md.
+    - name: Verify the packed artifacts on Node and Bun
+      run: ./scripts/verify-node-runtime.sh
+      env:
+        RUNTIMES: node bun
     - name: Publish packages whose version has been updated
       run: |
         echo "//registry.npmjs.org/:_authToken=${NPM_AUTH_TOKEN}" >> ~/.npmrc

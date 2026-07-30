@@ -14,7 +14,7 @@
 //                      mutates and WRITES src/configuration.schema.json.
 //
 // Those two are unmeasurable by a runtime-instrumented profiler, not
-// intrinsically unmeasurable. See ai-planning/proposal-code-coverage.md §3.2.
+// intrinsically unmeasurable. See ai-planning/21-proposal-code-coverage.md §3.2.
 import '../index';
 import '../exit-codes';
 import '../examples-for-schema';

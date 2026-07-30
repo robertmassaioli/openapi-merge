@@ -109,8 +109,8 @@ for.
 ### 2.4 Discriminator pointers are not rewritten on rename
 
 Already tracked as **issues #99 and #106**, with proposals in
-`issues/proposal-99-discriminator-mapping-prefix.md` and
-`issues/proposal-106-discriminator-mappings.md`. Confirmed still present for
+`issues/10-proposal-99-discriminator-mapping-prefix.md` and
+`issues/09-proposal-106-discriminator-mappings.md`. Confirmed still present for
 both `mapping` (3.0) and the new 3.2 `defaultMapping`:
 
 ```

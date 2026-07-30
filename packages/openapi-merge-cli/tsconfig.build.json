@@ -1,0 +1,16 @@
+{
+  // Build-only project: same compiler options, but the test suites are not
+  // emitted to dist/.
+  //
+  // They must still be TYPE CHECKED -- `bun run typecheck` uses tsconfig.json,
+  // which includes them, and that has caught real bugs. What they must not do is
+  // end up in the published tarball, which is why the build uses this file and
+  // `files` in package.json can then be the plain, portable `["dist"]`.
+  //
+  // `include` is explicit because naming `exclude` at all discards TypeScript's
+  // default exclusions -- which include outDir -- and dist/*.d.ts would then be
+  // read back as input (TS5055).
+  "extends": "./tsconfig.json",
+  "include": ["src"],
+  "exclude": ["src/__tests__"]
+}

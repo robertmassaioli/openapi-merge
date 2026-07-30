@@ -9,8 +9,7 @@
   "main": "dist/index",
   "typings": "dist/index",
   "files": [
-    "dist/!(__tests__)",
-    "dist/!(__tests__)/**/*"
+    "dist"
   ],
   "author": {
     "name": "Robert Massaioli",
@@ -28,10 +27,10 @@
     "url": "https://github.com/robertmassaioli/openapi-merge/issues"
   },
   "scripts": {
-    "build": "tsgo --project .",
+    "build": "tsgo --project tsconfig.build.json",
     "typecheck": "tsgo --project . --noEmit",
-    "prepare": "tsgo --project .",
-    "prepublishOnly": "tsgo --project .",
+    "prepare": "bun run build",
+    "prepublishOnly": "bun run build",
     "test": "bun test --coverage",
     "lint": "eslint src --fix --format=visualstudio",
     "start": "bun src/index.ts"

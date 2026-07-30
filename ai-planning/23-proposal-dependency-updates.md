@@ -183,7 +183,7 @@ repo currently declares none.
 
 - Upgrading `@typescript/native-preview` (tsgo). It is a deliberately pinned
   pre-release; the Bun/tsgo migration note owns that decision.
-- Changing the test runner. `proposal-code-coverage.md` §A6.3 owns that.
+- Changing the test runner. `21-proposal-code-coverage.md` §A6.3 owns that.
 - Bumping either published package's `version`. `scripts/publish-changed.sh`
   publishes on version change, so that is the maintainer's call.
 - Adding new capabilities. This is maintenance only; no behaviour should change
@@ -215,7 +215,7 @@ cannot regress anything that tests do not already cover. Phase 3 buys the
 largest security improvement for the least risk because it touches a script no
 automated process runs. Phases 4–6 are the real migrations, sequenced smallest
 blast radius first, each verified by the integration suite that landed in
-`proposal-closing-coverage-gaps.md`. Phase 8 is last because it is pure churn
+`22-proposal-closing-coverage-gaps.md`. Phase 8 is last because it is pure churn
 with no functional payoff and the highest chance of noisy diffs.
 
 ## 8. Verification gate for every phase

@@ -438,8 +438,8 @@ describe('3.0 edge: references', () => {
   it('KNOWN GAP (issues #99/#106): a discriminator mapping is not rewritten on rename', () => {
     // The oneOf $ref follows the rename but the discriminator mapping value,
     // which points at the same schema, does not. Already tracked by
-    // issues/proposal-99-discriminator-mapping-prefix.md and
-    // issues/proposal-106-discriminator-mappings.md.
+    // issues/10-proposal-99-discriminator-mapping-prefix.md and
+    // issues/09-proposal-106-discriminator-mappings.md.
     const output = expectSuccess(merge([
       { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: { type: 'string' } } } }) },
       { oas: doc30({
@@ -520,7 +520,7 @@ describe('3.0 edge: callbacks and links', () => {
 describe('3.1 - references inside webhooks', () => {
   it('rewrites a $ref inside a webhook when its component is renamed', () => {
     // The inverse of the orphaned-component failure recorded in
-    // proposal-openapi-3.2-support.md: the webhook was dropped, its $ref went
+    // 24-proposal-openapi-3.2-support.md: the webhook was dropped, its $ref went
     // with it, and the schema it pointed at survived with nothing referencing
     // it. Both inputs define a different `Pet`, so the second is renamed and
     // the webhook's reference must follow.

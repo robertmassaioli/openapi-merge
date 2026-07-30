@@ -5,13 +5,13 @@
 **Scope:** `packages/openapi-merge`, `packages/openapi-merge-cli`
 **Date:** 2026-07-25
 **Branch:** `feature/improve-test-coverage`, based on `feature/code-coverage-config` (a6e470c)
-**Supersedes:** `ai-planning/proposal-cli-test-coverage.md` (see §8)
+**Supersedes:** `ai-planning/20-proposal-cli-test-coverage.md` (see §8)
 
 ---
 
 ## 0. TL;DR
 
-`proposal-code-coverage.md` made the coverage numbers honest. This proposal
+`21-proposal-code-coverage.md` made the coverage numbers honest. This proposal
 uses them: it takes the per-file gaps that measurement exposed and closes the
 ones worth closing, in descending order of lines-uncovered.
 
@@ -38,7 +38,7 @@ Five targets, ~200 new tests' worth of surface:
 ## 1. Baseline (weighted, from `coverage/lcov.info`)
 
 Bun's `All files` row is an unweighted mean of per-file percentages
-(`proposal-code-coverage.md` §2.4), so it is useless for tracking progress.
+(`21-proposal-code-coverage.md` §2.4), so it is useless for tracking progress.
 All figures here are computed from the `LF`/`LH`/`FNF`/`FNH` records in each
 package's `lcov.info` — i.e. covered ÷ total:
 
@@ -138,7 +138,7 @@ rather than smuggled into a test commit.
 
 ## 4. Approach and constraints
 
-**Tests stay framework-agnostic.** `proposal-code-coverage.md` §A2 records that
+**Tests stay framework-agnostic.** `21-proposal-code-coverage.md` §A2 records that
 no test file imports a test framework, and that property is what makes a future
 Vitest migration cheap. So:
 
@@ -163,7 +163,7 @@ predictable without juggling cwd — another process global.
 ## 5. Two files that earn no coverage credit
 
 `cli.ts` and `fix-schema.ts` are excluded from `_coverage-preload.ts` by design
-and are unmeasurable in-process (`proposal-code-coverage.md` §3.2).
+and are unmeasurable in-process (`21-proposal-code-coverage.md` §3.2).
 
 Subprocess smoke tests for `cli.ts` are still worth writing for **correctness** —
 the shebang, commander wiring, real exit codes as a shell sees them. But they
@@ -178,7 +178,7 @@ proposal leaves it uncovered — the extraction is not worth a production change
 ## 6. Ratchet the thresholds (part of the deliverable)
 
 The floors committed in a6e470c were calibrated to today's weakest files. They
-go stale the moment this work lands, and `proposal-code-coverage.md` §5 steps
+go stale the moment this work lands, and `21-proposal-code-coverage.md` §5 steps
 4–5 make raising them part of the plan.
 
 | Package | Now | After |
@@ -190,7 +190,7 @@ The CLI has no threshold today only because `data.ts`, `file-loading.ts` and
 `index.ts` all sit at **0.00% functions**, and Bun's floor is per-file. Getting
 one function called in each unlocks a CLI gate — a concrete, checkable goal.
 
-Both changes must be verified with the §4 ritual from `proposal-code-coverage.md`:
+Both changes must be verified with the §4 ritual from `21-proposal-code-coverage.md`:
 set deliberately high → confirm red from the repo root; set to the real value →
 confirm green. Both failure modes are silent, so this is not optional.
 
@@ -200,13 +200,13 @@ confirm green. Both failure modes are silent, so this is not optional.
 - Chasing 100%. `reference-walker.ts`'s `walkLinkReferences` has a `TODO`
   non-reference branch that is genuinely empty; covering it proves nothing.
 - Testing `data.ts`'s type declarations beyond the runtime constants they carry.
-- Any Vitest migration (`proposal-code-coverage.md` §A6.3 lists the triggers).
+- Any Vitest migration (`21-proposal-code-coverage.md` §A6.3 lists the triggers).
 - Extracting `fix-schema.ts` for coverage's sake (§5).
 
-## 8. Relationship to `proposal-cli-test-coverage.md`
+## 8. Relationship to `20-proposal-cli-test-coverage.md`
 
 **This proposal supersedes it.** That document was written pre-Bun/tsgo and its
-corrections are already tabulated in `proposal-code-coverage.md` §7 — Jest
+corrections are already tabulated in `21-proposal-code-coverage.md` §7 — Jest
 config, `collectCoverageFrom`, bolt/yarn CI, and an 80%-branches criterion that
 is unsatisfiable because Bun emits no branch data.
 
