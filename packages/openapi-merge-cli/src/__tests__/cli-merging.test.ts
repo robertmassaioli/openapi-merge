@@ -130,3 +130,47 @@ describe('main - serversStrategy (issue #4)', () => {
     expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
   });
 });
+
+/**
+ * Issue #112: per-input tag injection reaching the library from a config file.
+ */
+describe('main - tag injection (issue #112)', () => {
+  it('tags every operation from the configured input', async () => {
+    cli.writeJson('a.json', oas({ '/a': getPath('getA') }));
+    cli.writeJson('b.json', oas({ '/b': getPath('getB') }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [
+        { inputFile: './a.json', tag: { name: 'service-a', description: 'Service A.' } },
+        { inputFile: './b.json' },
+      ],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+
+    const output = JSON.parse(cli.read());
+    expect(output.paths['/a'].get.tags).toEqual(['service-a']);
+    expect(output.paths['/b'].get.tags).toBeUndefined();
+    expect(output.tags).toEqual([{ name: 'service-a', description: 'Service A.' }]);
+  });
+
+  it('rejects a tag injection with no name against the generated schema', async () => {
+    cli.writeJson('a.json', oas({ '/a': getPath('getA') }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json', tag: { description: 'no name' } }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
+  });
+
+  it('rejects an empty tag name', async () => {
+    cli.writeJson('a.json', oas({ '/a': getPath('getA') }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json', tag: { name: '' } }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
+  });
+});
