@@ -3,7 +3,7 @@ import { Swagger } from '@atlassian/atlassian-openapi';
 import { SingleMergeInput } from '../data';
 import { toOAS } from './_helpers/oas-generation';
 import { toMergeInputs } from './_helpers/test-utils';
-import { doc30, doc32, expectSuccess, ok, op, pathKeys } from './_helpers/documents';
+import { doc30, doc31, doc32, expectSuccess, ok, op, pathKeys } from './_helpers/documents';
 
 /**
  * operationId uniqueness.
@@ -100,5 +100,102 @@ describe('3.0 edge: operationId uniqueness', () => {
     ]));
 
     expect(pathKeys(output)).toEqual(['/a', '/b']);
+  });
+});
+
+/**
+ * Issue #40: `alwaysApply` renames operationIds too.
+ *
+ * The dispute machinery had two halves that disagreed. Component names went
+ * through `applyDispute(..., 'undisputed')`, which honours `alwaysApply`
+ * whether or not anything collided. Operation IDs returned early whenever there
+ * was no collision, so `dispute` was never consulted -- one configuration
+ * renamed schemas but not operationIds, and *which* operationIds got renamed
+ * depended on the order of the inputs.
+ */
+describe('dispute.alwaysApply on operationIds (issue #40)', () => {
+  it('renames a non-conflicting operationId when alwaysApply is set', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({ paths: { '/a': { get: op('getThing') } } }),
+          dispute: { prefix: 'Service', alwaysApply: true },
+        },
+      ]),
+    );
+
+    expect(output.paths?.['/a']?.get?.operationId).toBe('ServicegetThing');
+  });
+
+  it('leaves a non-conflicting operationId alone when alwaysApply is not set', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({ paths: { '/a': { get: op('getThing') } } }),
+          dispute: { prefix: 'Service' },
+        },
+      ]),
+    );
+
+    expect(output.paths?.['/a']?.get?.operationId).toBe('getThing');
+  });
+
+  it('renames every operationId consistently, not just the colliding ones', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc30({ paths: { '/a': { get: op('shared') } } }) },
+        {
+          oas: doc30({ paths: { '/b': { get: op('shared') }, '/c': { get: op('unique') } } }),
+          dispute: { prefix: 'Second', alwaysApply: true },
+        },
+      ]),
+    );
+
+    // Both of the second input's operations carry the prefix -- previously only
+    // `shared` did, because only it collided.
+    expect(output.paths?.['/b']?.get?.operationId).toBe('Secondshared');
+    expect(output.paths?.['/c']?.get?.operationId).toBe('Secondunique');
+  });
+
+  it('keeps the prefix when the prefixed id itself collides', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc30({ paths: { '/a': { get: op('Serviceop') } } }) },
+        {
+          oas: doc30({ paths: { '/b': { get: op('op') } } }),
+          dispute: { prefix: 'Service', alwaysApply: true },
+        },
+      ]),
+    );
+
+    // Must not fall back to `op1`: that would silently undo the rename the
+    // user asked for.
+    expect(output.paths?.['/b']?.get?.operationId).toBe('Serviceop1');
+  });
+
+  it('applies a suffix dispute to operationIds as well', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({ paths: { '/a': { get: op('getThing') } } }),
+          dispute: { suffix: 'V2', alwaysApply: true },
+        },
+      ]),
+    );
+
+    expect(output.paths?.['/a']?.get?.operationId).toBe('getThingV2');
+  });
+
+  it('renames operationIds inside webhooks under alwaysApply', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc31({ paths: {}, webhooks: { ping: { post: op('onPing') } } }),
+          dispute: { prefix: 'Hook', alwaysApply: true },
+        },
+      ]),
+    );
+
+    expect(output.webhooks?.ping?.post?.operationId).toBe('HookonPing');
   });
 });
