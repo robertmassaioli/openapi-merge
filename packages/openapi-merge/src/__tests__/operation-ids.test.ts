@@ -3,7 +3,7 @@ import { Swagger } from '@atlassian/atlassian-openapi';
 import { SingleMergeInput } from '../data';
 import { toOAS } from './_helpers/oas-generation';
 import { toMergeInputs } from './_helpers/test-utils';
-import { doc30, doc31, doc32, expectSuccess, ok, op, pathKeys } from './_helpers/documents';
+import { doc30, doc31, doc32, expectSuccess, ok, op, pathKeys, at } from './_helpers/documents';
 
 /**
  * operationId uniqueness.
@@ -197,5 +197,124 @@ describe('dispute.alwaysApply on operationIds (issue #40)', () => {
     );
 
     expect(output.webhooks?.ping?.post?.operationId).toBe('HookonPing');
+  });
+});
+
+/**
+ * Issue #105: operationIds inside callbacks.
+ *
+ * The spec requires an operationId to be "unique among all operations described
+ * in the API", and an operation inside a Callback Object is one of them -- a
+ * Callback is a map of runtime expressions to Path Items, and those hold real
+ * operations. They were skipped, so two inputs declaring the same callback
+ * operationId produced a document with a duplicate: invalid, and silently so.
+ *
+ * References inside callbacks were already rewritten correctly, which made this
+ * the one remaining callback-shaped gap.
+ */
+describe('callback operationIds (issue #105)', () => {
+  const withCallback = (outerId: string, callbackId: string) => ({
+    paths: {
+      [`/${outerId}`]: {
+        post: {
+          operationId: outerId,
+          responses: ok,
+          callbacks: {
+            onEvent: {
+              '{$request.body#/callbackUrl}': {
+                post: { operationId: callbackId, responses: ok },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const callbackOpId = (output: ReturnType<typeof expectSuccess>, path: string): unknown =>
+    at(output.paths?.[path], 'post', 'callbacks', 'onEvent', '{$request.body#/callbackUrl}', 'post', 'operationId');
+
+  it('disambiguates a callback operationId that collides across inputs', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc30(withCallback('first', 'onData')) },
+        { oas: doc30(withCallback('second', 'onData')) },
+      ]),
+    );
+
+    expect(callbackOpId(output, '/first')).toBe('onData');
+    expect(callbackOpId(output, '/second')).toBe('onData1');
+  });
+
+  it('disambiguates a callback id colliding with a top-level operation id', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc30({ paths: { '/a': { get: op('onData') } } }) },
+        { oas: doc30(withCallback('second', 'onData')) },
+      ]),
+    );
+
+    // Same namespace: the spec does not have a separate one for callbacks.
+    expect(callbackOpId(output, '/second')).toBe('onData1');
+  });
+
+  it('applies a dispute prefix to a callback operationId', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc30(withCallback('first', 'onData')) },
+        { oas: doc30(withCallback('second', 'onData')), dispute: { prefix: 'Svc' } },
+      ]),
+    );
+
+    expect(callbackOpId(output, '/second')).toBe('SvconData');
+  });
+
+  it('leaves a non-colliding callback operationId alone', () => {
+    const output = expectSuccess(merge([{ oas: doc30(withCallback('first', 'onData')) }]));
+
+    expect(callbackOpId(output, '/first')).toBe('onData');
+  });
+
+  it('handles several callbacks on one operation', () => {
+    const twoCallbacks = {
+      paths: {
+        '/a': {
+          post: {
+            operationId: 'a',
+            responses: ok,
+            callbacks: {
+              onOne: { '{$request.body#/u}': { post: { operationId: 'shared', responses: ok } } },
+              onTwo: { '{$request.body#/v}': { post: { operationId: 'shared', responses: ok } } },
+            },
+          },
+        },
+      },
+    };
+
+    const output = expectSuccess(merge([{ oas: doc30(twoCallbacks) }]));
+
+    // Both are in the same document, so the second must be disambiguated even
+    // within a single input.
+    expect(at(output.paths?.['/a'], 'post', 'callbacks', 'onOne', '{$request.body#/u}', 'post', 'operationId')).toBe('shared');
+    expect(at(output.paths?.['/a'], 'post', 'callbacks', 'onTwo', '{$request.body#/v}', 'post', 'operationId')).toBe('shared1');
+  });
+
+  it('does not descend into a $ref callback', () => {
+    // The operations live in the component it points at, and that component is
+    // walked in its own right -- descending here would count them twice.
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: { '/a': { post: { operationId: 'a', responses: ok, callbacks: { onEvent: { $ref: '#/components/callbacks/Shared' } } } } },
+            components: {
+              callbacks: { Shared: { '{$request.body#/u}': { post: { operationId: 'onShared', responses: ok } } } },
+            },
+          }),
+        },
+      ]),
+    );
+
+    expect(at(output.paths?.['/a'], 'post', 'callbacks', 'onEvent', '$ref')).toBe('#/components/callbacks/Shared');
   });
 });
