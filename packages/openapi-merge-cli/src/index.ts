@@ -1,5 +1,6 @@
 import { ConfigurationInput, isConfigurationInputFromFile } from "./data";
-import { loadConfiguration } from "./load-configuration";
+import { loadConfiguration, validateConfigurationData } from "./load-configuration";
+import { synthesizeConfiguration } from "./synthesize-configuration";
 import { Command } from 'commander';
 // package.json sits outside tsconfig's rootDir, so it cannot be imported as a
 // module without widening the compilation. require() is the pragmatic option.
@@ -30,6 +31,10 @@ export { ExitCode } from "./exit-codes";
 type CliOptions = {
   config?: string;
   restrictOutputTo?: string;
+  output?: string;
+  disputePrefix?: string;
+  stripStart?: string;
+  prepend?: string;
 };
 
 // Built per invocation rather than once at module scope. A Command retains the
@@ -43,8 +48,13 @@ function buildProgram(): Command {
   program.version(pjson.version);
 
   program
+    .argument('[inputs...]', 'OpenAPI files or URLs to merge, for a one-off merge without a configuration file.')
     .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.')
-    .option('--restrict-output-to <dir>', 'Refuse to write output anywhere outside this directory (overrides outputRoot in the config).');
+    .option('--restrict-output-to <dir>', 'Refuse to write output anywhere outside this directory (overrides outputRoot in the config).')
+    .option('-o, --output <path>', 'Where to write the merged result. Only valid with positional inputs; defaults to ./merged.<ext>.')
+    .option('--dispute-prefix <prefix>', 'Dispute prefix applied to every positional input.')
+    .option('--strip-start <path>', 'pathModification.stripStart applied to every positional input.')
+    .option('--prepend <path>', 'pathModification.prepend applied to every positional input.');
 
   return program;
 }
@@ -225,9 +235,34 @@ export async function main(): Promise<void> {
   const program = buildProgram();
   program.parse(process.argv);
   const options = program.opts<CliOptions>();
+  const positionals = program.args;
   logger.log(`## ${process.argv[0]}: Running v${pjson.version}`);
 
-  const config = await loadConfiguration(options.config);
+  // Two modes, and supplying both is an error rather than a precedence rule
+  // (issue #45). Silently ignoring the arguments someone typed is worse than
+  // telling them the command is ambiguous.
+  if (positionals.length > 0 && options.config !== undefined) {
+    console.error(
+      'Cannot use both --config and positional input arguments. Use a configuration file, or pass inputs directly, but not both.',
+    );
+    process.exit(ExitCode.ErrorLoadingConfig);
+    return;
+  }
+
+  const usingPositionals = positionals.length > 0;
+
+  // Synthesized configurations are validated by the same schema as file-based
+  // ones, so the two modes cannot drift apart. `synthesizeConfiguration` can
+  // itself fail, and its message is the useful one -- passing that string on to
+  // the schema validator would replace "no inputs provided" with a type error
+  // about a string not being an object.
+  const synthesized = usingPositionals ? synthesizeConfiguration(positionals, options) : undefined;
+  const config =
+    synthesized === undefined
+      ? await loadConfiguration(options.config)
+      : typeof synthesized === 'string'
+        ? synthesized
+        : validateConfigurationData(synthesized);
 
   if (typeof config === 'string') {
     console.error(config);
@@ -237,7 +272,9 @@ export async function main(): Promise<void> {
 
   logger.log(`## Loaded the configuration: ${config.inputs.length} inputs`);
 
-  const basePath = path.dirname(options.config || './');
+  // Positional inputs are relative to the working directory, not to a config
+  // file that does not exist.
+  const basePath = usingPositionals ? './' : path.dirname(options.config || './');
 
   const inputs = await convertInputs(basePath, config.inputs, logger);
 
