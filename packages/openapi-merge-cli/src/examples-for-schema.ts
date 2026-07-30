@@ -117,3 +117,11 @@ export const ConfigurationInputExamples: Array<Array<ConfigurationInput>> = [
     }
   ]
 ];
+/**
+ * Headers for an `inputURL` request (issue #61). `${VAR}` is resolved from the
+ * environment at load time, so a token never has to live in the config file.
+ */
+export const InputUrlHeadersExamples: Array<{ [headerName: string]: string }> = [
+  { Authorization: 'Bearer ${API_TOKEN}' },
+  { 'X-API-Key': '${SERVICE_A_KEY}', Accept: 'application/json' },
+];

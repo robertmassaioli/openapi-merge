@@ -1,6 +1,7 @@
 import { ConfigurationInput, isConfigurationInputFromFile } from "./data";
 import { loadConfiguration, validateConfigurationData } from "./load-configuration";
 import { synthesizeConfiguration } from "./synthesize-configuration";
+import { interpolateHeaders, MissingEnvironmentVariableError } from "./interpolate-headers";
 import { Command } from 'commander';
 // package.json sits outside tsconfig's rootDir, so it cannot be imported as a
 // module without widening the compilation. require() is the pragmatic option.
@@ -138,7 +139,10 @@ async function loadOasForInput(basePath: string, input: ConfigurationInput, inpu
     return (await readYamlOrJSON(await readFileAsString(fullPath))) as Swagger.SwaggerV3;
   } else {
     logger.log(`## Loading input ${inputIndex} from URL: ${input.inputURL}`);
-    const response = await fetch(input.inputURL);
+    // Resolved per request rather than once at load time so that the error, if
+    // a variable is unset, names the input it belongs to.
+    const headers = input.headers === undefined ? undefined : interpolateHeaders(input.headers);
+    const response = await fetch(input.inputURL, headers === undefined ? undefined : { headers });
     if (!response.ok) {
       throw new InputUrlStatusError(input.inputURL, response.status, response.statusText);
     }
@@ -193,9 +197,15 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
     } catch (e) {
       return {
         message: `Input ${inputIndex}: could not load configuration file. ${e}`,
+        // An unset ${VAR} in a header is a fault in the configuration, not in
+        // the input the configuration points at -- the request was never made.
+        // Reporting it as ErrorLoadingInputs would send someone looking at the
+        // remote service instead of at their own environment.
         exitCode: e instanceof InputUrlStatusError
           ? e.exitCode
-          : ExitCode.ErrorLoadingInputs,
+          : e instanceof MissingEnvironmentVariableError
+            ? ExitCode.ErrorLoadingConfig
+            : ExitCode.ErrorLoadingInputs,
       };
     }
   }));
