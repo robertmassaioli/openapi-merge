@@ -81,7 +81,7 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
       // The version the narrowedInputs actually declared, rather than a hard-coded
       // 3.0.3. Well defined because every input shares a major.minor by now.
       openapi: outputVersion ?? '3.0.3',
-      info: mergeInfos(narrowedInputs),
+      info: mergeInfos(narrowedInputs, options?.info),
       servers: mergeServers(narrowedInputs, options?.serversStrategy),
       externalDocs: getFirstMatching(narrowedInputs, input => input.oas.externalDocs),
       // Comes back from mergePathsAndComponents rather than being read off the

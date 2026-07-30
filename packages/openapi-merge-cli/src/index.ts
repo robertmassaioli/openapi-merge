@@ -301,6 +301,7 @@ export async function main(): Promise<void> {
     serversStrategy: config.serversStrategy,
     openapiVersion: config.openapiVersion,
     pruneUnusedComponents: config.pruneUnusedComponents,
+    info: config.info,
   });
 
   if (isErrorResult(mergeResult)) {
