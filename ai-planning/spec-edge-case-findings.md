@@ -106,7 +106,7 @@ Left as-is deliberately; changing it would resurrect empty path items that
 `operationSelection` has just emptied, which is the behaviour the dropping exists
 for.
 
-### 2.4 Discriminator pointers are not rewritten on rename
+### 2.4 Discriminator pointers are not rewritten on rename — FIXED (#99, #106)
 
 Already tracked as **issues #99 and #106**, with proposals in
 `issues/10-proposal-99-discriminator-mapping-prefix.md` and
@@ -120,15 +120,21 @@ discriminator.mapping -> #/components/schemas/Dog    (stale)
 
 The new tests add `defaultMapping` coverage those proposals predate.
 
-### 2.5 A Link `operationRef` is not rewritten when its path moves
+### 2.5 A Link `operationRef` is not rewritten when its path moves — FIXED (#106)
 
 A Link's `operationRef` is a URI pointing at an Operation. Under
-`pathModification.prepend: '/api'`, the path becomes `/api/thing` but a link
-pointing at `#/paths/~1thing/get` is left dangling.
+`pathModification.prepend: '/api'`, the path became `/api/thing` while a link
+pointing at `#/paths/~1thing/get` was left dangling.
 
-Related to §2.4 — both are "pointers the reference walker does not know about".
-Worth fixing together as "rewrite every kind of internal pointer, not just
-`$ref`".
+Fixed together with §2.4, as this section suggested: they are the same problem,
+"pointers the reference walker does not know about". `operationRef` needed one
+thing the others did not — JSON Pointer escaping. A path key appears in a
+pointer as `~1thing` while the rename table is keyed on the raw `/thing`, so
+the segment is decoded before lookup and re-encoded after.
+
+Left alone deliberately: an `operationRef` into another document, and a link
+that uses `operationId` instead — an id travels with its operation, so a link
+by id needs no rewriting when the path moves.
 
 ### 2.6 Semantic schema equivalences are not deduplicated
 

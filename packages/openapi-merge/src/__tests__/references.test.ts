@@ -435,11 +435,9 @@ describe('3.0 edge: references', () => {
     expect((output.components?.schemas?.Alias as { $ref: string }).$ref).toBe('#/components/schemas/Thing1');
   });
 
-  it('KNOWN GAP (issues #99/#106): a discriminator mapping is not rewritten on rename', () => {
-    // The oneOf $ref follows the rename but the discriminator mapping value,
-    // which points at the same schema, does not. Already tracked by
-    // issues/10-proposal-99-discriminator-mapping-prefix.md and
-    // issues/09-proposal-106-discriminator-mappings.md.
+  it('rewrites a discriminator mapping on rename (issues #99/#106)', () => {
+    // Was pinned as a KNOWN GAP. The mapping value points at the same schema
+    // the oneOf $ref does, and now follows the same rename.
     const output = expectSuccess(merge([
       { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: { type: 'string' } } } }) },
       { oas: doc30({
@@ -456,8 +454,7 @@ describe('3.0 edge: references', () => {
 
     const pet = output.components?.schemas?.Pet as Record<string, Record<string, unknown>>;
     expect((pet.oneOf as unknown as Array<{ $ref: string }>)[0].$ref).toBe('#/components/schemas/Dog1');
-    // Still pointing at the pre-rename name -- this is the bug.
-    expect((pet.discriminator.mapping as Record<string, string>).dog).toBe('#/components/schemas/Dog');
+    expect((pet.discriminator.mapping as Record<string, string>).dog).toBe('#/components/schemas/Dog1');
   });
 
   it('deduplicates identical components rather than renaming them', () => {
@@ -495,9 +492,10 @@ describe('3.0 edge: callbacks and links', () => {
     expect(ref).toBe('#/components/schemas/Thing1');
   });
 
-  it('KNOWN GAP: a link operationRef is not rewritten when the path it targets changes', () => {
-    // A Link's operationRef is a URI pointing at an Operation. When
-    // pathModification renames the path, the reference is left dangling.
+  it('rewrites a link operationRef when the path it targets moves (issue #106)', () => {
+    // A Link's operationRef is a URI pointing at an Operation. pathModification
+    // used to move the path out from under it and leave the reference dangling
+    // in a document that still looked valid. Was pinned here as a KNOWN GAP.
     const output = expectSuccess(merge([
       {
         oas: doc30({ paths: { '/thing': { get: op('getThing') }, '/other': { get: {
@@ -510,9 +508,9 @@ describe('3.0 edge: callbacks and links', () => {
       },
     ]));
 
-    // Still points at the pre-prepend location.
+    // Follows the path, with the `/` re-escaped as `~1` per JSON Pointer.
     expect(at(output.paths?.['/api/other'], 'get', 'responses', '200', 'links', 'next', 'operationRef'))
-      .toBe('#/paths/~1thing/get');
+      .toBe('#/paths/~1api~1thing/get');
     expect(pathKeys(output)).toEqual(['/api/other', '/api/thing']);
   });
 });
@@ -593,5 +591,191 @@ describe('3.2 - references inside the new slots', () => {
       .content['application/json'].schema.$ref;
 
     expect(ref).toBe('#/components/schemas/Thing1');
+  });
+});
+
+/**
+ * Issue #106: the remaining pointers that are not spelled `$ref`.
+ *
+ * #99 taught the walker about `discriminator.mapping`. Two of the same shape
+ * were left: 3.2's `discriminator.defaultMapping`, and a Link's
+ * `operationRef`. Both point into the document, neither is a `$ref`, and both
+ * were silently left stale.
+ */
+describe('defaultMapping and operationRef (issue #106)', () => {
+  it('rewrites discriminator.defaultMapping on rename', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc32({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: { type: 'string' } } } }) },
+        {
+          oas: doc32({
+            paths: { '/b': { get: op('b') } },
+            components: {
+              schemas: {
+                Dog: { type: 'object' },
+                Pet: {
+                  oneOf: [{ $ref: '#/components/schemas/Dog' }],
+                  discriminator: { propertyName: 'kind', defaultMapping: '#/components/schemas/Dog' },
+                },
+              },
+            },
+          }),
+        },
+      ]),
+    );
+
+    const pet = output.components?.schemas?.Pet as Record<string, Record<string, unknown>>;
+    expect(pet.discriminator.defaultMapping).toBe('#/components/schemas/Dog1');
+  });
+
+  it('rewrites a bare-name defaultMapping, keeping it bare', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc32({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: { type: 'string' } } } }) },
+        {
+          oas: doc32({
+            paths: { '/b': { get: op('b') } },
+            components: {
+              schemas: {
+                Dog: { type: 'object' },
+                Pet: { discriminator: { propertyName: 'kind', defaultMapping: 'Dog' } },
+              },
+            },
+          }),
+        },
+      ]),
+    );
+
+    const pet = output.components?.schemas?.Pet as Record<string, Record<string, unknown>>;
+    expect(pet.discriminator.defaultMapping).toBe('Dog1');
+  });
+
+  it('rewrites mapping and defaultMapping together', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc32({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: { type: 'string' } } } }) },
+        {
+          oas: doc32({
+            paths: { '/b': { get: op('b') } },
+            components: {
+              schemas: {
+                Dog: { type: 'object' },
+                Pet: {
+                  discriminator: {
+                    propertyName: 'kind',
+                    mapping: { dog: 'Dog' },
+                    defaultMapping: '#/components/schemas/Dog',
+                  },
+                },
+              },
+            },
+          }),
+        },
+      ]),
+    );
+
+    const discriminator = (output.components?.schemas?.Pet as Record<string, Record<string, unknown>>).discriminator;
+    expect(discriminator.mapping).toEqual({ dog: 'Dog1' });
+    expect(discriminator.defaultMapping).toBe('#/components/schemas/Dog1');
+  });
+
+  it('leaves an operationRef alone when the path did not move', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/thing': { get: op('getThing') },
+              '/other': {
+                get: {
+                  operationId: 'other',
+                  responses: { '200': { description: 'ok', links: { next: { operationRef: '#/paths/~1thing/get' } } } },
+                },
+              },
+            },
+          }),
+        },
+      ]),
+    );
+
+    expect(at(output.paths?.['/other'], 'get', 'responses', '200', 'links', 'next', 'operationRef'))
+      .toBe('#/paths/~1thing/get');
+  });
+
+  it('leaves an external operationRef untouched', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/other': {
+                get: {
+                  operationId: 'other',
+                  responses: {
+                    '200': {
+                      description: 'ok',
+                      links: { next: { operationRef: 'https://example.com/api.json#/paths/~1thing/get' } },
+                    },
+                  },
+                },
+              },
+            },
+          }),
+          pathModification: { prepend: '/api' },
+        },
+      ]),
+    );
+
+    // Points into another document; moving our paths says nothing about it.
+    expect(at(output.paths?.['/api/other'], 'get', 'responses', '200', 'links', 'next', 'operationRef'))
+      .toBe('https://example.com/api.json#/paths/~1thing/get');
+  });
+
+  it('leaves an operationId link alone, since ids move with their operation', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/thing': { get: op('getThing') },
+              '/other': {
+                get: {
+                  operationId: 'other',
+                  responses: { '200': { description: 'ok', links: { next: { operationId: 'getThing' } } } },
+                },
+              },
+            },
+          }),
+          pathModification: { prepend: '/api' },
+        },
+      ]),
+    );
+
+    expect(at(output.paths?.['/api/other'], 'get', 'responses', '200', 'links', 'next', 'operationId'))
+      .toBe('getThing');
+  });
+
+  it('rewrites an operationRef under stripStart as well as prepend', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/v1/thing': { get: op('getThing') },
+              '/v1/other': {
+                get: {
+                  operationId: 'other',
+                  responses: { '200': { description: 'ok', links: { next: { operationRef: '#/paths/~1v1~1thing/get' } } } },
+                },
+              },
+            },
+          }),
+          pathModification: { stripStart: '/v1' },
+        },
+      ]),
+    );
+
+    expect(at(output.paths?.['/other'], 'get', 'responses', '200', 'links', 'next', 'operationRef'))
+      .toBe('#/paths/~1thing/get');
   });
 });
