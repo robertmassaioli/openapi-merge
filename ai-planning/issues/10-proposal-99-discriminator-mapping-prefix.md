@@ -2,7 +2,7 @@
 
 **Issue:** [#99 — Issue on discriminator mapping](https://github.com/robertmassaioli/openapi-merge/issues/99)
 
-**Status:** Proposal
+**Status:** ✅ Implemented — see §10
 
 **Value:** 4 / **Effort:** 2 / **Incremental Effort (bundled with #106):** 0
 
@@ -387,3 +387,54 @@ This issue is part of the **dispute completeness** cluster alongside:
 2. **Compatibility with OpenAPI tools:** Some third-party tools may not handle bare names in discriminator mappings correctly. By preserving the original form (bare vs. full ref), we avoid introducing regressions.
 3. **Future work:** After #106 and #99 are merged, consider extending discriminator handling to callback discriminators (if those exist in the spec) as a follow-up.
 
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/99-discriminator-mapping`. One new function in
+`reference-walker.ts`, called from `walkSchemaReferences`, so every place a
+schema is already walked now also rewrites its discriminator mapping — paths,
+webhooks, components, callbacks, all of it, without a second traversal.
+
+### 10.1 Both spellings, and the author's is preserved
+
+The specification allows a mapping value to be a full reference
+(`#/components/schemas/Dog`) or a bare schema name (`Dog`), defined as shorthand
+for the same thing. Both occur.
+
+A bare name is rewritten by asking `modify` about the reference it abbreviates,
+then writing back the abbreviated form of the answer — so `Dog` becomes `Dog1`,
+not `#/components/schemas/Dog1`. Expanding shorthand would be a correct document
+and a bad diff: this tool passes most content through untouched, and turning
+every mapping into a full reference would bury the real changes.
+
+### 10.2 What is deliberately not rewritten
+
+A value containing `/` or `#` that is not an internal pointer — a URL, a
+relative file path — is left exactly as found, because it does not point into
+this document's components. Same reasoning as external `$ref` preservation.
+
+### 10.3 The pinned test flipped
+
+`spec-edge-case-findings.md` §2.4 pinned this as a `KNOWN GAP` with a test
+asserting the *broken* behaviour. That test failed the moment the fix landed,
+which is precisely what it was for, and now asserts the correct behaviour. The
+findings document is updated.
+
+### 10.4 Verification
+
+- 6 new tests plus the flipped pinned one. **5 fail against `origin/main`**,
+  confirmed in a detached worktree.
+- Cover: full reference, bare name, a target that was not renamed, an external
+  URL, a relative file path, several entries in one discriminator, and a
+  dispute prefix.
+- Gate green: lint, 391 tests, 48 artifact checks.
+
+### 10.5 What #106 still owes
+
+3.2's `defaultMapping` and the Link `operationRef` gap in
+`spec-edge-case-findings.md` §2.5. Both are the same shape as this — a pointer
+that is not spelled `$ref` — and now have a place to live: the function this
+change adds.
