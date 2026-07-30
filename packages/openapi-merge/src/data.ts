@@ -135,6 +135,21 @@ export type MergeInput = Array<SingleMergeInput>;
  */
 export interface MergeOptions {
   /**
+   * Drop components that nothing in the merged document references (issue #94).
+   *
+   * Defaults to `false`. Off by default because pruning is destructive and this
+   * library has always preserved every component it was given: a document may
+   * carry definitions referenced only from outside it, and silently deleting
+   * those would be a worse failure than carrying a few unused ones.
+   *
+   * Turn it on when `operationSelection` is removing operations and you expect
+   * the schemas only those operations used to go with them. Reachability is
+   * computed from the surviving document, so a component still used by another
+   * endpoint is kept.
+   */
+  pruneUnusedComponents?: boolean;
+
+  /**
    * How to combine the top-level `servers` array. Defaults to `'first'`.
    * See {@link ServersStrategy} for why that is the default (issue #4).
    */
