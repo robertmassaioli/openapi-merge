@@ -182,3 +182,108 @@ describe('main - inputURL', () => {
     expect(cli.stderr().join('\n')).toContain('Input 1');
   });
 });
+
+/**
+ * Issue #61: authorization headers for `inputURL`.
+ *
+ * Driven against a real server that inspects what arrived, so these prove the
+ * headers reach the wire rather than merely that a function returned them.
+ */
+describe('main - inputURL headers (issue #61)', () => {
+  let server: http.Server;
+  let baseUrl: string;
+  let received: http.IncomingHttpHeaders = {};
+
+  beforeEach(async () => {
+    received = {};
+    server = http.createServer((req, res) => {
+      received = req.headers;
+      if (req.headers.authorization !== 'Bearer secret-token') {
+        res.writeHead(401);
+        res.end('unauthorized');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(oas({ '/remote': getPath('getRemote') })));
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    baseUrl = `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`;
+  });
+
+  afterEach(async () => {
+    delete process.env.TEST_API_TOKEN;
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  });
+
+  it('sends a literal header value', async () => {
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputURL: `${baseUrl}/spec.json`, headers: { Authorization: 'Bearer secret-token' } }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+    expect(received.authorization).toBe('Bearer secret-token');
+  });
+
+  it('interpolates a header value from the environment', async () => {
+    process.env.TEST_API_TOKEN = 'secret-token';
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputURL: `${baseUrl}/spec.json`, headers: { Authorization: 'Bearer ${TEST_API_TOKEN}' } }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+    expect(received.authorization).toBe('Bearer secret-token');
+    expect(Object.keys(JSON.parse(cli.read()).paths)).toEqual(['/remote']);
+  });
+
+  it('sends several headers', async () => {
+    process.env.TEST_API_TOKEN = 'secret-token';
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [
+        {
+          inputURL: `${baseUrl}/spec.json`,
+          headers: { Authorization: 'Bearer ${TEST_API_TOKEN}', 'X-Trace-Id': 'abc' },
+        },
+      ],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+    expect(received['x-trace-id']).toBe('abc');
+  });
+
+  it('fails with a config error, naming the variable, when it is unset', async () => {
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputURL: `${baseUrl}/spec.json`, headers: { Authorization: 'Bearer ${TEST_API_TOKEN}' } }],
+      output: './output.json',
+    });
+
+    // ErrorLoadingConfig, not ErrorLoadingInputs: the request was never made,
+    // so pointing at the remote service would send someone to the wrong place.
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
+    expect(cli.stderr().join('\n')).toContain('TEST_API_TOKEN');
+  });
+
+  it('surfaces a 401 as a 4xx exit code when the header is wrong', async () => {
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputURL: `${baseUrl}/spec.json`, headers: { Authorization: 'Bearer wrong' } }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorInputUrlClientStatus);
+  });
+
+  it('still works with no headers at all', async () => {
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputURL: `${baseUrl}/spec.json` }],
+      output: './output.json',
+    });
+
+    // The server requires auth, so this is a 401 -- the point is that an input
+    // without a `headers` key still makes a well-formed request.
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorInputUrlClientStatus);
+    expect(received.authorization).toBeUndefined();
+  });
+});

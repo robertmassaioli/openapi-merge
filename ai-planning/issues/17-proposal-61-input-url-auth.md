@@ -1,6 +1,6 @@
 # Implementation Proposal: Issue #61 — Authorization config for inputURL
 
-**Status:** Proposal  
+**Status:** ✅ Implemented (headers only) — see §10  
 **Value:** 3 | **Effort:** 2 | **ROI:** 4 (Quick Win)
 
 **Issue:** [robertmassaioli/openapi-merge#61](https://github.com/robertmassaioli/openapi-merge/issues/61)
@@ -426,3 +426,56 @@ A dedicated `--header` CLI flag (e.g., `-H "Authorization: Bearer ..."`) is defe
 - **Related proposal #93:** `ai-planning/issues/03-proposal-93-absolute-paths.md` (security model, threat analysis)
 - **Related proposal #45:** No-config mode (deferred CLI flag work)
 - **Issue #61:** https://github.com/robertmassaioli/openapi-merge/issues/61
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/61-input-url-auth`. §3.1's `headers` map and the `${VAR}`
+interpolation, built as specified. §3.2's reasoning for a generic map over a
+`bearer`/`basic` union holds and is unchanged.
+
+### 10.1 `allowPrivateUrls` deliberately not implemented
+
+§3.1 also proposes an `allowPrivateUrls` flag defaulting to `false`, rejecting
+RFC1918, loopback and link-local addresses as SSRF defence.
+
+Not built, because the default is a breaking change aimed at the wrong threat
+model. Merging from `http://localhost:8080/openapi.json` — a service running in
+the same CI job, or a dev server — is an ordinary use of this tool, and that
+default silently breaks it. SSRF matters when an attacker controls the URL; here
+the URL comes from a configuration file the user wrote. Where that file is
+untrusted, `outputRoot` already exists for exactly that situation and a URL
+allowlist would belong beside it as an opt-in, not as a default that penalises
+everyone else.
+
+### 10.2 A missing variable fails, and does not substitute empty
+
+The proposal says configuration loading "fails with a clear error"; worth
+stating why that is the right call rather than an empty string. An empty
+`Authorization: Bearer ` produces a 401 that reads as the server rejecting valid
+credentials, sending the user to look at the wrong system entirely. Every
+missing variable is reported at once, so three unset tokens are learned in one
+run rather than three.
+
+### 10.3 It exits `ErrorLoadingConfig`, not `ErrorLoadingInputs`
+
+Not specified. An unset `${VAR}` is a fault in the configuration, not in the
+input it points at — the request is never made. Reporting it as an input
+failure would send someone to investigate a remote service that was never
+contacted.
+
+An empty-string variable counts as set, deliberately: someone may legitimately
+export one, and overriding that would be second-guessing them.
+
+### 10.4 Verification
+
+- 9 unit tests in `interpolate-headers.test.ts`.
+- 6 CLI tests in `cli-remote-inputs.test.ts`, driven against the real
+  in-process HTTP server that suite already uses, asserting on the headers the
+  server actually **received** — so they prove the values reach the wire, not
+  merely that a function returned them. **5 fail against `origin/main`**; the
+  sixth is the regression guard that an input with no `headers` key still makes
+  a well-formed request.
+- Gate green: lint, 399 tests, 48 artifact checks.
