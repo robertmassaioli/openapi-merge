@@ -1,5 +1,5 @@
 import { MergeInput, ErrorMergeResult, Dispute } from "./data";
-import { Swagger, SwaggerLookup } from "@atlassian/atlassian-openapi";
+import { Swagger, SwaggerLookup, SwaggerTypeChecks } from "@atlassian/atlassian-openapi";
 import { walkAllReferences } from "./reference-walker";
 import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";
@@ -158,11 +158,61 @@ function ensureUniqueOperationIds(pathItem: PathItem32, seenOperationIds: Set<st
   const operations = getPathItemOperations(pathItem);
 
   for (let opIndex = 0; opIndex < operations.length; opIndex++) {
-    const result = ensureUniqueOperationId(operations[opIndex].operation, seenOperationIds, dispute);
+    const { operation } = operations[opIndex];
+
+    const result = ensureUniqueOperationId(operation, seenOperationIds, dispute);
     if (result !== undefined) {
       return result;
     }
+
+    const callbackError = ensureUniqueCallbackOperationIds(operation, seenOperationIds, dispute);
+    if (callbackError !== undefined) {
+      return callbackError;
+    }
   }
+}
+
+/**
+ * Operation IDs nested inside an operation's `callbacks` (issue #105).
+ *
+ * The specification requires an operationId to be "unique among all operations
+ * described in the API", and an operation inside a Callback Object is one of
+ * them -- a Callback is a map of runtime expressions to Path Items, and those
+ * Path Items hold real operations.
+ *
+ * They were skipped, so two inputs declaring the same callback operationId
+ * produced a document with a duplicate: invalid, and silently so. References
+ * inside callbacks were already rewritten correctly, which made this the one
+ * remaining callback-shaped gap.
+ *
+ * A `$ref` callback is left alone: the operations live in the component it
+ * points at, and that component is walked in its own right.
+ */
+function ensureUniqueCallbackOperationIds(
+  operation: Swagger.Operation,
+  seenOperationIds: Set<string>,
+  dispute: Dispute | undefined,
+): ErrorMergeResult | undefined {
+  const callbacks = operation.callbacks;
+  if (callbacks === undefined) {
+    return undefined;
+  }
+
+  for (const callbackName of Object.keys(callbacks)) {
+    const callback = callbacks[callbackName];
+    if (SwaggerTypeChecks.isReference(callback)) {
+      continue;
+    }
+
+    for (const expression of Object.keys(callback)) {
+      const result = ensureUniqueOperationIds(callback[expression] as PathItem32, seenOperationIds, dispute);
+      if (result !== undefined) {
+        return result;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 /**
