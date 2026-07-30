@@ -74,3 +74,59 @@ describe('main - successful merges', () => {
     expect(Object.keys(JSON.parse(cli.read()).paths)).toEqual(['/y']);
   });
 });
+
+/**
+ * Issue #4: `serversStrategy` reaching the library from a config file.
+ *
+ * The library-level behaviour is covered by the openapi-merge suite; what these
+ * assert is the wiring -- that the field survives ajv validation against the
+ * generated schema and is actually passed to `merge()`, which is the part that
+ * would silently do nothing if the plumbing were wrong.
+ */
+describe('main - serversStrategy (issue #4)', () => {
+  const withServers = (paths: Record<string, unknown>, url: string) => ({
+    ...(oas(paths) as Record<string, unknown>),
+    servers: [{ url }],
+  });
+
+  it('defaults to first-wins when serversStrategy is absent', async () => {
+    cli.writeJson('a.json', withServers({ '/a': getPath('getA') }, 'https://first'));
+    cli.writeJson('b.json', withServers({ '/b': getPath('getB') }, 'https://second'));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }, { inputFile: './b.json' }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+
+    expect(JSON.parse(cli.read()).servers).toEqual([{ url: 'https://first' }]);
+  });
+
+  it('concatenates servers when serversStrategy is "concat"', async () => {
+    cli.writeJson('a.json', withServers({ '/a': getPath('getA') }, 'https://first'));
+    cli.writeJson('b.json', withServers({ '/b': getPath('getB') }, 'https://second'));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }, { inputFile: './b.json' }],
+      output: './output.json',
+      serversStrategy: 'concat',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+
+    expect(JSON.parse(cli.read()).servers.map((s: { url: string }) => s.url)).toEqual([
+      'https://first',
+      'https://second',
+    ]);
+  });
+
+  it('rejects an unknown serversStrategy value against the generated schema', async () => {
+    cli.writeJson('a.json', withServers({ '/a': getPath('getA') }, 'https://first'));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+      serversStrategy: 'combine-somehow',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
+  });
+});

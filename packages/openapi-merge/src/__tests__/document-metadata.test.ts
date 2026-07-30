@@ -686,3 +686,109 @@ describe('3.2 edge: additive fields pass through', () => {
     expect(at(output.servers, '0', 'name')).toBe('production');
   });
 });
+
+/**
+ * Issue #4: the top-level `servers` array is first-wins by default, but can be
+ * concatenated across inputs.
+ *
+ * The default is not an accident to be corrected -- it is the API-gateway case
+ * the tool was built for, where a backend's own URLs must not leak into the
+ * published document. `'concat'` exists for the other audience: someone merging
+ * microservice specs who wants every server documented.
+ */
+describe('servers strategy (issue #4)', () => {
+  const twoInputsWithServers = () => [
+    {
+      oas: doc30({
+        paths: { '/a': { get: op('a') } },
+        servers: [{ url: 'https://first.example.com', description: 'first' }],
+      }),
+    },
+    {
+      oas: doc30({
+        paths: { '/b': { get: op('b') } },
+        servers: [{ url: 'https://second.example.com' }],
+      }),
+    },
+  ];
+
+  it('defaults to first-wins when no options are passed at all', () => {
+    const output = expectSuccess(merge(twoInputsWithServers()));
+
+    expect(output.servers).toEqual([{ url: 'https://first.example.com', description: 'first' }]);
+  });
+
+  it("defaults to first-wins when options are passed but serversStrategy is not", () => {
+    const output = expectSuccess(merge(twoInputsWithServers(), {}));
+
+    expect(output.servers).toEqual([{ url: 'https://first.example.com', description: 'first' }]);
+  });
+
+  it("concatenates every input's servers in input order under 'concat'", () => {
+    const output = expectSuccess(merge(twoInputsWithServers(), { serversStrategy: 'concat' }));
+
+    expect(output.servers?.map(s => s.url)).toEqual([
+      'https://first.example.com',
+      'https://second.example.com',
+    ]);
+  });
+
+  it('deduplicates by url, keeping the first occurrence and its description', () => {
+    const output = expectSuccess(
+      merge(
+        [
+          { oas: doc30({ paths: { '/a': { get: op('a') } }, servers: [{ url: 'https://same', description: 'kept' }] }) },
+          { oas: doc30({ paths: { '/b': { get: op('b') } }, servers: [{ url: 'https://same', description: 'dropped' }] }) },
+        ],
+        { serversStrategy: 'concat' },
+      ),
+    );
+
+    expect(output.servers).toEqual([{ url: 'https://same', description: 'kept' }]);
+  });
+
+  it('skips inputs with no servers, and inputs with an empty array', () => {
+    const output = expectSuccess(
+      merge(
+        [
+          { oas: doc30({ paths: { '/a': { get: op('a') } } }) },
+          { oas: doc30({ paths: { '/b': { get: op('b') } }, servers: [] }) },
+          { oas: doc30({ paths: { '/c': { get: op('c') } }, servers: [{ url: 'https://only' }] }) },
+        ],
+        { serversStrategy: 'concat' },
+      ),
+    );
+
+    expect(output.servers).toEqual([{ url: 'https://only' }]);
+  });
+
+  it('omits servers entirely when no input declares any, rather than emitting []', () => {
+    const output = expectSuccess(
+      merge([{ oas: doc30({ paths: { '/a': { get: op('a') } } }) }], { serversStrategy: 'concat' }),
+    );
+
+    expect(output.servers).toBeUndefined();
+  });
+
+  it('preserves 3.2 server fields such as `name` through concatenation', () => {
+    const output = expectSuccess(
+      merge(
+        [
+          { oas: doc32({ paths: { '/a': { get: op('a') } }, servers: [{ url: 'https://a', name: 'production' }] }) },
+          { oas: doc32({ paths: { '/b': { get: op('b') } }, servers: [{ url: 'https://b', name: 'staging' }] }) },
+        ],
+        { serversStrategy: 'concat' },
+      ),
+    );
+
+    expect(output.servers?.map(s => at(s, 'name'))).toEqual(['production', 'staging']);
+  });
+
+  it('does not mutate the inputs it concatenates', () => {
+    const inputs = twoInputsWithServers();
+    merge(inputs, { serversStrategy: 'concat' });
+
+    expect(inputs[0].oas.servers).toEqual([{ url: 'https://first.example.com', description: 'first' }]);
+    expect(inputs[1].oas.servers).toEqual([{ url: 'https://second.example.com' }]);
+  });
+});

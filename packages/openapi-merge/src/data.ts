@@ -1,5 +1,7 @@
 import { OpenApiDocument } from './oas31';
 
+import { ServersStrategy } from './servers';
+
 export type OperationSelection = {
   /**
    * Only Operatinos that have these tags will be taken from this OpenAPI file. If a single Operation contains
@@ -119,6 +121,25 @@ export type DescriptionTitle = {
 };
 
 export type MergeInput = Array<SingleMergeInput>;
+
+/**
+ * Document-level options for a merge.
+ *
+ * Deliberately a single bag passed as `merge()`'s second argument rather than
+ * per-input fields. Everything in here concerns the *output* document, so a
+ * per-input value would raise a question with no good answer: which input wins
+ * when two of them disagree about a property the output has only one of?
+ *
+ * Optional in every position, and every default reproduces the behaviour that
+ * existed before the option did, so `merge(inputs)` is unchanged.
+ */
+export interface MergeOptions {
+  /**
+   * How to combine the top-level `servers` array. Defaults to `'first'`.
+   * See {@link ServersStrategy} for why that is the default (issue #4).
+   */
+  serversStrategy?: ServersStrategy;
+}
 
 export type SuccessfulMergeResult = {
   output: OpenApiDocument;
