@@ -42,6 +42,59 @@ export function walkSchemaReferences(schema: Swagger.Schema | Swagger.Reference,
     if (schema.additionalProperties !== undefined && typeof schema.additionalProperties !== 'boolean') {
       walkSchemaReferences(schema.additionalProperties, modify);
     }
+
+    walkDiscriminatorMapping(schema, modify);
+  }
+}
+
+/**
+ * Rewrites the pointers hiding in `discriminator.mapping` (issue #99).
+ *
+ * A Discriminator Object maps a property value to a schema, and the map's
+ * *values* are pointers -- but they are plain strings in a plain object, not
+ * `$ref` members, so the reference walker never saw them. When deduplication
+ * renamed `Dog` to `Dog1`, the `oneOf` `$ref` was rewritten and the mapping was
+ * not, leaving a document that resolves to nothing while looking entirely
+ * valid.
+ *
+ * The specification allows a value to be written two ways, and both occur:
+ *
+ * - a full reference, `#/components/schemas/Dog`;
+ * - a bare schema name, `Dog`, which the spec defines as shorthand for exactly
+ *   that reference.
+ *
+ * A bare name is therefore rewritten by asking `modify` about the reference it
+ * abbreviates and, if that changed, writing back the abbreviated form of the
+ * result. Preserving the author's chosen spelling matters: expanding every
+ * shorthand into a full reference would produce a large, noisy diff in
+ * documents this tool merely passes through.
+ *
+ * Anything else -- a URL, a relative file path -- is left untouched, because it
+ * does not point into this document's components.
+ */
+function walkDiscriminatorMapping(schema: Swagger.Schema, modify: Modify): void {
+  const mapping = (schema as { discriminator?: { mapping?: Record<string, string> } }).discriminator?.mapping;
+  if (mapping === undefined) {
+    return;
+  }
+
+  const SCHEMA_PREFIX = '#/components/schemas/';
+
+  for (const key of Object.keys(mapping)) {
+    const value = mapping[key];
+
+    if (value.startsWith('#/')) {
+      mapping[key] = modify(value);
+      continue;
+    }
+
+    // A bare name is shorthand only when it is a name, not a path or a URL.
+    if (!value.includes('/') && !value.includes('#')) {
+      const rewritten = modify(`${SCHEMA_PREFIX}${value}`);
+      if (rewritten !== `${SCHEMA_PREFIX}${value}` && rewritten.startsWith(SCHEMA_PREFIX)) {
+        mapping[key] = rewritten.slice(SCHEMA_PREFIX.length);
+      }
+    }
   }
 }
 
