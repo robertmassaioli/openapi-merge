@@ -1,5 +1,8 @@
 import { ConfigurationInput, isConfigurationInputFromFile } from "./data";
 import { loadConfiguration } from "./load-configuration";
+import {
+  buildConfiguration, CandidateFile, isScannable, PLACEHOLDER_INPUT, selectInputs, STANDARD_CONFIG_FILE,
+} from "./init-command";
 import { Command } from 'commander';
 // package.json sits outside tsconfig's rootDir, so it cannot be imported as a
 // module without widening the compilation. require() is the pragmatic option.
@@ -46,7 +49,97 @@ function buildProgram(): Command {
     .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.')
     .option('--restrict-output-to <dir>', 'Refuse to write output anywhere outside this directory (overrides outputRoot in the config).');
 
+  // `init` is deliberately NOT registered with `.command()`.
+  //
+  // Registering a subcommand changes how commander treats a bare invocation:
+  // with subcommands present and no default action, `openapi-merge-cli` with no
+  // arguments prints help instead of merging. That is the tool's primary use,
+  // and silently turning it into a help screen would break every existing
+  // pipeline. It is dispatched by hand in `main()` instead, and described here
+  // so `--help` still documents it.
+  program.addHelpText('after', `
+Commands:
+  init [--force]             Write a starter openapi-merge.json in the current
+                             directory, filled in with any OpenAPI 3.x files
+                             found alongside it. Refuses to overwrite an
+                             existing configuration unless --force is given.
+
+Run with no arguments to perform the merge described by openapi-merge.json.`);
+
   return program;
+}
+
+/**
+ * `openapi-merge-cli init` (see init-command.ts for the scanning decisions).
+ *
+ * Returns the exit code. Kept out of `main()`'s merge path entirely: `main()`
+ * loads the configuration as its first act, which is precisely the file this
+ * command exists to create.
+ */
+async function runInit(force: boolean, logger: LogWithMillisDiff): Promise<ExitCode> {
+  const targetPath = path.resolve(process.cwd(), STANDARD_CONFIG_FILE);
+
+  if (fs.existsSync(targetPath) && !force) {
+    console.error(
+      `'${STANDARD_CONFIG_FILE}' already exists in ${process.cwd()}. ` +
+        `Pass --force to overwrite it, or edit the existing file.`,
+    );
+    return ExitCode.ErrorLoadingConfig;
+  }
+
+  const entries = fs.readdirSync(process.cwd(), { withFileTypes: true });
+  const candidates: CandidateFile[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !isScannable(entry.name)) {
+      continue;
+    }
+
+    // A directory being scanned for specifications is full of files that are
+    // not specifications, and several will not parse as JSON or YAML at all.
+    // That is ordinary, not an error worth stopping for.
+    try {
+      candidates.push({
+        relativePath: `./${entry.name}`,
+        parsed: await readYamlOrJSON(await readFileAsString(entry.name)),
+      });
+    } catch {
+      continue;
+    }
+  }
+
+  const { inputs, swagger2, minorVersions } = selectInputs(candidates);
+  const configuration = buildConfiguration(inputs);
+
+  fs.writeFileSync(targetPath, `${JSON.stringify(configuration, null, 2)}\n`);
+
+  if (inputs.length > 0) {
+    logger.log(`## Wrote ${STANDARD_CONFIG_FILE} with ${inputs.length} input${inputs.length === 1 ? '' : 's'}:`);
+    inputs.forEach(input => logger.log(`##   ${input}`));
+  } else {
+    logger.log(`## Wrote ${STANDARD_CONFIG_FILE}. No OpenAPI 3.x files were found here, so it contains a`);
+    logger.log(`##   placeholder input -- replace '${PLACEHOLDER_INPUT}' before running the merge.`);
+  }
+
+  if (swagger2.length > 0) {
+    // Named rather than ignored: people do try to merge 2.0 documents (issue
+    // #110), and silence would look like the scan simply missed them.
+    logger.log(`## Skipped ${swagger2.length} Swagger 2.0 file${swagger2.length === 1 ? '' : 's'}, which this tool cannot merge:`);
+    swagger2.forEach(file => logger.log(`##   ${file}`));
+    logger.log('##   Convert them to OpenAPI 3 first, with swagger2openapi or similar.');
+  }
+
+  if (minorVersions.length > 1) {
+    // Said now, while the user still has the file open, rather than leaving
+    // them to discover it as `mixed-openapi-versions` on the next command.
+    logger.log(`## WARNING: the inputs declare ${minorVersions.join(' and ')}, and a merge requires them all`);
+    logger.log('##   to share one major.minor version. Remove the odd ones out, or convert them,');
+    logger.log('##   before running the merge.');
+  }
+
+  logger.log(`## Edit ${STANDARD_CONFIG_FILE}, then run openapi-merge-cli to produce '${configuration.output}'.`);
+
+  return ExitCode.Success;
 }
 
 
@@ -165,6 +258,7 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
         pathModification: input.pathModification,
         operationSelection: input.operationSelection,
         description: input.description,
+        duplicatePathHandling: input.duplicatePathHandling,
         tag: input.tag,
       };
 
@@ -223,6 +317,19 @@ function writeOutput(outputFullPath: string, outputSchema: OpenApiDocument, inde
 
 export async function main(): Promise<void> {
   const logger = new LogWithMillisDiff();
+
+  // Dispatched before the program is even built, so the merge path below is
+  // reached with exactly the argv it has always seen.
+  if (process.argv[2] === 'init') {
+    logger.log(`## ${process.argv[0]}: Running v${pjson.version}`);
+    const force = process.argv.slice(3).some(arg => arg === '--force' || arg === '-f');
+    const code = await runInit(force, logger);
+    if (code !== ExitCode.Success) {
+      process.exit(code);
+    }
+    return;
+  }
+
   const program = buildProgram();
   program.parse(process.argv);
   const options = program.opts<CliOptions>();

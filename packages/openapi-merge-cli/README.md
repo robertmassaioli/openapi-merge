@@ -94,6 +94,43 @@ Three things are worth knowing about how this behaves:
 * **A partially-filtered path keeps its remaining operations.** Filtering is per operation; the path itself survives as long as one of its operations does.
 * **The top-level `tags` array is only pruned by `excludeTags`.** `includeTags` deliberately leaves it alone, so a tag you filtered *in* keeps its description.
 
+### Getting started: `init`
+
+To write that configuration file for you, run:
+
+``` bash
+npx openapi-merge-cli init
+```
+
+It creates `openapi-merge.json` in the current directory, pre-filled with any
+OpenAPI 3.x files it finds alongside it:
+
+```
+## Wrote openapi-merge.json with 2 inputs:
+##   ./service-a.yaml
+##   ./service-b.yaml
+## Edit openapi-merge.json, then run openapi-merge-cli to produce './openapi.yaml'.
+```
+
+Details worth knowing:
+
+* **It identifies inputs by content, not by extension.** Every `.json`, `.yaml`
+  and `.yml` file is opened and kept only if it has a top-level `openapi: 3.x`.
+  That is what keeps `package.json` and your CI configuration out of the result
+  without a list of names to exclude.
+* **It scans the current directory only.** Not recursive: descending would mean
+  guessing which directories to skip, and picking up a vendored copy of somebody
+  else's API is a worse outcome than finding nothing.
+* **It will not overwrite an existing `openapi-merge.json`** unless you pass
+  `--force`.
+* **Swagger 2.0 files are named, not silently skipped**, so you know the scan saw
+  them and why they were left out. Convert them with `swagger2openapi` first.
+* **It warns if the files it found declare different OpenAPI minor versions**,
+  because the merge requires them all to agree and would otherwise fail on your
+  next command.
+* If nothing is found, you still get a valid file with one placeholder input to
+  replace.
+
 And then, once you have your Inputs in place and your configuration file you merely run the following in the directory that has your configuration file:
 
 ``` bash
