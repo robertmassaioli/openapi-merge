@@ -7,6 +7,7 @@ import { mergeInfos } from './info';
 import { negotiateOutputVersion, validateInputVersions } from './openapi-version';
 import { OpenApiDocument } from './oas31';
 import { mergeServers, ServersStrategy } from './servers';
+import { pruneUnusedComponents } from './prune-components';
 
 export { isErrorResult };
 export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy };
@@ -75,7 +76,7 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
       // The version the narrowedInputs actually declared, rather than a hard-coded
       // 3.0.3. Well defined because every input shares a major.minor by now.
       openapi: negotiateOutputVersion(narrowedInputs) ?? '3.0.3',
-      info: mergeInfos(narrowedInputs),
+      info: mergeInfos(narrowedInputs, options?.info),
       servers: mergeServers(narrowedInputs, options?.serversStrategy),
       externalDocs: getFirstMatching(narrowedInputs, input => input.oas.externalDocs),
       security: getFirstMatching(narrowedInputs, input => input.oas.security),
@@ -90,5 +91,8 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
     narrowedInputs.map(input => input.oas)
   );
 
-  return { output };
+  // Last, so that reachability is computed against the finished document --
+  // after operation selection, renaming and reference rewriting have all had
+  // their say. Anything earlier would measure a document that does not exist.
+  return { output: options?.pruneUnusedComponents === true ? pruneUnusedComponents(output) : output };
 }
