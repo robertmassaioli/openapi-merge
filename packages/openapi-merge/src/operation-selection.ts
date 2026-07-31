@@ -2,6 +2,7 @@ import _ from 'lodash';
 import { Swagger } from "@atlassian/atlassian-openapi";
 import { OperationSelection } from './data';
 import { getPathItemOperations, HttpMethod, OpenApiDocument, PathItem32, PathItemMap } from './oas31';
+import { TagMatcher } from './tag-matching';
 
 /**
  * Remove an operation from a Path Item, whether it sits in a standard method
@@ -15,8 +16,8 @@ function deleteOperation(pathItem: PathItem32, method: string, isAdditional: boo
   }
 }
 
-function operationContainsAnyTag(operation: Swagger.Operation, tags: string[]): boolean {
-  return operation.tags !== undefined && operation.tags.some(tag => tags.includes(tag));
+function operationContainsAnyTag(operation: Swagger.Operation, matcher: TagMatcher): boolean {
+  return matcher.matchesAny(operation.tags);
 }
 
 /**
@@ -60,19 +61,21 @@ function removeOperations(
 }
 
 function dropOperationsThatHaveTags(originalOas: OpenApiDocument, excludedTags: string[]): OpenApiDocument {
-  if (excludedTags.length === 0) {
+  const matcher = new TagMatcher(excludedTags);
+  if (matcher.isEmpty) {
     return originalOas;
   }
 
-  return removeOperations(originalOas, operation => operationContainsAnyTag(operation, excludedTags));
+  return removeOperations(originalOas, operation => operationContainsAnyTag(operation, matcher));
 }
 
 function includeOperationsThatHaveTags(originalOas: OpenApiDocument, includeTags: string[]): OpenApiDocument {
-  if (includeTags.length === 0) {
+  const matcher = new TagMatcher(includeTags);
+  if (matcher.isEmpty) {
     return originalOas;
   }
 
-  return removeOperations(originalOas, operation => !operationContainsAnyTag(operation, includeTags));
+  return removeOperations(originalOas, operation => !operationContainsAnyTag(operation, matcher));
 }
 
 
