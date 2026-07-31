@@ -303,28 +303,58 @@ code shape and produced the same unconditional `duplicate-webhooks` error, so
 the policy applies there as well. It would be arbitrary for the same
 configuration to resolve a path collision and hard-fail an event-name one.
 
-### 10.4 §4.3 per-method granularity deliberately not implemented
+### 10.4 §4.3 per-method granularity — implemented as a fourth policy
 
-§4.3 recommends letting a later input add `POST /x` beside an earlier `GET /x`.
-Left out, because it raises questions the proposal does not answer: what
-happens to the path item's own `summary`, `description`, `parameters` and
-`$ref` when two inputs disagree about them? Merging *inside* a path item is a
-different feature from choosing *between* path items, and #8 and #109 will need
-that discussion anyway. Whole-path-item semantics are what §4.2 specifies and
-are predictable to explain.
+Initially left out for want of an answer to "what happens to the path item's own
+`summary`, `parameters` and `$ref` when two inputs disagree?". Raised again in
+review, and the answer turned out to be simple: **refuse**.
 
-### 10.5 Verification
+`'merge-operations'` combines two path items when, and only when, the union is
+unambiguous:
 
-- 11 tests in `paths.test.ts`. **7 fail against `origin/main`**, confirmed in a
-  detached worktree; the other four assert the unchanged default, including
-  that duplicate webhooks still error.
-- 4 CLI tests in `cli-merging.test.ts` for the wiring, including ajv rejecting
-  an unknown policy value.
-- Gate green: lint, 398 tests, 48 artifact checks.
+- their method sets are disjoint (standard slots and 3.2 `additionalOperations`
+  alike, the latter compared case-sensitively);
+- their path-level fields are identical — every key that is not an operation,
+  compared deeply, including vendor extensions;
+- neither is a `$ref`.
 
-### 10.6 This unblocks #8 and #109
+Anything else returns `duplicate-paths` (or `duplicate-webhooks`) with a message
+naming the reason: which methods overlapped, which fields differed, or that a
+`$ref` cannot be compared without resolving it.
 
-Both were deferred in the sweep ledger pending this mechanism. Each is now one
-additional value in `DuplicatePathHandling` plus its tests — #8 wants the
-dispute prefix applied to a duplicate instead of erroring, #109 wants a
-designated input to win, which `'prefer-later'` may already cover.
+`parameters` is the case that justifies the strictness. They are inherited by
+every operation in the path item, so combining an input whose path declares
+`tenantId` with one that does not silently adds a required parameter to
+operations that never had it. That is a merge tool changing what a document
+means, which is worse than a merge tool that stops. The same argument covers a
+field present on one side and absent on the other, so that counts as a
+difference too.
+
+Incoming operations go through `ensureUniqueOperationIds` before being combined,
+since they are joining a document that already contains the existing ones —
+otherwise two inputs each contributing an operation called `thing` to the same
+path would emit a duplicate id.
+
+Applies to webhooks on the same terms.
+
+### 10.5 What #8 and #109 still want
+
+Unchanged: both are additional *values* on this union rather than new
+mechanisms. #8 wants the dispute prefix applied to a colliding path; #109 wants
+a designated input to win, which `'prefer-later'` may already cover.
+
+### 10.6 Verification
+
+- 24 unit tests in `merge-path-items.test.ts` for the combine decision itself,
+  weighted towards the refusals: overlapping standard methods, partial overlap,
+  overlapping custom verbs, differing `parameters` / `summary` / `servers` /
+  vendor extensions, a field present on one side only, and all three `$ref`
+  arrangements. Plus immutability of both arguments.
+- 14 further tests in `paths.test.ts` driving real merges: three inputs
+  contributing three methods, a duplicate created by `pathModification`,
+  operationId disambiguation and dispute prefixes across the combine, webhooks,
+  and the per-input nature of the policy.
+- 3 CLI tests, including that the failure message names the overlapping method.
+- Two `KNOWN LIMITATION` tests remain, now pinning what `skip-later` and
+  `prefer-later` still discard — which is the point of having a third option.
+- Gate green: lint, 523 tests, 48 artifact checks.

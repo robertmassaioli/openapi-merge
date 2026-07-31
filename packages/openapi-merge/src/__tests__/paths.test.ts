@@ -1,9 +1,10 @@
 import { merge } from '../index';
 import { Swagger } from '@atlassian/atlassian-openapi';
-import { doc30, doc31, expectMergeError, expectSuccess, op, pathKeys } from './_helpers/documents';
+import { doc30, doc31, doc32, expectMergeError, expectSuccess, op, pathKeys } from './_helpers/documents';
 import { toOAS } from "./_helpers/oas-generation";
 import { expectMergeResult, toMergeInputs, expectErrorType } from "./_helpers/test-utils";
 import { SingleMergeInput } from "../data";
+import { PathItem32 } from "../oas31";
 
 describe('OAS Path Merge', () => {
   it('should merge paths where one paths is null', () => {
@@ -460,7 +461,10 @@ describe('duplicatePathHandling (issue #71)', () => {
    * takes its operations with it. Both non-error policies therefore discard an
    * operation that does not collide with anything.
    *
-   * Pinned rather than fixed. Combining per method is a different feature --
+   * `merge-operations` now combines them where the answer is unambiguous; the
+   * two tests below pin what the OTHER policies still do, which is discard.
+   *
+   * Combining per method is a different decision from choosing between items --
    * choosing *between* path items versus merging *inside* one -- and it raises
    * questions this policy does not answer: a Path Item carries its own
    * `parameters`, which are inherited by every operation in it, plus
@@ -495,6 +499,178 @@ describe('duplicatePathHandling (issue #71)', () => {
       // The default refuses rather than guessing, so a user who would be
       // surprised by either policy above is told instead.
       expectMergeError(merge([getOnly, { oas: doc30({ paths: { '/thing': { post: op('postThing') } } }) }]), 'duplicate-paths');
+    });
+  });
+
+  /**
+   * `merge-operations` (issue #71): combine two path items that share a key but
+   * not a method.
+   *
+   * Only where the answer is unambiguous. Every refusal is a case where a
+   * plausible union would silently change what one input's operations mean.
+   */
+  describe("duplicatePathHandling: 'merge-operations'", () => {
+    const merged = (a: PathItem32, b: PathItem32, handling: 'merge-operations' = 'merge-operations') =>
+      merge([
+        { oas: doc32({ paths: { '/thing': a } }) },
+        { oas: doc32({ paths: { '/thing': b } }), duplicatePathHandling: handling },
+      ]);
+
+    it('combines GET from one input with POST from another', () => {
+      const output = expectSuccess(merged({ get: op('getThing') }, { post: op('postThing') }));
+
+      expect(pathKeys(output)).toEqual(['/thing']);
+      expect(Object.keys(output.paths?.['/thing'] ?? {}).sort()).toEqual(['get', 'post']);
+      expect(output.paths?.['/thing']?.get?.operationId).toBe('getThing');
+      expect(output.paths?.['/thing']?.post?.operationId).toBe('postThing');
+    });
+
+    it('leaves a non-colliding path from the same input alone', () => {
+      const output = expectSuccess(
+        merge([
+          { oas: doc32({ paths: { '/thing': { get: op('getThing') } } }) },
+          {
+            oas: doc32({ paths: { '/thing': { post: op('postThing') }, '/other': { get: op('getOther') } } }),
+            duplicatePathHandling: 'merge-operations',
+          },
+        ]),
+      );
+
+      expect(pathKeys(output)).toEqual(['/other', '/thing']);
+    });
+
+    it('disambiguates an operationId that collides with one already merged', () => {
+      // The incoming operation joins a document that already holds the other,
+      // so it is subject to the same uniqueness rule as any other operation.
+      const output = expectSuccess(merged({ get: op('shared') }, { post: op('shared') }));
+
+      expect(output.paths?.['/thing']?.get?.operationId).toBe('shared');
+      expect(output.paths?.['/thing']?.post?.operationId).toBe('shared1');
+    });
+
+    it('applies a dispute prefix to the incoming operation', () => {
+      const output = expectSuccess(
+        merge([
+          { oas: doc32({ paths: { '/thing': { get: op('thing') } } }) },
+          {
+            oas: doc32({ paths: { '/thing': { post: op('thing') } } }),
+            duplicatePathHandling: 'merge-operations',
+            dispute: { prefix: 'Svc' },
+          },
+        ]),
+      );
+
+      expect(output.paths?.['/thing']?.post?.operationId).toBe('Svcthing');
+    });
+
+    it('refuses when both define the same method', () => {
+      const message = expectMergeError(merged({ get: op('a') }, { get: op('b') }), 'duplicate-paths');
+
+      expect(message).toContain('GET');
+      expect(message).toContain("'/thing'");
+    });
+
+    it('refuses when path-level parameters differ', () => {
+      const message = expectMergeError(
+        merged(
+          { parameters: [{ name: 'tenantId', in: 'path', required: true, schema: { type: 'string' } }], get: op('g') },
+          { post: op('p') },
+        ),
+        'duplicate-paths',
+      );
+
+      expect(message).toContain("'parameters'");
+    });
+
+    it('refuses when either side is a $ref path item', () => {
+      const message = expectMergeError(
+        merged({ $ref: '#/components/pathItems/Shared' }, { post: op('p') }),
+        'duplicate-paths',
+      );
+
+      expect(message).toContain('$ref');
+    });
+
+    it('combines across a pathModification-created duplicate', () => {
+      const output = expectSuccess(
+        merge([
+          { oas: doc32({ paths: { '/api/thing': { get: op('getThing') } } }) },
+          {
+            oas: doc32({ paths: { '/thing': { post: op('postThing') } } }),
+            pathModification: { prepend: '/api' },
+            duplicatePathHandling: 'merge-operations',
+          },
+        ]),
+      );
+
+      expect(Object.keys(output.paths?.['/api/thing'] ?? {}).sort()).toEqual(['get', 'post']);
+    });
+
+    it('combines three inputs contributing three methods', () => {
+      const output = expectSuccess(
+        merge([
+          { oas: doc32({ paths: { '/thing': { get: op('g') } } }) },
+          { oas: doc32({ paths: { '/thing': { post: op('p') } } }), duplicatePathHandling: 'merge-operations' },
+          { oas: doc32({ paths: { '/thing': { delete: op('d') } } }), duplicatePathHandling: 'merge-operations' },
+        ]),
+      );
+
+      expect(Object.keys(output.paths?.['/thing'] ?? {}).sort()).toEqual(['delete', 'get', 'post']);
+    });
+
+    it('refuses on the third input if it collides with either earlier one', () => {
+      const message = expectMergeError(
+        merge([
+          { oas: doc32({ paths: { '/thing': { get: op('g') } } }) },
+          { oas: doc32({ paths: { '/thing': { post: op('p') } } }), duplicatePathHandling: 'merge-operations' },
+          { oas: doc32({ paths: { '/thing': { get: op('g2') } } }), duplicatePathHandling: 'merge-operations' },
+        ]),
+        'duplicate-paths',
+      );
+
+      expect(message).toContain('GET');
+    });
+
+    it('is per input, so another input can still use error', () => {
+      // The third input has no policy, so the default applies to it even though
+      // the second merged successfully.
+      expectMergeError(
+        merge([
+          { oas: doc32({ paths: { '/thing': { get: op('g') } } }) },
+          { oas: doc32({ paths: { '/thing': { post: op('p') } } }), duplicatePathHandling: 'merge-operations' },
+          { oas: doc32({ paths: { '/thing': { delete: op('d') } } }) },
+        ]),
+        'duplicate-paths',
+      );
+    });
+
+    it('combines webhooks that share an event name but not a method', () => {
+      const output = expectSuccess(
+        merge([
+          { oas: doc31({ paths: {}, webhooks: { ping: { post: op('onPing') } } }) },
+          {
+            oas: doc31({ paths: {}, webhooks: { ping: { get: op('checkPing') } } }),
+            duplicatePathHandling: 'merge-operations',
+          },
+        ]),
+      );
+
+      expect(Object.keys(output.webhooks?.ping ?? {}).sort()).toEqual(['get', 'post']);
+    });
+
+    it('refuses an overlapping webhook method with duplicate-webhooks', () => {
+      const message = expectMergeError(
+        merge([
+          { oas: doc31({ paths: {}, webhooks: { ping: { post: op('a') } } }) },
+          {
+            oas: doc31({ paths: {}, webhooks: { ping: { post: op('b') } } }),
+            duplicatePathHandling: 'merge-operations',
+          },
+        ]),
+        'duplicate-webhooks',
+      );
+
+      expect(message).toContain('POST');
     });
   });
 

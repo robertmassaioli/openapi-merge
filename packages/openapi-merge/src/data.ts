@@ -49,12 +49,17 @@ export type Dispute = DisputePrefix | DisputeSuffix;
  *   behaviour. Unchanged for anyone who does not set this.
  * - `'skip-later'` — keep the definition already present and drop this input's.
  * - `'prefer-later'` — replace the definition already present with this one.
+ * - `'merge-operations'` — combine them when their method sets are disjoint and
+ *   their path-level fields agree, so `GET /thing` from one input and
+ *   `POST /thing` from another end up in one path item. Refuses with
+ *   `duplicate-paths` in every case where a union would be a guess: overlapping
+ *   methods, differing path-level fields, or a `$ref` path item.
  *
  * Per input rather than global, because the thing people actually want to
  * express is "this one input wins and the rest are additive", which a single
  * global setting cannot say.
  */
-export type DuplicatePathHandling = 'error' | 'skip-later' | 'prefer-later';
+export type DuplicatePathHandling = 'error' | 'skip-later' | 'prefer-later' | 'merge-operations';
 
 /**
  * A tag applied to every operation coming from one input (issue #112).

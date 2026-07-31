@@ -3,6 +3,7 @@ import { Swagger, SwaggerLookup, SwaggerTypeChecks } from "@atlassian/atlassian-
 import { walkAllReferences } from "./reference-walker";
 import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";
+import { isPathItemMergeFailure, mergePathItems } from './merge-path-items';
 import { injectTag } from './tag-injection';
 import { deepEquality } from "./component-equivalence";
 import { applyDispute, getDispute } from './dispute';
@@ -359,6 +360,32 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
 
       const isDuplicate = result.paths[newPath] !== undefined;
 
+      if (isDuplicate && duplicatePathHandling === 'merge-operations') {
+        const incoming = getPaths(oas)[originalPath];
+
+        // Operation IDs first: the incoming operations are joining a document
+        // that already contains the existing ones, so they must be
+        // disambiguated against everything seen so far, exactly as they would
+        // be on a path of their own.
+        const opIdError = ensureUniqueOperationIds(incoming, seenOperationIds, dispute);
+        if (opIdError !== undefined) {
+          return opIdError;
+        }
+
+        const combined = mergePathItems(result.paths[newPath], incoming);
+        if (isPathItemMergeFailure(combined)) {
+          return {
+            type: 'duplicate-paths',
+            message:
+              `Input ${inputIndex}: The path '${originalPath}' maps to '${newPath}', which another input already ` +
+              `added, and they could not be combined because ${combined.reason}.`,
+          };
+        }
+
+        result.paths[newPath] = combined;
+        continue;
+      }
+
       if (isDuplicate && duplicatePathHandling === 'skip-later') {
         // Skipped before `ensureUniqueOperationIds`, deliberately: a path that
         // is not going into the output must not consume operationIds, or it
@@ -399,6 +426,28 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
           type: 'duplicate-webhooks',
           message: `Input ${inputIndex}: The webhook '${webhookName}' has already been added by another input file`
         };
+      }
+
+      if (result.webhooks[webhookName] !== undefined && duplicatePathHandling === 'merge-operations') {
+        const incoming = getWebhooks(oas)[webhookName];
+
+        const opIdError = ensureUniqueOperationIds(incoming, seenOperationIds, dispute);
+        if (opIdError !== undefined) {
+          return opIdError;
+        }
+
+        const combined = mergePathItems(result.webhooks[webhookName], incoming);
+        if (isPathItemMergeFailure(combined)) {
+          return {
+            type: 'duplicate-webhooks',
+            message:
+              `Input ${inputIndex}: The webhook '${webhookName}' has already been added by another input file, ` +
+              `and they could not be combined because ${combined.reason}.`,
+          };
+        }
+
+        result.webhooks[webhookName] = combined;
+        continue;
       }
 
       if (result.webhooks[webhookName] !== undefined && duplicatePathHandling === 'skip-later') {
