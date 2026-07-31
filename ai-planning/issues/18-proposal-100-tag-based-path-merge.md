@@ -1,6 +1,6 @@
 # Implementation Proposal: Issue #100 — Merge Paths Based on Specific Tags
 
-**Status:** Proposal
+**Status:** ✅ Implemented (documentation) — see §10
 
 **Value:** 3 / **Effort:** 2 / **ROI:** 4 / **Quadrant:** Quick Win
 
@@ -231,3 +231,63 @@ The existing `operationSelection` logic is sufficient. No new types, functions, 
 ## 11. Timeline
 
 **Can ship immediately** as part of the "CLI Ergonomics" minor release (as suggested in the triage document). No code review or testing needed beyond verification that the documentation is clear.
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/100-tag-based-path-merge`. **No production code changed**, and
+that is the finding rather than a shortfall.
+
+### 10.1 §4's conclusion was verified, not assumed
+
+§4 says there are no code-level gaps. Before writing documentation on that
+basis, the behaviour was probed against the current implementation:
+
+```
+includeTags: ['Service1'] over
+  /mixed    { get (Service1), post (Other) }
+  /untagged { get (no tags) }
+->
+  paths: ['/mixed'],  /mixed methods: ['get']
+```
+
+Exactly as §4 claims: filtering is per operation, a partially-filtered path
+survives with its remaining operations, and a path left empty is dropped.
+
+### 10.2 Delivered as documentation plus pinning tests
+
+§4.1's clarification and §4.2's worked example are now in the CLI README, which
+calls out the three behaviours someone reading "include these tags" would most
+plausibly get wrong:
+
+- untagged operations do **not** survive an allow-list;
+- a partially-filtered path keeps its remaining operations;
+- `includeTags` does not prune the top-level `tags` array — only `excludeTags`
+  does.
+
+Six tests pin those claims, one per documented sentence. For a feature whose
+entire problem was that its behaviour was not discoverable, documentation
+without tests would decay into the same state within a release or two.
+
+### 10.3 These tests do not fail against `origin/main`
+
+Every other issue in this sweep contributed tests that fail before the change
+and pass after. These do not, and cannot: there is no behaviour change. They
+pass identically on `origin/main`, confirmed in a detached worktree rather than
+assumed.
+
+That is the honest position for a documentation fix. A manufactured failing
+test here would misrepresent what changed.
+
+### 10.4 The sweep ledger entry was wrong
+
+`issue-recommendations.md` justified this as "a small extension of the existing
+filter". It is not an extension of anything. Corrected there, because a ledger
+whose reasoning is wrong is worse than one that is merely incomplete.
+
+### 10.5 Verification
+
+- 6 tests in `operation-selection.test.ts`, passing before and after.
+- Gate green: lint, 390 tests, 48 artifact checks.
