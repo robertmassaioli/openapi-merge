@@ -1,8 +1,9 @@
 import { MergeInput, ErrorMergeResult, Dispute } from "./data";
-import { Swagger, SwaggerLookup } from "@atlassian/atlassian-openapi";
+import { Swagger, SwaggerLookup, SwaggerTypeChecks } from "@atlassian/atlassian-openapi";
 import { walkAllReferences } from "./reference-walker";
 import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";
+import { injectTag } from './tag-injection';
 import { deepEquality } from "./component-equivalence";
 import { applyDispute, getDispute } from './dispute';
 import { Components31, getPathItemOperations, getPaths, getWebhooks, OpenApiDocument, PathItem32, PathItemMap } from './oas31';
@@ -110,13 +111,21 @@ function pathItemHasContent(pathItem: PathItem32): boolean {
 function dropPathItemsWithNoOperations(originalOas: OpenApiDocument): OpenApiDocument {
   const oas = _.cloneDeep(originalOas);
 
-  for (const path in oas.paths) {
-    /* eslint-disable-next-line no-prototype-builtins */
-    if (oas.paths.hasOwnProperty(path)) {
-      const pathItem = oas.paths[path];
+  // Webhooks as well as paths. An `excludeTags` rule that empties a webhook
+  // used to leave `{ ping: {} }` behind -- an event the document announces and
+  // then says nothing about -- while the equivalent path was dropped. Surfaced
+  // by a wildcard test for issue #111; the inconsistency predates it.
+  for (const map of [oas.paths, oas.webhooks]) {
+    // Not just `!== undefined`: a document in the wild can carry `paths: null`,
+    // which the previous `for...in` tolerated silently and `Object.keys` does
+    // not. There is a test for exactly that input, and it caught this.
+    if (map === undefined || map === null) {
+      continue;
+    }
 
-      if (!pathItemHasContent(pathItem)) {
-        delete oas.paths[path];
+    for (const key of Object.keys(map)) {
+      if (!pathItemHasContent(map[key])) {
+        delete map[key];
       }
     }
   }
@@ -168,9 +177,16 @@ function ensureUniqueOperationIds(pathItem: PathItem32, seenOperationIds: Set<st
   const operations = getPathItemOperations(pathItem);
 
   for (let opIndex = 0; opIndex < operations.length; opIndex++) {
-    const result = ensureUniqueOperationId(operations[opIndex].operation, seenOperationIds, dispute);
+    const { operation } = operations[opIndex];
+
+    const result = ensureUniqueOperationId(operation, seenOperationIds, dispute);
     if (result !== undefined) {
       return result;
+    }
+
+    const callbackError = ensureUniqueCallbackOperationIds(operation, seenOperationIds, dispute);
+    if (callbackError !== undefined) {
+      return callbackError;
     }
   }
 }
@@ -219,6 +235,49 @@ function renameSecurityRequirements(oas: OpenApiDocument, renames: { [from: stri
 }
 
 /**
+ * Operation IDs nested inside an operation's `callbacks` (issue #105).
+ *
+ * The specification requires an operationId to be "unique among all operations
+ * described in the API", and an operation inside a Callback Object is one of
+ * them -- a Callback is a map of runtime expressions to Path Items, and those
+ * Path Items hold real operations.
+ *
+ * They were skipped, so two inputs declaring the same callback operationId
+ * produced a document with a duplicate: invalid, and silently so. References
+ * inside callbacks were already rewritten correctly, which made this the one
+ * remaining callback-shaped gap.
+ *
+ * A `$ref` callback is left alone: the operations live in the component it
+ * points at, and that component is walked in its own right.
+ */
+function ensureUniqueCallbackOperationIds(
+  operation: Swagger.Operation,
+  seenOperationIds: Set<string>,
+  dispute: Dispute | undefined,
+): ErrorMergeResult | undefined {
+  const callbacks = operation.callbacks;
+  if (callbacks === undefined) {
+    return undefined;
+  }
+
+  for (const callbackName of Object.keys(callbacks)) {
+    const callback = callbacks[callbackName];
+    if (SwaggerTypeChecks.isReference(callback)) {
+      continue;
+    }
+
+    for (const expression of Object.keys(callback)) {
+      const result = ensureUniqueOperationIds(callback[expression] as PathItem32, seenOperationIds, dispute);
+      if (result !== undefined) {
+        return result;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Merge algorithm:
  *
  * Generate reference mappings for the components. Eliminating duplicates.
@@ -243,7 +302,13 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
     const { oas: originalOas, pathModification, operationSelection } = input;
     const dispute = getDispute(input);
 
-    const oas = dropPathItemsWithNoOperations(runOperationSelection(_.cloneDeep(originalOas), operationSelection));
+    // Tag injection comes last: after selection has decided what survives, and
+    // after empty path items are dropped, so nothing is tagged that is not in
+    // the output (issue #112).
+    const oas = injectTag(
+      dropPathItemsWithNoOperations(runOperationSelection(_.cloneDeep(originalOas), operationSelection)),
+      input.tag,
+    );
 
     // Original references will be transformed to new non-conflicting references
     const referenceModification: { [originalReference: string]: string } = {};
