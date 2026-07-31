@@ -233,18 +233,6 @@ export type Configuration = {
    * default).
    */
   formatting?: OutputFormatting;
-
-  /**
-   * How to combine the top-level `servers` array across inputs (issue #4).
-   *
-   * - `first` (default) -- take the first input that declares `servers` and
-   *   discard the rest. Correct for the API-gateway case this tool targets,
-   *   where the gateway's URLs are canonical and a backend's own URLs are an
-   *   implementation detail.
-   * - `concat` -- keep every input's servers, in input order, deduplicated by
-   *   URL. For documenting several microservices in one file.
-   */
-  serversStrategy?: 'first' | 'concat';
 };
 
 /**

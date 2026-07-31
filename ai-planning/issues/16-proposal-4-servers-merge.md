@@ -1,6 +1,6 @@
 # Proposal: Issue #4 — Configurable Servers Array Merge Strategy
 
-**Status:** ✅ Implemented — see §10
+**Status:** Proposal
 
 **Value:** 3 | **Effort:** 2 | **ROI:** Medium
 
@@ -424,51 +424,3 @@ describe('servers merging', () => {
 3. **Interaction with other top-level fields:** `info`, `security`, `externalDocs` remain first-wins. Only `servers` gets the new configurable behaviour. Future issues may request similar configurability for those fields.
 
 4. **CLI documentation:** Update the CLI README or generated schema docs to explain the new `serversStrategy` option with examples for both `'first'` and `'concat'` use cases.
-
-
----
-
-## 10. What was implemented
-
-Branch `issue/4-servers-merge`. Implemented as designed, with three deviations
-worth recording.
-
-### 10.1 `MergeOptions` had to be created, not extended
-
-§5 and §6.2 describe adding `serversStrategy` to a shared `MergeOptions`
-interface "per proposals #76, #102, #71". None of those had landed, so the
-interface did not exist and this change creates it. Whichever of the four merged
-first was always going to be the one that introduced it; the others will
-conflict on the same declaration and should resolve by keeping every field.
-
-### 10.2 The return type is `Server32[]`, not `Swagger.Server[]`
-
-§6.3's sketch returns `Swagger.Server[]`. The output document is typed
-`OpenApiDocument` from `oas31.ts`, whose `servers` is `Server32[]` — 3.2 added
-`name` to the Server Object. Using the narrower type would have dropped `name`
-on the way through. There is a test that a 3.2 `name` survives concatenation.
-
-### 10.3 An empty result is `undefined`, not `[]`
-
-Not covered by §4.3, which only says an input with no servers is "skipped". If
-every input is skipped, `'concat'` now returns `undefined` rather than `[]`, so
-that both strategies agree on what "no servers anywhere" looks like. An emitted
-`servers: []` means something different to a reader than an absent one.
-
-### 10.4 Also wired through the CLI
-
-The proposal is library-only, which would have left the feature unreachable for
-anyone using `openapi-merge-cli` — the majority. Added `serversStrategy` to the
-CLI `Configuration` type, passed it to `merge()`, and regenerated
-`configuration.schema.json`, so an unknown value is rejected by ajv with exit 1.
-
-### 10.5 Verification
-
-- 8 library tests in `document-metadata.test.ts`, the suite that already owns
-  document-level metadata. **Three of them fail against `origin/main`** —
-  confirmed in a detached worktree — and all pass here. The other five assert
-  the unchanged first-wins default and are regression guards.
-- 3 CLI tests in `cli-merging.test.ts` covering the wiring: the default, the
-  concat path, and schema rejection of a bad value.
-- Full gate green: `bun run lint`, `bun run test` (384 tests) and
-  `./scripts/verify-node-runtime.sh` (48 checks across Node and Bun).

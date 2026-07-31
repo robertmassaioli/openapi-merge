@@ -1,15 +1,14 @@
 import { isPresent } from 'ts-is-present';
-import { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection, MergeOptions } from './data';
+import { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection } from './data';
 import { mergeTags } from './tags';
 import { mergePathsAndComponents } from './paths-and-components';
 import { mergeExtensions } from './extensions';
 import { mergeInfos } from './info';
 import { negotiateOutputVersion, validateInputVersions } from './openapi-version';
 import { OpenApiDocument } from './oas31';
-import { mergeServers, ServersStrategy } from './servers';
 
 export { isErrorResult };
-export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy };
+export type { MergeInput, MergeResult, PathModification, OperationSelection };
 
 function getFirst<A>(inputs: Array<A>): A | undefined {
   if (inputs.length > 0) {
@@ -39,7 +38,7 @@ function mergeSelf(inputs: MergeInput): string | undefined {
 /**
  * Swagger Merge Tool
  */
-export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
+export function merge(inputs: MergeInput): MergeResult {
   if (inputs.length === 0) {
     return { type: 'no-inputs', message: 'You must provide at least one OAS file as an input.' };
   }
@@ -68,7 +67,7 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
       // 3.0.3. Well defined because every input shares a major.minor by now.
       openapi: negotiateOutputVersion(inputs) ?? '3.0.3',
       info: mergeInfos(inputs),
-      servers: mergeServers(inputs, options?.serversStrategy),
+      servers: getFirstMatching(inputs, input => input.oas.servers),
       externalDocs: getFirstMatching(inputs, input => input.oas.externalDocs),
       security: getFirstMatching(inputs, input => input.oas.security),
       tags: mergeTags(inputs),
