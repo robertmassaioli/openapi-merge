@@ -336,6 +336,51 @@ describe('main - tag injection (issue #112)', () => {
 });
 
 /**
+ * Issue #33: securitySchemesStrategy reaching the library from a config file.
+ */
+describe('main - securitySchemesStrategy (issue #33)', () => {
+  const withScheme = (pathName: string, opId: string, headerName: string) => ({
+    openapi: '3.0.3',
+    info: { title: 'T', version: '1.0.0' },
+    paths: { [pathName]: { get: { operationId: opId, responses: { '200': { description: 'ok' } }, security: [{ auth: [] }] } } },
+    components: { securitySchemes: { auth: { type: 'apiKey', in: 'header', name: headerName } } },
+  });
+
+  const twoInputs = (strategy?: string) => {
+    cli.writeJson('a.json', withScheme('/a', 'getA', 'X-First'));
+    cli.writeJson('b.json', withScheme('/b', 'getB', 'X-Second'));
+    return cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }, { inputFile: './b.json' }],
+      output: './output.json',
+      ...(strategy === undefined ? {} : { securitySchemesStrategy: strategy }),
+    });
+  };
+
+  it('merges by default', async () => {
+    expect(await cli.run('-c', twoInputs())).toBe(ExitCode.Success);
+
+    const output = JSON.parse(cli.read());
+    expect(Object.keys(output.components.securitySchemes).sort()).toEqual(['auth', 'auth1']);
+    expect(output.paths['/b'].get.security).toEqual([{ auth1: [] }]);
+  });
+
+  it("keeps only the first input's schemes with 'first'", async () => {
+    expect(await cli.run('-c', twoInputs('first'))).toBe(ExitCode.Success);
+
+    expect(Object.keys(JSON.parse(cli.read()).components.securitySchemes)).toEqual(['auth']);
+  });
+
+  it("exits 3 with 'error' when two inputs disagree about a scheme", async () => {
+    expect(await cli.run('-c', twoInputs('error'))).toBe(ExitCode.ErrorMerging);
+    expect(cli.stderr().join('\n')).toContain('auth');
+  });
+
+  it('rejects an unknown strategy against the generated schema', async () => {
+    expect(await cli.run('-c', twoInputs('combine-somehow'))).toBe(ExitCode.ErrorLoadingConfig);
+  });
+});
+
+/**
  * Issue #71 `merge-operations` reaching the library from a config file.
  */
 describe('main - duplicatePathHandling: merge-operations (issue #71)', () => {

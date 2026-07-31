@@ -2,7 +2,7 @@
 
 **Issue:** [#33 — Merge securitySchemes of input files](https://github.com/robertmassaioli/openapi-merge/issues/33)
 
-**Status:** Proposal
+**Status:** ✅ Implemented — see §10
 
 **Value:** 4 | **Effort:** 3 | **ROI:** High
 
@@ -339,3 +339,96 @@ it('should update per-operation security references when scheme is renamed', () 
 6. [ ] Run `yarn lint` to ensure compliance.
 
 7. [ ] (Optional) Update README or CHANGELOG to document the new behavior.
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/33-security-schemes`.
+
+### 10.1 Configurable, not a fixed behaviour change
+
+The first version of this change simply made `securitySchemes` merge like every
+other bucket, and rewrote three tests that asserted the old behaviour. Raised in
+review: this repository already has a pattern for "the merge could reasonably do
+either" — `serversStrategy` (#4), `duplicatePathHandling` (#71),
+`pruneUnusedComponents` (#94) — and this is that kind of question, not a
+one-answer bug.
+
+It is now `securitySchemesStrategy` in `MergeOptions`, shaped after
+`serversStrategy`, with three values:
+
+| Value | Behaviour | Who it is for |
+| --- | --- | --- |
+| `merge` *(default)* | Combine like every other bucket: identical definitions collapse, differing ones are renamed via dispute prefix or numeric suffix, and every requirement naming a renamed scheme is rewritten | Anyone merging peer services |
+| `first` | Take the first input that declares any, drop the rest | An API gateway: it owns authentication, and a backend's scheme definitions are an implementation detail |
+| `error` | Combine, but refuse when two inputs define the same name differently | Anyone who would rather be told than find `oauth2` and `oauth21` in their output |
+
+### 10.2 Why `error` earns its place
+
+It is not merely "strict mode". Under `merge`, two services that both define
+`oauth2` — pointing at different authorization URLs — produce a valid document
+containing `oauth2` and `oauth21`, and the second service's operations quietly
+require the renamed one. That is correct, and it is also the kind of thing a
+platform team would want to hear about rather than discover in a generated SDK.
+
+Identical definitions still collapse under `error`. Two inputs agreeing is not a
+conflict, and failing on agreement would make the option useless in the case it
+is most likely to be switched on for.
+
+### 10.3 The default changes behaviour, deliberately
+
+`serversStrategy` defaults to `'first'`, preserving what the tool always did.
+This one defaults to `'merge'`, which does not.
+
+The difference is that first-wins for `servers` produces a *defensible*
+document, while first-wins for `securitySchemes` produces an **invalid** one:
+a later input's operations survive while the schemes they require do not, so the
+output references a scheme it never defines. Issue #33 is filed as a bug and
+quotes exactly that symptom. Defaulting to `'first'` would leave it unfixed for
+everyone who does not read the changelog.
+
+It remains a breaking change for anyone relying on the drop, and `'first'` is
+one word away. That trade is the reason this section exists.
+
+### 10.4 Renames need a second channel, not the reference walker
+
+Unchanged from the original design, and still the substantive part. A Security
+Requirement names its scheme as an **object key** — `{ apiKey: [] }` — not a
+`$ref`, so `referenceModification` cannot see it. A renamed scheme leaves every
+requirement pointing at a name that no longer exists: a document that looks
+valid and authorises nothing.
+
+`securitySchemeRenames` is populated from the same rename callback and applied
+by `renameSecurityRequirements` over the document-level `security` array and
+every operation's, across both `paths` and `webhooks`.
+
+### 10.5 Document-level `security` had to move upstream
+
+Also unchanged. `index.ts` read `security` off the *original* inputs, so the
+rewritten copy was discarded and the top-level requirement kept the stale name.
+`PathAndComponents` now carries it — still first-wins, but after renames. Caught
+by a test, not by inspection.
+
+### 10.6 Three tests changed meaning
+
+Three existing tests asserted that a later input's schemes are dropped. They now
+assert the same thing under `securitySchemesStrategy: 'first'`, and the default
+path has its own coverage. Nobody's expectation is deleted; it is relabelled as
+one of three choices.
+
+One of them pins the defect deliberately: under `'first'`, a later input's
+requirement still names a scheme the output no longer defines. That is the
+documented cost of the gateway behaviour, and choosing it should be informed.
+
+### 10.7 Verification
+
+- 10 strategy tests in `components.test.ts` covering all three values, the
+  default, `error` collapsing identical definitions, `error` not firing on a
+  scheme only one input declares, and that the other nine buckets keep merging
+  regardless.
+- 7 tests for the rename machinery, unchanged from the original design.
+- 4 CLI tests: the default, `first`, `error` exiting 3, and ajv rejecting an
+  unknown value.
+- Gate green: lint, 487 tests, 48 artifact checks.

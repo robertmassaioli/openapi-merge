@@ -294,6 +294,24 @@ export type Configuration = {
   serversStrategy?: 'first' | 'concat';
 
   /**
+   * How `components.securitySchemes` are combined across inputs (issue #33).
+   *
+   * - `merge` (default) -- combine them, exactly as every other component type
+   *   is combined: identical definitions collapse, differing ones are renamed
+   *   using the input's dispute prefix or a numeric suffix, and every security
+   *   requirement naming a renamed scheme is rewritten to match.
+   * - `first` -- take the schemes from the first input that declares any and
+   *   drop the rest. The behaviour before this option existed. Right for an API
+   *   gateway, which owns authentication and does not want a backend's own
+   *   scheme definitions in the published document -- but note that a later
+   *   input's operations may then require a scheme the output does not define.
+   * - `error` -- combine them, but fail if two inputs define the same scheme
+   *   name differently, rather than renaming around it. Identical definitions
+   *   still collapse.
+   */
+  securitySchemesStrategy?: 'merge' | 'first' | 'error';
+
+  /**
    * Drop components that nothing in the merged output references (issue #94).
    *
    * Defaults to false. Useful with `operationSelection`, where excluding tags

@@ -2,6 +2,7 @@ import { Swagger } from '@atlassian/atlassian-openapi';
 import { OpenApiDocument } from './oas31';
 
 import { ServersStrategy } from './servers';
+import { SecuritySchemesStrategy } from './security-schemes';
 
 export type OperationSelection = {
   /**
@@ -232,6 +233,19 @@ export interface MergeOptions {
    * See {@link ServersStrategy} for why that is the default (issue #4).
    */
   serversStrategy?: ServersStrategy;
+
+  /**
+   * How `components.securitySchemes` is combined across inputs (issue #33).
+   *
+   * Defaults to `'merge'`. Unlike {@link ServersStrategy}, whose default keeps
+   * the historical first-wins behaviour, this one changes it: first-wins here
+   * produced documents whose operations required a scheme the document did not
+   * define, which is a defect rather than a preference.
+   *
+   * See {@link SecuritySchemesStrategy} for the three values and the case each
+   * one serves.
+   */
+  securitySchemesStrategy?: SecuritySchemesStrategy;
 }
 
 export type SuccessfulMergeResult = {

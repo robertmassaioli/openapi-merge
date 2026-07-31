@@ -7,10 +7,11 @@ import { mergeInfos } from './info';
 import { negotiateOutputVersion, validateInputVersions } from './openapi-version';
 import { OpenApiDocument } from './oas31';
 import { mergeServers, ServersStrategy } from './servers';
+import { SecuritySchemesStrategy } from './security-schemes';
 import { pruneUnusedComponents } from './prune-components';
 
 export { isErrorResult };
-export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy };
+export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy, SecuritySchemesStrategy };
 
 function getFirst<A>(inputs: Array<A>): A | undefined {
   if (inputs.length > 0) {
@@ -53,13 +54,13 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
     return versionError;
   }
 
-  const pathAndComponentResult = mergePathsAndComponents(inputs);
+  const pathAndComponentResult = mergePathsAndComponents(inputs, options?.securitySchemesStrategy);
 
   if (isErrorResult(pathAndComponentResult)) {
     return pathAndComponentResult;
   }
 
-  const { paths, webhooks, components: retComponents } = pathAndComponentResult;
+  const { paths, webhooks, components: retComponents, security } = pathAndComponentResult;
 
   const components = Object.keys(retComponents).length === 0 ? undefined : retComponents;
 
@@ -71,7 +72,10 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
       info: mergeInfos(inputs, options?.info),
       servers: mergeServers(inputs, options?.serversStrategy),
       externalDocs: getFirstMatching(inputs, input => input.oas.externalDocs),
-      security: getFirstMatching(inputs, input => input.oas.security),
+      // Comes back from mergePathsAndComponents rather than being read off the
+      // inputs here: still first-wins, but after security-scheme renames have
+      // been applied to it (issue #33).
+      security,
       tags: mergeTags(inputs),
       paths,
       // Omitted entirely for 3.0 documents, which cannot declare webhooks.
