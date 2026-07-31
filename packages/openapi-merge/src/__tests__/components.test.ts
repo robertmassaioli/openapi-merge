@@ -3,7 +3,7 @@ import { Swagger } from '@atlassian/atlassian-openapi';
 import { SingleMergeInput } from '../data';
 import { toOAS } from './_helpers/oas-generation';
 import { expectMergeResult, toMergeInputs } from './_helpers/test-utils';
-import { doc30, doc31, expectSuccess, ok, op, schemaKeys } from './_helpers/documents';
+import { doc30, doc31, expectMergeError, expectSuccess, ok, op, schemaKeys } from './_helpers/documents';
 
 /**
  * Components: deduplication, disputes, and renaming.
@@ -1071,6 +1071,136 @@ describe('securitySchemes (issue #33)', () => {
 
     expect(output.components?.securitySchemes?.Hookauth).toBeDefined();
     expect(output.webhooks?.ping?.post?.security).toEqual([{ Hookauth: [] }]);
+  });
+
+  /**
+   * The three strategies (issue #33).
+   *
+   * `securitySchemes` is the one component bucket with a defensible argument on
+   * both sides, which is why it is configurable rather than fixed. Merging is
+   * what the other nine buckets do and what keeps a later input's operations
+   * resolvable; first-wins is what an API gateway wants, because it owns
+   * authentication and a backend's scheme definitions are an implementation
+   * detail.
+   */
+  describe('securitySchemesStrategy', () => {
+    const twoDifferent = () => [
+      { oas: doc30({ paths: { '/a': { get: secured('a', 'auth') } }, components: { securitySchemes: { auth: apiKey('X-First'), first: apiKey('X-One') } } }) },
+      { oas: doc30({ paths: { '/b': { get: secured('b', 'auth') } }, components: { securitySchemes: { auth: apiKey('X-Second'), second: apiKey('X-Two') } } }) },
+    ];
+
+    it("defaults to 'merge'", () => {
+      const output = expectSuccess(merge(twoDifferent()));
+
+      expect(Object.keys(output.components?.securitySchemes ?? {}).sort()).toEqual(['auth', 'auth1', 'first', 'second']);
+    });
+
+    it("'merge' rewrites the requirement of a renamed scheme", () => {
+      const output = expectSuccess(merge(twoDifferent(), { securitySchemesStrategy: 'merge' }));
+
+      expect(output.paths?.['/b']?.get?.security).toEqual([{ auth1: [] }]);
+    });
+
+    it("'first' keeps only the first input's schemes, as before issue #33", () => {
+      const output = expectSuccess(merge(twoDifferent(), { securitySchemesStrategy: 'first' }));
+
+      expect(Object.keys(output.components?.securitySchemes ?? {}).sort()).toEqual(['auth', 'first']);
+    });
+
+    it("'first' leaves the later input's requirement naming a scheme that is now absent", () => {
+      const output = expectSuccess(merge(twoDifferent(), { securitySchemesStrategy: 'first' }));
+
+      // This is the defect issue #33 reports, preserved deliberately for the
+      // API-gateway case where the gateway's own schemes are the only real
+      // ones. Pinned so that choosing 'first' is an informed choice.
+      expect(output.paths?.['/b']?.get?.security).toEqual([{ auth: [] }]);
+      expect(output.components?.securitySchemes?.auth).toEqual(apiKey('X-First'));
+    });
+
+    it("'first' falls through to a later input when the first declares none", () => {
+      const output = expectSuccess(
+        merge(
+          [
+            { oas: doc30({ paths: { '/a': { get: op('a') } } }) },
+            { oas: doc30({ paths: { '/b': { get: op('b') } }, components: { securitySchemes: { only: apiKey('X') } } }) },
+          ],
+          { securitySchemesStrategy: 'first' },
+        ),
+      );
+
+      expect(Object.keys(output.components?.securitySchemes ?? {})).toEqual(['only']);
+    });
+
+    it("'error' refuses when two inputs define the same name differently", () => {
+      const message = expectMergeError(
+        merge(twoDifferent(), { securitySchemesStrategy: 'error' }),
+        'component-definition-conflict',
+      );
+
+      expect(message).toContain("'auth'");
+      // The message has to name the way out, or it is just a wall.
+      expect(message).toContain('securitySchemesStrategy');
+    });
+
+    it("'error' still collapses identical definitions, which are agreement not conflict", () => {
+      const shared = apiKey('X-Shared');
+      const output = expectSuccess(
+        merge(
+          [
+            { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { securitySchemes: { shared } } }) },
+            { oas: doc30({ paths: { '/b': { get: op('b') } }, components: { securitySchemes: { shared } } }) },
+          ],
+          { securitySchemesStrategy: 'error' },
+        ),
+      );
+
+      expect(Object.keys(output.components?.securitySchemes ?? {})).toEqual(['shared']);
+    });
+
+    it("'error' still merges differently-named schemes", () => {
+      const output = expectSuccess(
+        merge(
+          [
+            { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { securitySchemes: { one: apiKey('X-1') } } }) },
+            { oas: doc30({ paths: { '/b': { get: op('b') } }, components: { securitySchemes: { two: apiKey('X-2') } } }) },
+          ],
+          { securitySchemesStrategy: 'error' },
+        ),
+      );
+
+      expect(Object.keys(output.components?.securitySchemes ?? {}).sort()).toEqual(['one', 'two']);
+    });
+
+    it("'error' is not triggered by a scheme only one input declares", () => {
+      const output = expectSuccess(
+        merge(
+          [
+            { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { securitySchemes: { onlyHere: apiKey('X') } } }) },
+            { oas: doc30({ paths: { '/b': { get: op('b') } } }) },
+          ],
+          { securitySchemesStrategy: 'error' },
+        ),
+      );
+
+      expect(Object.keys(output.components?.securitySchemes ?? {})).toEqual(['onlyHere']);
+    });
+
+    it('leaves the other component buckets merging regardless of the strategy', () => {
+      // The strategy governs securitySchemes only; schemas and the rest are not
+      // configurable and must keep deduplicating.
+      const output = expectSuccess(
+        merge(
+          [
+            { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { schemas: { One: { type: 'string' } }, securitySchemes: { auth: apiKey('X-1') } } }) },
+            { oas: doc30({ paths: { '/b': { get: op('b') } }, components: { schemas: { Two: { type: 'string' } }, securitySchemes: { auth: apiKey('X-2') } } }) },
+          ],
+          { securitySchemesStrategy: 'first' },
+        ),
+      );
+
+      expect(schemaKeys(output)).toEqual(['One', 'Two']);
+      expect(Object.keys(output.components?.securitySchemes ?? {})).toEqual(['auth']);
+    });
   });
 
   it('leaves requirements alone when nothing was renamed', () => {

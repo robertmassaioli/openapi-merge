@@ -6,6 +6,7 @@ import { runOperationSelection } from "./operation-selection";
 import { injectTag } from './tag-injection';
 import { deepEquality } from "./component-equivalence";
 import { applyDispute, getDispute } from './dispute';
+import { DEFAULT_SECURITY_SCHEMES_STRATEGY, SecuritySchemesStrategy } from './security-schemes';
 import { Components31, getPathItemOperations, getPaths, getWebhooks, OpenApiDocument, PathItem32, PathItemMap } from './oas31';
 
 export type PathAndComponents = {
@@ -287,7 +288,10 @@ function ensureUniqueCallbackOperationIds(
  *
  * @param inputs
  */
-export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents | ErrorMergeResult {
+export function mergePathsAndComponents(
+  inputs: MergeInput,
+  securitySchemesStrategy: SecuritySchemesStrategy = DEFAULT_SECURITY_SCHEMES_STRATEGY,
+): PathAndComponents | ErrorMergeResult {
   const seenOperationIds = new Set<string>();
 
   const result: PathAndComponents = {
@@ -330,7 +334,7 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
       // error return below came to be dropped in all nine places.
       const DEDUPLICATED_COMPONENT_TYPES = [
         'schemas', 'responses', 'parameters', 'examples', 'requestBodies',
-        'headers', 'links', 'pathItems', 'callbacks', 'securitySchemes',
+        'headers', 'links', 'pathItems', 'callbacks',
       ] as const;
 
       // Indexing a heterogeneous record by a dynamic key: every value here is a
@@ -359,14 +363,61 @@ export function mergePathsAndComponents(inputs: MergeInput): PathAndComponents |
           dispute,
           (from: string, to: string) => {
             referenceModification[`#/components/${componentType}/${from}`] = `#/components/${componentType}/${to}`;
-            if (componentType === 'securitySchemes') {
-              securitySchemeRenames[from] = to;
-            }
           },
         );
 
         if (componentError !== undefined) {
           return componentError;
+        }
+      }
+
+      // `securitySchemes` is handled apart from the loop above because, unlike
+      // the other nine buckets, how it combines is configurable (issue #33).
+      const incomingSchemes = oas.components.securitySchemes;
+      if (incomingSchemes !== undefined && Object.keys(incomingSchemes).length > 0) {
+        if (securitySchemesStrategy === 'first') {
+          // The behaviour before #33: the first input to declare any wins.
+          if (result.components.securitySchemes === undefined) {
+            result.components.securitySchemes = incomingSchemes;
+          }
+        } else {
+          const target = result.components.securitySchemes ?? {};
+          result.components.securitySchemes = target;
+
+          const areEqual = deepEquality(resultLookup, currentLookup);
+
+          if (securitySchemesStrategy === 'error') {
+            // Refuse a genuine conflict rather than renaming around it.
+            // Identical definitions are agreement, not conflict, so they still
+            // collapse quietly.
+            for (const name of Object.keys(incomingSchemes)) {
+              const existing = target[name];
+              if (existing !== undefined && !areEqual(existing, incomingSchemes[name])) {
+                return {
+                  type: 'component-definition-conflict',
+                  message:
+                    `Input ${inputIndex}: the security scheme '${name}' is already defined differently by another ` +
+                    `input. Set securitySchemesStrategy to 'merge' to rename it automatically, or to 'first' to ` +
+                    `keep only the first input's schemes.`,
+                };
+              }
+            }
+          }
+
+          const schemesError = processComponents(
+            target,
+            incomingSchemes,
+            areEqual,
+            dispute,
+            (from: string, to: string) => {
+              referenceModification[`#/components/securitySchemes/${from}`] = `#/components/securitySchemes/${to}`;
+              securitySchemeRenames[from] = to;
+            },
+          );
+
+          if (schemesError !== undefined) {
+            return schemesError;
+          }
         }
       }
 

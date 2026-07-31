@@ -7,10 +7,11 @@ import { mergeInfos } from './info';
 import { negotiateOutputVersion, validateInputVersions } from './openapi-version';
 import { OpenApiDocument } from './oas31';
 import { mergeServers, ServersStrategy } from './servers';
+import { SecuritySchemesStrategy } from './security-schemes';
 import { pruneUnusedComponents } from './prune-components';
 
 export { isErrorResult };
-export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy };
+export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy, SecuritySchemesStrategy };
 
 function getFirst<A>(inputs: Array<A>): A | undefined {
   if (inputs.length > 0) {
@@ -53,7 +54,7 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
     return versionError;
   }
 
-  const pathAndComponentResult = mergePathsAndComponents(inputs);
+  const pathAndComponentResult = mergePathsAndComponents(inputs, options?.securitySchemesStrategy);
 
   if (isErrorResult(pathAndComponentResult)) {
     return pathAndComponentResult;
