@@ -43,58 +43,69 @@ export function walkSchemaReferences(schema: Swagger.Schema | Swagger.Reference,
       walkSchemaReferences(schema.additionalProperties, modify);
     }
 
-    walkDiscriminatorMapping(schema, modify);
+    walkDiscriminatorPointers(schema, modify);
   }
 }
 
 /**
- * Rewrites the pointers hiding in `discriminator.mapping` (issue #99).
+ * Rewrites the pointers inside a Discriminator Object (issues #99 and #106).
  *
- * A Discriminator Object maps a property value to a schema, and the map's
- * *values* are pointers -- but they are plain strings in a plain object, not
- * `$ref` members, so the reference walker never saw them. When deduplication
- * renamed `Dog` to `Dog1`, the `oneOf` `$ref` was rewritten and the mapping was
- * not, leaving a document that resolves to nothing while looking entirely
- * valid.
+ * A Discriminator maps a property value to a schema, and the targets are
+ * pointers -- but they are plain strings in a plain object rather than `$ref`
+ * members, so the reference walker never saw them. When deduplication renamed
+ * `Dog` to `Dog1` the `oneOf` `$ref` was rewritten and these were not, leaving
+ * a document that resolves to nothing while looking entirely valid.
  *
- * The specification allows a value to be written two ways, and both occur:
+ * Covers `mapping` (#99) and 3.2's `defaultMapping` (#106), which is the schema
+ * to use when the discriminating value matches no entry.
+ *
+ * The specification allows a target to be written two ways, and both occur:
  *
  * - a full reference, `#/components/schemas/Dog`;
- * - a bare schema name, `Dog`, which the spec defines as shorthand for exactly
- *   that reference.
+ * - a bare schema name, `Dog`, defined as shorthand for exactly that reference.
  *
- * A bare name is therefore rewritten by asking `modify` about the reference it
- * abbreviates and, if that changed, writing back the abbreviated form of the
- * result. Preserving the author's chosen spelling matters: expanding every
- * shorthand into a full reference would produce a large, noisy diff in
- * documents this tool merely passes through.
+ * A bare name is rewritten by asking `modify` about the reference it
+ * abbreviates and writing back the abbreviated form of the answer. Preserving
+ * the author's spelling matters: expanding every shorthand would produce a
+ * large, noisy diff in documents this tool merely passes through.
  *
- * Anything else -- a URL, a relative file path -- is left untouched, because it
- * does not point into this document's components.
+ * A URL or relative file path is left untouched -- it does not point into this
+ * document's components.
  */
-function walkDiscriminatorMapping(schema: Swagger.Schema, modify: Modify): void {
-  const mapping = (schema as { discriminator?: { mapping?: Record<string, string> } }).discriminator?.mapping;
-  if (mapping === undefined) {
+function walkDiscriminatorPointers(schema: Swagger.Schema, modify: Modify): void {
+  const discriminator = (schema as {
+    discriminator?: { mapping?: Record<string, string>; defaultMapping?: string };
+  }).discriminator;
+  if (discriminator === undefined) {
     return;
   }
 
   const SCHEMA_PREFIX = '#/components/schemas/';
 
-  for (const key of Object.keys(mapping)) {
-    const value = mapping[key];
-
+  const rewriteTarget = (value: string): string => {
     if (value.startsWith('#/')) {
-      mapping[key] = modify(value);
-      continue;
+      return modify(value);
     }
 
-    // A bare name is shorthand only when it is a name, not a path or a URL.
     if (!value.includes('/') && !value.includes('#')) {
       const rewritten = modify(`${SCHEMA_PREFIX}${value}`);
       if (rewritten !== `${SCHEMA_PREFIX}${value}` && rewritten.startsWith(SCHEMA_PREFIX)) {
-        mapping[key] = rewritten.slice(SCHEMA_PREFIX.length);
+        return rewritten.slice(SCHEMA_PREFIX.length);
       }
     }
+
+    return value;
+  };
+
+  const mapping = discriminator.mapping;
+  if (mapping !== undefined) {
+    for (const key of Object.keys(mapping)) {
+      mapping[key] = rewriteTarget(mapping[key]);
+    }
+  }
+
+  if (discriminator.defaultMapping !== undefined) {
+    discriminator.defaultMapping = rewriteTarget(discriminator.defaultMapping);
   }
 }
 
@@ -178,11 +189,54 @@ export function walkHeaderReferences(header: Swagger.Header | Swagger.Reference,
   }
 }
 
+/**
+ * `#/paths/~1thing/get` -> the path `/thing`, or undefined if not that shape.
+ *
+ * A JSON Pointer escapes `/` as `~1` and `~` as `~0`, so a path key appears in
+ * an `operationRef` in escaped form while `referenceModification` is keyed on
+ * the raw path. Decoding is what connects the two.
+ */
+function parseOperationRef(operationRef: string): { path: string; method: string } | undefined {
+  const match = /^#\/paths\/([^/]+)\/([^/]+)$/.exec(operationRef);
+  if (match === null) {
+    return undefined;
+  }
+  return { path: match[1].replace(/~1/g, '/').replace(/~0/g, '~'), method: match[2] };
+}
+
+function escapePointerSegment(segment: string): string {
+  return segment.replace(/~/g, '~0').replace(/\//g, '~1');
+}
+
 export function walkLinkReferences(link: Swagger.Link | Swagger.Reference, modify: Modify): void {
   if (TC.isReference(link)) {
     link.$ref = modify(link.$ref);
   } else {
-    // TODO work out if there are any references in here that should be updated
+    // A Link's `operationRef` is a URI pointing at an Operation (issue #106).
+    // `pathModification` can move the path out from under it, and nothing
+    // rewrote it: prepending "/api" left every operationRef dangling, in a
+    // document that still looked valid.
+    //
+    // `operationId` links need no rewriting here -- ensureUniqueOperationIds
+    // renames the operation and its id together, and a link by id follows the
+    // id, not a location.
+    const operationRef = (link as { operationRef?: string }).operationRef;
+    if (operationRef === undefined) {
+      return;
+    }
+
+    const parsed = parseOperationRef(operationRef);
+    if (parsed === undefined) {
+      // An external or otherwise unrecognised URI. Left alone: it does not
+      // point into this document.
+      return;
+    }
+
+    const rewrittenPath = modify(`#/paths/${parsed.path}`);
+    if (rewrittenPath !== `#/paths/${parsed.path}` && rewrittenPath.startsWith('#/paths/')) {
+      const newPath = rewrittenPath.slice('#/paths/'.length);
+      (link as { operationRef?: string }).operationRef = `#/paths/${escapePointerSegment(newPath)}/${parsed.method}`;
+    }
   }
 }
 
