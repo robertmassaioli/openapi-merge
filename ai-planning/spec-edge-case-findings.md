@@ -106,29 +106,42 @@ Left as-is deliberately; changing it would resurrect empty path items that
 `operationSelection` has just emptied, which is the behaviour the dropping exists
 for.
 
-### 2.4 Discriminator pointers are not rewritten on rename
+### 2.4 Discriminator pointers are not rewritten on rename — FIXED (#99, #106)
 
-Already tracked as **issues #99 and #106**, with proposals in
-`issues/10-proposal-99-discriminator-mapping-prefix.md` and
-`issues/09-proposal-106-discriminator-mappings.md`. Confirmed still present for
-both `mapping` (3.0) and the new 3.2 `defaultMapping`:
+**`mapping` fixed** (issue #99). `defaultMapping` (3.2) and Link `operationRef`
+(§2.5) remain, tracked as issue #106.
+
+The reference walker now treats a Discriminator Object's `mapping` values as
+pointers. They are plain strings in a plain object rather than `$ref` members,
+which is why nothing saw them:
 
 ```
-oneOf $ref            -> #/components/schemas/Dog1   (correctly rewritten)
-discriminator.mapping -> #/components/schemas/Dog    (stale)
+oneOf $ref            -> #/components/schemas/Dog1   (was always correct)
+discriminator.mapping -> #/components/schemas/Dog1   (now follows the rename)
 ```
 
-The new tests add `defaultMapping` coverage those proposals predate.
+Both spellings the specification permits are handled — a full reference, and a
+bare schema name, which is shorthand for one. A bare name stays bare after
+rewriting; expanding every shorthand would produce a large, noisy diff in
+documents this tool is only passing through.
 
-### 2.5 A Link `operationRef` is not rewritten when its path moves
+The `KNOWN GAP` test that pinned this now asserts the fix instead.
+
+### 2.5 A Link `operationRef` is not rewritten when its path moves — FIXED (#106)
 
 A Link's `operationRef` is a URI pointing at an Operation. Under
-`pathModification.prepend: '/api'`, the path becomes `/api/thing` but a link
-pointing at `#/paths/~1thing/get` is left dangling.
+`pathModification.prepend: '/api'`, the path became `/api/thing` while a link
+pointing at `#/paths/~1thing/get` was left dangling.
 
-Related to §2.4 — both are "pointers the reference walker does not know about".
-Worth fixing together as "rewrite every kind of internal pointer, not just
-`$ref`".
+Fixed together with §2.4, as this section suggested: they are the same problem,
+"pointers the reference walker does not know about". `operationRef` needed one
+thing the others did not — JSON Pointer escaping. A path key appears in a
+pointer as `~1thing` while the rename table is keyed on the raw `/thing`, so
+the segment is decoded before lookup and re-encoded after.
+
+Left alone deliberately: an `operationRef` into another document, and a link
+that uses `operationId` instead — an id travels with its operation, so a link
+by id needs no rewriting when the path moves.
 
 ### 2.6 Semantic schema equivalences are not deduplicated
 

@@ -2,7 +2,7 @@
 
 **Issue:** [#111 — Support wildcards in include/excludeTags](https://github.com/robertmassaioli/openapi-merge/issues/111)
 
-**Status:** Proposal
+**Status:** ✅ Implemented — see §10
 
 **Value:** 4 / **Effort:** 2 / **ROI:** 6 / **Quadrant:** Quick Win
 
@@ -414,3 +414,57 @@ This includes operations tagged with `public-users`, `public-posts`, `admin`, et
 5. Follows user expectations (glob syntax is intuitive).
 
 **Recommendation:** Implement Option A (glob-style wildcards) immediately. Defer Option B (regex) and Option C (both) to a future v2 minor release pending user feedback.
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/111-wildcard-tags`. A `TagMatcher` in a new `tag-matching.ts`,
+used by both the operation filter and the top-level tag list.
+
+### 10.1 Only `*`, deliberately
+
+Not `?`, not character classes, not regular expressions. Tag names are short
+identifiers and `service-*` is the whole of what was asked for. Accepting
+regular expressions would silently reinterpret every existing configuration's
+tags as patterns, giving new meaning to characters people did not know were
+significant — `v1.0` would start matching `v1x0`.
+
+For the same reason the pattern is escaped before `*` is reintroduced, so a tag
+containing `.`, `+` or `(` matches literally. Tested both ways.
+
+### 10.2 Anchored at both ends
+
+`service-*` does not match `my-service-a`. An unanchored match would mean
+excluding one team's tags quietly took another team's with them, which is
+exactly the silent-wrong-output failure the tag mechanism exists to prevent.
+
+### 10.3 The top-level `tags` list uses the same matcher
+
+Not mentioned in the proposal, and it would have been a visible bug: a wildcard
+would have removed the operations while leaving their tag declarations in the
+output, describing tags the document no longer uses. Exact tags were already
+filtered there; wildcards had to be too.
+
+### 10.4 A pre-existing gap this surfaced
+
+`dropPathItemsWithNoOperations` only looked at `paths`. An `excludeTags` rule
+that emptied a **webhook** left `{ ping: {} }` behind — an event the document
+announces and then says nothing about — while the equivalent path was dropped.
+Predates this issue; found by the wildcard webhook test and fixed here, because
+a test asserting the empty webhook was acceptable would have pinned a defect.
+
+Extending that loop then broke an existing test for an input with `paths: null`,
+which the old `for...in` tolerated and `Object.keys` does not. Guarded, and
+worth noting as the second time this sweep that an old test has caught a
+plausible-looking rewrite.
+
+### 10.5 Verification
+
+- 11 unit tests in `tag-matching.test.ts`, weighted towards what must *not*
+  match: anchoring, and regex syntax treated literally.
+- 6 in `operation-selection.test.ts` driving a real merge, including webhooks
+  and the top-level tag list. **5 fail against `origin/main`**; the sixth
+  asserts exact tags are unchanged.
+- Gate green: lint, 401 tests, 48 artifact checks.

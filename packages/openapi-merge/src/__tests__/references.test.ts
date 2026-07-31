@@ -8,6 +8,7 @@ import {
 } from '../reference-walker';
 import { at, doc30, doc31, doc32, expectSuccess, ok, op, pathKeys, schema, schemaKeys } from './_helpers/documents';
 import { Modify } from '../reference-walker';
+import { OpenApiDocument } from '../oas31';
 
 /**
  * Run a walker and collect every reference it reaches, without changing them.
@@ -435,11 +436,12 @@ describe('3.0 edge: references', () => {
     expect((output.components?.schemas?.Alias as { $ref: string }).$ref).toBe('#/components/schemas/Thing1');
   });
 
-  it('KNOWN GAP (issues #99/#106): a discriminator mapping is not rewritten on rename', () => {
-    // The oneOf $ref follows the rename but the discriminator mapping value,
-    // which points at the same schema, does not. Already tracked by
-    // issues/10-proposal-99-discriminator-mapping-prefix.md and
-    // issues/09-proposal-106-discriminator-mappings.md.
+  it('rewrites a discriminator mapping on rename (issues #99/#106)', () => {
+    // Was pinned here as a KNOWN GAP: the oneOf $ref followed the rename while
+    // the mapping value pointing at the same schema did not, producing a
+    // document that looked valid and resolved to nothing. Fixed by teaching the
+    // reference walker that a Discriminator Object's mapping values are
+    // pointers, even though they are plain strings rather than $ref members.
     const output = expectSuccess(merge([
       { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: { type: 'string' } } } }) },
       { oas: doc30({
@@ -456,8 +458,7 @@ describe('3.0 edge: references', () => {
 
     const pet = output.components?.schemas?.Pet as Record<string, Record<string, unknown>>;
     expect((pet.oneOf as unknown as Array<{ $ref: string }>)[0].$ref).toBe('#/components/schemas/Dog1');
-    // Still pointing at the pre-rename name -- this is the bug.
-    expect((pet.discriminator.mapping as Record<string, string>).dog).toBe('#/components/schemas/Dog');
+    expect((pet.discriminator.mapping as Record<string, string>).dog).toBe('#/components/schemas/Dog1');
   });
 
   it('deduplicates identical components rather than renaming them', () => {
@@ -495,9 +496,10 @@ describe('3.0 edge: callbacks and links', () => {
     expect(ref).toBe('#/components/schemas/Thing1');
   });
 
-  it('KNOWN GAP: a link operationRef is not rewritten when the path it targets changes', () => {
-    // A Link's operationRef is a URI pointing at an Operation. When
-    // pathModification renames the path, the reference is left dangling.
+  it('rewrites a link operationRef when the path it targets moves (issue #106)', () => {
+    // A Link's operationRef is a URI pointing at an Operation. pathModification
+    // used to move the path out from under it and leave the reference dangling
+    // in a document that still looked valid. Was pinned here as a KNOWN GAP.
     const output = expectSuccess(merge([
       {
         oas: doc30({ paths: { '/thing': { get: op('getThing') }, '/other': { get: {
@@ -510,9 +512,9 @@ describe('3.0 edge: callbacks and links', () => {
       },
     ]));
 
-    // Still points at the pre-prepend location.
+    // Follows the path, with the `/` re-escaped as `~1` per JSON Pointer.
     expect(at(output.paths?.['/api/other'], 'get', 'responses', '200', 'links', 'next', 'operationRef'))
-      .toBe('#/paths/~1thing/get');
+      .toBe('#/paths/~1api~1thing/get');
     expect(pathKeys(output)).toEqual(['/api/other', '/api/thing']);
   });
 });
@@ -593,5 +595,312 @@ describe('3.2 - references inside the new slots', () => {
       .content['application/json'].schema.$ref;
 
     expect(ref).toBe('#/components/schemas/Thing1');
+  });
+});
+
+/**
+ * Issue #106: the remaining pointers that are not spelled `$ref`.
+ *
+ * #99 taught the walker about `discriminator.mapping`. Two of the same shape
+ * were left: 3.2's `discriminator.defaultMapping`, and a Link's
+ * `operationRef`. Both point into the document, neither is a `$ref`, and both
+ * were silently left stale.
+ */
+describe('defaultMapping and operationRef (issue #106)', () => {
+  it('rewrites discriminator.defaultMapping on rename', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc32({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: { type: 'string' } } } }) },
+        {
+          oas: doc32({
+            paths: { '/b': { get: op('b') } },
+            components: {
+              schemas: {
+                Dog: { type: 'object' },
+                Pet: {
+                  oneOf: [{ $ref: '#/components/schemas/Dog' }],
+                  discriminator: { propertyName: 'kind', defaultMapping: '#/components/schemas/Dog' },
+                },
+              },
+            },
+          }),
+        },
+      ]),
+    );
+
+    const pet = output.components?.schemas?.Pet as Record<string, Record<string, unknown>>;
+    expect(pet.discriminator.defaultMapping).toBe('#/components/schemas/Dog1');
+  });
+
+  it('rewrites a bare-name defaultMapping, keeping it bare', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc32({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: { type: 'string' } } } }) },
+        {
+          oas: doc32({
+            paths: { '/b': { get: op('b') } },
+            components: {
+              schemas: {
+                Dog: { type: 'object' },
+                Pet: { discriminator: { propertyName: 'kind', defaultMapping: 'Dog' } },
+              },
+            },
+          }),
+        },
+      ]),
+    );
+
+    const pet = output.components?.schemas?.Pet as Record<string, Record<string, unknown>>;
+    expect(pet.discriminator.defaultMapping).toBe('Dog1');
+  });
+
+  it('rewrites mapping and defaultMapping together', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc32({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: { type: 'string' } } } }) },
+        {
+          oas: doc32({
+            paths: { '/b': { get: op('b') } },
+            components: {
+              schemas: {
+                Dog: { type: 'object' },
+                Pet: {
+                  discriminator: {
+                    propertyName: 'kind',
+                    mapping: { dog: 'Dog' },
+                    defaultMapping: '#/components/schemas/Dog',
+                  },
+                },
+              },
+            },
+          }),
+        },
+      ]),
+    );
+
+    const discriminator = (output.components?.schemas?.Pet as Record<string, Record<string, unknown>>).discriminator;
+    expect(discriminator.mapping).toEqual({ dog: 'Dog1' });
+    expect(discriminator.defaultMapping).toBe('#/components/schemas/Dog1');
+  });
+
+  it('leaves an operationRef alone when the path did not move', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/thing': { get: op('getThing') },
+              '/other': {
+                get: {
+                  operationId: 'other',
+                  responses: { '200': { description: 'ok', links: { next: { operationRef: '#/paths/~1thing/get' } } } },
+                },
+              },
+            },
+          }),
+        },
+      ]),
+    );
+
+    expect(at(output.paths?.['/other'], 'get', 'responses', '200', 'links', 'next', 'operationRef'))
+      .toBe('#/paths/~1thing/get');
+  });
+
+  it('leaves an external operationRef untouched', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/other': {
+                get: {
+                  operationId: 'other',
+                  responses: {
+                    '200': {
+                      description: 'ok',
+                      links: { next: { operationRef: 'https://example.com/api.json#/paths/~1thing/get' } },
+                    },
+                  },
+                },
+              },
+            },
+          }),
+          pathModification: { prepend: '/api' },
+        },
+      ]),
+    );
+
+    // Points into another document; moving our paths says nothing about it.
+    expect(at(output.paths?.['/api/other'], 'get', 'responses', '200', 'links', 'next', 'operationRef'))
+      .toBe('https://example.com/api.json#/paths/~1thing/get');
+  });
+
+  it('leaves an operationId link alone, since ids move with their operation', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/thing': { get: op('getThing') },
+              '/other': {
+                get: {
+                  operationId: 'other',
+                  responses: { '200': { description: 'ok', links: { next: { operationId: 'getThing' } } } },
+                },
+              },
+            },
+          }),
+          pathModification: { prepend: '/api' },
+        },
+      ]),
+    );
+
+    expect(at(output.paths?.['/api/other'], 'get', 'responses', '200', 'links', 'next', 'operationId'))
+      .toBe('getThing');
+  });
+
+  it('rewrites an operationRef under stripStart as well as prepend', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/v1/thing': { get: op('getThing') },
+              '/v1/other': {
+                get: {
+                  operationId: 'other',
+                  responses: { '200': { description: 'ok', links: { next: { operationRef: '#/paths/~1v1~1thing/get' } } } },
+                },
+              },
+            },
+          }),
+          pathModification: { stripStart: '/v1' },
+        },
+      ]),
+    );
+
+    expect(at(output.paths?.['/other'], 'get', 'responses', '200', 'links', 'next', 'operationRef'))
+      .toBe('#/paths/~1thing/get');
+  });
+});
+
+/**
+ * Issue #99: discriminator mappings are pointers the walker has to know about.
+ *
+ * The values of a Discriminator Object's `mapping` point at schemas, but they
+ * are plain strings in a plain object rather than `$ref` members, so nothing
+ * rewrote them when deduplication renamed their target. The result resolved to
+ * nothing while looking entirely valid.
+ *
+ * The specification permits two spellings and both occur in the wild: a full
+ * reference, and a bare schema name that is defined as shorthand for exactly
+ * that reference.
+ */
+describe('discriminator mapping rewriting (issue #99)', () => {
+  const petWith = (mapping: Record<string, string>) => ({
+    Dog: { type: 'object' as const },
+    Pet: {
+      oneOf: [{ $ref: '#/components/schemas/Dog' }],
+      discriminator: { propertyName: 'kind', mapping },
+    },
+  });
+
+  const twoInputs = (mapping: Record<string, string>) => [
+    { oas: doc30({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: { type: 'string' } } } }) },
+    { oas: doc30({ paths: { '/b': { get: op('b') } }, components: { schemas: petWith(mapping) } }) },
+  ];
+
+  const mappingOf = (output: OpenApiDocument): Record<string, string> =>
+    ((output.components?.schemas?.Pet as Record<string, Record<string, unknown>>).discriminator
+      .mapping) as Record<string, string>;
+
+  it('rewrites a full reference', () => {
+    const output = expectSuccess(merge(twoInputs({ dog: '#/components/schemas/Dog' })));
+
+    expect(mappingOf(output).dog).toBe('#/components/schemas/Dog1');
+  });
+
+  it('rewrites a bare schema name, keeping it bare', () => {
+    const output = expectSuccess(merge(twoInputs({ dog: 'Dog' })));
+
+    // The spec defines a bare name as shorthand for the full reference.
+    // Expanding it here would produce a large, noisy diff in documents this
+    // tool is only passing through.
+    expect(mappingOf(output).dog).toBe('Dog1');
+  });
+
+  it('leaves a mapping alone when its target was not renamed', () => {
+    const output = expectSuccess(
+      merge([
+        { oas: doc30({ paths: { '/a': { get: op('a') } } }) },
+        { oas: doc30({ paths: { '/b': { get: op('b') } }, components: { schemas: petWith({ dog: 'Dog' }) } }) },
+      ]),
+    );
+
+    expect(mappingOf(output).dog).toBe('Dog');
+  });
+
+  it('leaves an external URL mapping untouched', () => {
+    const output = expectSuccess(merge(twoInputs({ dog: 'https://example.com/schemas.json#/Dog' })));
+
+    // It does not point into this document's components.
+    expect(mappingOf(output).dog).toBe('https://example.com/schemas.json#/Dog');
+  });
+
+  it('leaves a relative file mapping untouched', () => {
+    const output = expectSuccess(merge(twoInputs({ dog: '../other.yaml#/components/schemas/Dog' })));
+
+    expect(mappingOf(output).dog).toBe('../other.yaml#/components/schemas/Dog');
+  });
+
+  it('rewrites several mapping entries in one discriminator', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: { '/a': { get: op('a') } },
+            components: { schemas: { Dog: { type: 'string' }, Cat: { type: 'string' } } },
+          }),
+        },
+        {
+          oas: doc30({
+            paths: { '/b': { get: op('b') } },
+            components: {
+              schemas: {
+                Dog: { type: 'object' },
+                Cat: { type: 'object' },
+                Pet: {
+                  oneOf: [{ $ref: '#/components/schemas/Dog' }, { $ref: '#/components/schemas/Cat' }],
+                  discriminator: { propertyName: 'kind', mapping: { dog: 'Dog', cat: '#/components/schemas/Cat' } },
+                },
+              },
+            },
+          }),
+        },
+      ]),
+    );
+
+    expect(mappingOf(output)).toEqual({ dog: 'Dog1', cat: '#/components/schemas/Cat1' });
+  });
+
+  it('rewrites a mapping under a dispute prefix', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({ paths: { '/b': { get: op('b') } }, components: { schemas: petWith({ dog: 'Dog' }) } }),
+          dispute: { prefix: 'Svc', alwaysApply: true },
+        },
+      ]),
+    );
+
+    const pet = (expectSuccess(merge([
+      {
+        oas: doc30({ paths: { '/b': { get: op('b') } }, components: { schemas: petWith({ dog: 'Dog' }) } }),
+        dispute: { prefix: 'Svc', alwaysApply: true },
+      },
+    ])).components?.schemas?.SvcPet) as Record<string, Record<string, unknown>>;
+
+    expect((pet.discriminator.mapping as Record<string, string>).dog).toBe('SvcDog');
+    expect(output.components?.schemas?.SvcDog).toBeDefined();
   });
 });

@@ -143,7 +143,36 @@ export interface ConfigurationInputBase {
    * @examples require('./examples-for-schema.ts').DescriptionMergeBehaviourExamples
    */
   description?: DescriptionMergeBehaviour;
+
+  /**
+   * Add a tag to every operation from this input (issue #112).
+   *
+   * Lets the merged document say which service an operation came from without
+   * editing the upstream specification. Applied after `operationSelection`, so
+   * the injected tag cannot influence which operations survive.
+   *
+   * @examples require('./examples-for-schema.ts').TagInjectionExamples
+   */
+  tag?: TagInjectionConfig;
 }
+
+/**
+ * A tag applied to every operation from one input.
+ */
+export type TagInjectionConfig = {
+  /**
+   * The tag name to add.
+   *
+   * @minLength 1
+   */
+  name: string;
+
+  /**
+   * Description for the tag in the merged document's top-level `tags` array.
+   * First-wins if another input injects the same name.
+   */
+  description?: string;
+};
 
 /**
  * A single Configuration input from a File.
@@ -262,6 +291,43 @@ export type Configuration = {
    *   URL. For documenting several microservices in one file.
    */
   serversStrategy?: 'first' | 'concat';
+
+  /**
+   * Drop components that nothing in the merged output references (issue #94).
+   *
+   * Defaults to false. Useful with `operationSelection`, where excluding tags
+   * removes operations but would otherwise leave the schemas only those
+   * operations used behind. A component still referenced by another surviving
+   * endpoint is kept.
+   *
+   * Off by default because pruning is destructive: a document may carry
+   * definitions referenced only from outside it.
+   */
+  pruneUnusedComponents?: boolean;
+
+  /**
+   * Override fields of the merged `info` object (issue #102).
+   *
+   * Without this, `info` comes from the first input, so a merged document is
+   * titled after whichever service happens to be listed first. Merged field by
+   * field, so setting only `title` does not require restating `version`.
+   */
+  info?: ConfigurationInfoOverride;
+};
+
+/**
+ * The subset of `info` worth overriding from a configuration file.
+ *
+ * Deliberately not the full Info object: `version` and `title` are the ones
+ * people ask for, and description rounds it out. Kept narrow so the generated
+ * schema stays readable and `--noExtraProps` still catches typos.
+ */
+export type ConfigurationInfoOverride = {
+  /** @minLength 1 */
+  title?: string;
+  /** @minLength 1 */
+  version?: string;
+  description?: string;
 };
 
 /**

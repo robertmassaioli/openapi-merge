@@ -125,3 +125,8 @@ export const InputUrlHeadersExamples: Array<{ [headerName: string]: string }> = 
   { Authorization: 'Bearer ${API_TOKEN}' },
   { 'X-API-Key': '${SERVICE_A_KEY}', Accept: 'application/json' },
 ];
+/** Per-input tag injection (issue #112). */
+export const TagInjectionExamples: Array<{ name: string; description?: string }> = [
+  { name: 'billing' },
+  { name: 'billing', description: 'Everything served by the billing service.' },
+];
