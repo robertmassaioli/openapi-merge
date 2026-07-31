@@ -58,11 +58,41 @@ In this configuration you specify your inputs and your output file. For each inp
 * `dispute`: if two inputs both define a component with the same name then, in order to prevent incorrect overlaps, we will attempt to use the dispute prefix or suffix to come up with a unique name for that component. Please [read the documentation for more details on the format](https://github.com/robertmassaioli/openapi-merge/wiki/configuration-definitions-dispute).
 * `pathModification.stripStart`: When copying over the `paths` from your OpenAPI specification for this input, it will strip this string from the start of the path if it is found.
 * `pathModification.prepend`: When copying over the `paths` from your OpenAPI specification for this input, it will prepend this string to the start of the path if it is found. `prepend` will always run after `stripStart` so that it is deterministic.
-* `operationSelection.includeTags`: Only operations that are tagged with the tags configured here will be extracted from the OpenAPI file and merged with the others. This instruction will not remove other tags from the top level tags definition for this input.
+* `operationSelection.includeTags`: Only operations that are tagged with the tags configured here will be extracted from the OpenAPI file and merged with the others. This instruction will not remove other tags from the top level tags definition for this input. **This filter works per operation, not per path**: if `GET /thing` carries the tag and `POST /thing` does not, the merged document contains `/thing` with only its `GET`. A path whose operations are all filtered out is dropped entirely.
 * `operationSelection.excludeTags`: Only operations that are NOT tagged with the tags configured here will be extracted from the OpenAPI file and merged with the others. Also, these tags will also be removed from the top level `tags` element for this file before being merged. If a single REST API operation has an `includeTags` reference and an `excludeTags` reference then the exclusion rule will take precidence.
 * `description.append`: All of the inputs with `append: true` will have their `info.description`s merged together, in order, and placed in the output OpenAPI file in the `info.description` section.
 * `description.title.value`: An optional string that lets you specify a custom section title for this input's description when it is merged together in the output OpenAPI file's `info.description` section
 * `description.title.headingLevel`: The integer heading level for the title, `1` to `6`. The default is `1`.
+
+### Selecting only the operations with a particular tag
+
+A common case (see [issue #100](https://github.com/robertmassaioli/openapi-merge/issues/100)) is merging several services but taking only the operations each one owns, identified by a tag:
+
+``` json
+{
+  "inputs": [
+    {
+      "inputFile": "service1/swagger.json",
+      "operationSelection": { "includeTags": ["Service1"] }
+    },
+    {
+      "inputFile": "service2/swagger.json",
+      "operationSelection": { "includeTags": ["Service2"] }
+    },
+    {
+      "inputFile": "service3/swagger.json",
+      "operationSelection": { "includeTags": ["Service3"] }
+    }
+  ],
+  "output": "./dist/service.output.swagger.json"
+}
+```
+
+Three things are worth knowing about how this behaves:
+
+* **Untagged operations are excluded.** `includeTags` is an allow-list, so an operation with no tags at all does not survive it. If a service has operations you want that are not tagged, either tag them upstream or use `excludeTags` to remove what you do not want instead.
+* **A partially-filtered path keeps its remaining operations.** Filtering is per operation; the path itself survives as long as one of its operations does.
+* **The top-level `tags` array is only pruned by `excludeTags`.** `includeTags` deliberately leaves it alone, so a tag you filtered *in* keeps its description.
 
 And then, once you have your Inputs in place and your configuration file you merely run the following in the directory that has your configuration file:
 
