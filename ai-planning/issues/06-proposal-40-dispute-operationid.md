@@ -2,7 +2,7 @@
 
 **Issue:** [#40 — dispute.alwaysApply ineffective on operationIds](https://github.com/robertmassaioli/openapi-merge/issues/40)
 
-**Status:** Proposal
+**Status:** ✅ Implemented — see §10
 
 **Value:** 4 | **Effort:** 2 | **ROI:** High
 
@@ -436,3 +436,45 @@ This fix is part of the **"Dispute Completeness"** cluster identified in the tri
 5. [ ] Update `CHANGELOG.md` (or release notes) to document the fix.
 6. [ ] Bump the `version` field in `packages/openapi-merge/package.json` to a new minor (e.g., `1.3.0`).
 7. [ ] Commit and push to `origin/main`; the `npm-publish.yml` workflow handles publication.
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/40-dispute-operationid`. The diagnosis in §2 was exactly right;
+the fix is shaped differently.
+
+### 10.1 Simpler than §3's branch structure
+
+§3 proposes an `if (alwaysApply) … else if (!seen) …` split with the dispute
+attempted again in the conflict path. That has three branches that must agree
+about which form was already tried. Instead, `findUniqueOperationId` now opens
+with the same call component names use:
+
+```ts
+const candidate = applyDispute(dispute, operationId, 'undisputed');
+if (!seenOperationIds.has(candidate)) { return candidate; }
+```
+
+`applyDispute` already consults `alwaysApply`, so nothing here needs to. That
+was the actual defect — the caller short-circuited before `dispute` was ever
+consulted — and letting the same function decide for both paths is what makes
+them symmetrical rather than merely equivalent.
+
+### 10.2 The numeric fallback had to change too
+
+Not mentioned in the proposal. The fallback built `${operationId}${n}` from the
+*original* id. Under `alwaysApply`, a collision on the prefixed form would then
+fall back to an unprefixed `op1`, silently undoing the rename the user asked
+for. It is now built from `candidate`, so `Serviceop` colliding yields
+`Serviceop1`. There is a test for precisely this.
+
+### 10.3 Verification
+
+- 6 tests in `operation-ids.test.ts`, the suite that owns this. **5 fail
+  against `origin/main`**, confirmed in a detached worktree. The sixth asserts
+  that a dispute *without* `alwaysApply` still leaves a non-conflicting id
+  alone — a regression guard for the behaviour that must not change.
+- Covers prefix and suffix disputes, webhooks, and the §10.2 collision case.
+- Gate green: lint, 390 tests, 48 artifact checks.

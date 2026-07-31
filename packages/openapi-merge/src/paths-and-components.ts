@@ -142,11 +142,23 @@ function releaseOperationIds(pathItem: PathItem32, seenOperationIds: Set<string>
 }
 
 function findUniqueOperationId(operationId: string, seenOperationIds: Set<string>, dispute: Dispute | undefined): string | ErrorMergeResult {
-  if (!seenOperationIds.has(operationId)) {
-    return operationId;
+  // Ask `applyDispute` first rather than short-circuiting on "no conflict".
+  //
+  // This is the whole of issue #40. Component names are renamed by calling
+  // `applyDispute(..., 'undisputed')` and letting it decide, so `alwaysApply`
+  // is honoured whether or not anything actually collided. Operation IDs used
+  // to return early when there was no collision, so `dispute` was never
+  // consulted and `alwaysApply` did nothing -- the same configuration renamed
+  // schemas but not operationIds, and which operationIds got renamed depended
+  // on input order. Deciding here keeps the two paths symmetrical.
+  const candidate = applyDispute(dispute, operationId, 'undisputed');
+
+  if (!seenOperationIds.has(candidate)) {
+    return candidate;
   }
 
-  // Try the dispute prefix
+  // Try the dispute prefix. A no-op when `alwaysApply` already applied it
+  // above, which is why the numeric fallback below is what resolves that case.
   if (dispute !== undefined) {
     const disputeOpId = applyDispute(dispute, operationId, 'disputed');
     if (!seenOperationIds.has(disputeOpId)) {
@@ -154,9 +166,11 @@ function findUniqueOperationId(operationId: string, seenOperationIds: Set<string
     }
   }
 
-  // Incrementally find the right prefix
+  // Incrementally find the right suffix. Built on `candidate`, not on the
+  // original: under `alwaysApply` the fallback must keep the prefix, otherwise
+  // a collision would silently undo the rename the user asked for.
   for (let antiConflict = 1; antiConflict < 1000; antiConflict++) {
-    const tryOpId = `${operationId}${antiConflict}`;
+    const tryOpId = `${candidate}${antiConflict}`;
     if (!seenOperationIds.has(tryOpId)) {
       return tryOpId;
     }
