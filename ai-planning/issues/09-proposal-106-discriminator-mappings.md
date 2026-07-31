@@ -2,7 +2,7 @@
 
 **Issue**: [#106 Discriminator mappings not prefixed under disputes](https://github.com/robertmassaioli/openapi-merge/issues/106)
 
-**Status:** Proposal
+**Status:** ✅ Implemented — see §10
 
 **Value:** 4 / **Effort:** 2
 
@@ -460,3 +460,63 @@ All should be bundled into a single minor release once #99 is confirmed to have 
 3. **Future discriminator features**: OpenAPI 3.1 may introduce new discriminator fields. Keep the normalise/denormalise logic generic; adding support for new fields will only require adding new walk calls (no changes to the helper functions).
 
 4. **Compatibility with #99**: Confirm that #99's proposed fix (if any) does not duplicate this logic. Both issues should reference each other in their implementation PRs to ensure coordinated review.
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/106-discriminator-defaultmapping`. Closes both halves of
+`spec-edge-case-findings.md` §2.4 and §2.5, which that document already argued
+should be fixed together as "rewrite every kind of internal pointer, not just
+`$ref`".
+
+### 10.1 `walkDiscriminatorPointers` covers `mapping` and `defaultMapping`
+
+3.2 added `defaultMapping`: the schema to use when the discriminating value
+matches no entry. Same kind of pointer, same two permitted spellings — a full
+reference, or a bare schema name that is shorthand for one — so it goes through
+the same rewrite, and a bare name stays bare.
+
+This branch carries the `mapping` fix as well as `defaultMapping`, because it
+was cut from `main` and #99 is not merged there yet. The two will conflict on
+this function; keeping either copy is correct, they are the same code.
+
+### 10.2 `operationRef` needed JSON Pointer escaping
+
+The one thing the discriminator work did not need. A path key appears in an
+`operationRef` as `#/paths/~1thing/get`, while `referenceModification` is keyed
+on the raw path `#/paths//thing`. So the segment is decoded before lookup and
+re-encoded after: `prepend: '/api'` turns `#/paths/~1thing/get` into
+`#/paths/~1api~1thing/get`.
+
+### 10.3 What is deliberately left alone
+
+- **An `operationRef` into another document.** Moving our paths says nothing
+  about someone else's.
+- **A link that uses `operationId`.** An id travels with its operation —
+  `ensureUniqueOperationIds` renames both together — so a link by id is correct
+  after a path move without any rewriting. There is a test asserting this
+  *doesn't* change, because "fix every pointer" is exactly the instinct that
+  would break it.
+
+### 10.4 Two pinned tests flipped, and one that must not
+
+The `KNOWN GAP` tests for `mapping` and `defaultMapping` both failed the moment
+the fix landed and now assert the fix.
+
+A third test — "carries discriminator defaultMapping", a single-input
+pass-through — has an assertion identical in text to the pinned one, and a
+careless bulk edit changed it too. It must keep expecting the *unrenamed*
+value: nothing is renamed in a single-input merge, and asserting `Dog1` there
+would have pinned a bug. Caught by the suite immediately; noted because the
+next bulk edit will hit the same shape.
+
+### 10.5 Verification
+
+- 7 new tests plus two flipped pins. **7 failures against `origin/main`** across
+  the two touched files, confirmed in a detached worktree.
+- Cover: `defaultMapping` as a reference and as a bare name, both together with
+  `mapping`, `operationRef` under `prepend` and under `stripStart`, an
+  unmoved path, an external `operationRef`, and an `operationId` link.
+- Gate green: lint, 391 tests, 48 artifact checks.

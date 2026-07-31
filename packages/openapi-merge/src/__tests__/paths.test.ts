@@ -451,6 +451,53 @@ describe('duplicatePathHandling (issue #71)', () => {
     expect(output.webhooks?.ping?.post?.operationId).toBe('secondPing');
   });
 
+  /**
+   * Two inputs sharing a path but using DIFFERENT methods.
+   *
+   * `GET /thing` from one service and `POST /thing` from another could in
+   * principle be combined into one path item holding both. This policy does
+   * not do that: it chooses between whole Path Items, so whichever one loses
+   * takes its operations with it. Both non-error policies therefore discard an
+   * operation that does not collide with anything.
+   *
+   * Pinned rather than fixed. Combining per method is a different feature --
+   * choosing *between* path items versus merging *inside* one -- and it raises
+   * questions this policy does not answer: a Path Item carries its own
+   * `parameters`, which are inherited by every operation in it, plus
+   * `summary`, `description` and `servers`, and it may be a `$ref`. Silently
+   * unioning the operations while one input's path-level `parameters` win
+   * would change the meaning of the other input's operations.
+   *
+   * These tests exist so the loss is visible and cannot drift unnoticed. If a
+   * per-method policy is ever added, they are what says the gap was closed.
+   */
+  describe('paths that share a key but not a method', () => {
+    const getOnly = { oas: doc30({ paths: { '/thing': { get: op('getThing') } } }) };
+    const postOnly = (handling: 'skip-later' | 'prefer-later') => ({
+      oas: doc30({ paths: { '/thing': { post: op('postThing') } } }),
+      duplicatePathHandling: handling,
+    });
+
+    it('KNOWN LIMITATION: skip-later drops the later input\'s non-colliding method', () => {
+      const output = expectSuccess(merge([getOnly, postOnly('skip-later')]));
+
+      // POST /thing collided with nothing, and is gone anyway.
+      expect(Object.keys(output.paths?.['/thing'] ?? {})).toEqual(['get']);
+    });
+
+    it('KNOWN LIMITATION: prefer-later drops the earlier input\'s non-colliding method', () => {
+      const output = expectSuccess(merge([getOnly, postOnly('prefer-later')]));
+
+      expect(Object.keys(output.paths?.['/thing'] ?? {})).toEqual(['post']);
+    });
+
+    it('still errors by default, which at least loses nothing silently', () => {
+      // The default refuses rather than guessing, so a user who would be
+      // surprised by either policy above is told instead.
+      expectMergeError(merge([getOnly, { oas: doc30({ paths: { '/thing': { post: op('postThing') } } }) }]), 'duplicate-paths');
+    });
+  });
+
   it('still errors on duplicate webhooks by default', () => {
     const result = merge([
       { oas: doc31({ paths: {}, webhooks: { ping: { post: op('a') } } }) },

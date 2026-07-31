@@ -632,13 +632,14 @@ describe('3.2 edge: additive fields pass through', () => {
       } },
     }) }]));
 
+    // Single input, nothing renamed: the pointer must be untouched.
     expect(at(output.components?.schemas?.Pet, 'discriminator', 'defaultMapping'))
       .toBe('#/components/schemas/Dog');
   });
 
-  it('KNOWN GAP: discriminator defaultMapping is not rewritten on rename', () => {
-    // Same class of gap as the `mapping` field (issues #99/#106): the oneOf
-    // reference follows the rename, the discriminator pointer does not.
+  it('rewrites discriminator defaultMapping on rename (issue #106)', () => {
+    // Was pinned as a KNOWN GAP alongside `mapping` (#99). Both are pointers
+    // the walker could not see because they are not spelled `$ref`.
     const output = expectSuccess(merge([
       { oas: doc32({ paths: { '/a': { get: op('a') } }, components: { schemas: { Dog: schema({ type: 'string' }) } } }) },
       { oas: doc32({
@@ -655,7 +656,7 @@ describe('3.2 edge: additive fields pass through', () => {
 
     expect(at(output.components?.schemas?.Pet, 'oneOf', '0', '$ref')).toBe('#/components/schemas/Dog1');
     expect(at(output.components?.schemas?.Pet, 'discriminator', 'defaultMapping'))
-      .toBe('#/components/schemas/Dog');
+      .toBe('#/components/schemas/Dog1');
   });
 
   it('carries itemSchema for sequential media types', () => {
@@ -790,5 +791,94 @@ describe('servers strategy (issue #4)', () => {
 
     expect(inputs[0].oas.servers).toEqual([{ url: 'https://first.example.com', description: 'first' }]);
     expect(inputs[1].oas.servers).toEqual([{ url: 'https://second.example.com' }]);
+  });
+});
+
+/**
+ * Issue #102: overriding the merged `info`.
+ *
+ * `info` is otherwise taken from the first input, so an aggregate document ends
+ * up titled after whichever service happened to be listed first -- describing
+ * itself as something it is not.
+ */
+describe('info override (issue #102)', () => {
+  const two = () => [
+    { oas: doc30({ paths: { '/a': { get: op('a') } }, info: { title: 'Service A', version: '1.0.0' } }) },
+    { oas: doc30({ paths: { '/b': { get: op('b') } }, info: { title: 'Service B', version: '2.0.0' } }) },
+  ];
+
+  it('takes info from the first input when no override is given', () => {
+    const output = expectSuccess(merge(two()));
+
+    expect(output.info).toEqual({ title: 'Service A', version: '1.0.0' });
+  });
+
+  it('overrides the title while keeping the rest', () => {
+    const output = expectSuccess(merge(two(), { info: { title: 'Combined API' } }));
+
+    // version is required, and overriding only the title must not demand it.
+    expect(output.info).toEqual({ title: 'Combined API', version: '1.0.0' });
+  });
+
+  it('overrides several fields at once', () => {
+    const output = expectSuccess(
+      merge(two(), { info: { title: 'Combined API', version: '9.9.9', description: 'Everything.' } }),
+    );
+
+    expect(output.info).toEqual({ title: 'Combined API', version: '9.9.9', description: 'Everything.' });
+  });
+
+  it('overrides a description that would otherwise be appended', () => {
+    const output = expectSuccess(
+      merge(
+        [
+          { oas: doc30({ paths: { '/a': { get: op('a') } }, info: { title: 'A', version: '1', description: 'From A' } }), description: { append: true } },
+          { oas: doc30({ paths: { '/b': { get: op('b') } }, info: { title: 'B', version: '1', description: 'From B' } }), description: { append: true } },
+        ],
+        { info: { description: 'Written by hand.' } },
+      ),
+    );
+
+    // Applied after appending, so an explicit description wins.
+    expect(output.info.description).toBe('Written by hand.');
+  });
+
+  it('leaves appended descriptions alone when the override does not mention them', () => {
+    const output = expectSuccess(
+      merge(
+        [
+          { oas: doc30({ paths: { '/a': { get: op('a') } }, info: { title: 'A', version: '1', description: 'From A' } }), description: { append: true } },
+          { oas: doc30({ paths: { '/b': { get: op('b') } }, info: { title: 'B', version: '1', description: 'From B' } }), description: { append: true } },
+        ],
+        { info: { title: 'Combined' } },
+      ),
+    );
+
+    expect(output.info.title).toBe('Combined');
+    expect(output.info.description).toBe('From A\n\nFrom B');
+  });
+
+  it('ignores an explicitly undefined field rather than blanking the value', () => {
+    const output = expectSuccess(merge(two(), { info: { title: undefined } }));
+
+    // A config file cannot express the difference between absent and
+    // explicitly undefined, and the destructive reading is the surprising one.
+    expect(output.info.title).toBe('Service A');
+  });
+
+  it('does not mutate the input it copied info from', () => {
+    const inputs = two();
+    merge(inputs, { info: { title: 'Combined API' } });
+
+    expect(inputs[0].oas.info.title).toBe('Service A');
+  });
+
+  it('carries a contact or licence supplied only by the override', () => {
+    const output = expectSuccess(
+      merge(two(), { info: { contact: { name: 'Platform', email: 'platform@example.com' } } }),
+    );
+
+    expect(output.info.contact).toEqual({ name: 'Platform', email: 'platform@example.com' });
+    expect(output.info.title).toBe('Service A');
   });
 });

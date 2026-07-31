@@ -166,6 +166,7 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
         operationSelection: input.operationSelection,
         description: input.description,
         duplicatePathHandling: input.duplicatePathHandling,
+        tag: input.tag,
       };
 
       if ('dispute' in input) {
@@ -250,7 +251,11 @@ export async function main(): Promise<void> {
 
   logger.log(`## Loaded the inputs into memory, merging the results.`);
 
-  const mergeResult = merge(inputs, { serversStrategy: config.serversStrategy });
+  const mergeResult = merge(inputs, {
+    serversStrategy: config.serversStrategy,
+    pruneUnusedComponents: config.pruneUnusedComponents,
+    info: config.info,
+  });
 
   if (isErrorResult(mergeResult)) {
     console.error(`Error merging files: ${mergeResult.message} (${mergeResult.type})`);
