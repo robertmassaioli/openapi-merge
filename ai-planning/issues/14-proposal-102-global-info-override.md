@@ -1,7 +1,7 @@
 # Proposal: Issue #102 — Global title/description override in config
 
 **Issue Link:** https://github.com/robertmassaioli/openapi-merge/issues/102  
-**Status:** Proposal  
+**Status:** ✅ Implemented — see §10  
 **Value:** 3 / **Effort:** 2
 
 ---
@@ -478,3 +478,47 @@ cat test-output.json | grep -A2 '"info"'
 
 4. **Shared `MergeOptions` future:** This `MergeOptions` interface mirrors the pattern in proposal-76 (for `openapi` version override). A future proposal may unify them into one options object, e.g., `{ info?: ..., openapi?: ... }`.
 
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/102-global-info-override`. Option B, the library-level option, as
+recommended — `merge(inputs, { info })`, with the CLI passing `config.info`
+through.
+
+### 10.1 Merged field by field, not replaced wholesale
+
+`Partial<Swagger.Info>` is applied key by key over the merged `info`. Replacing
+the object outright would force anyone overriding just the title to restate
+`version`, which the specification requires — turning a one-line convenience
+into a chore that silently invites a wrong version number.
+
+### 10.2 An explicit `undefined` does not blank a value
+
+Only keys whose value is actually present override. A configuration file cannot
+express the difference between "absent" and "explicitly undefined", and between
+the two readings the destructive one is the surprising one. Tested.
+
+### 10.3 Applied after description appending
+
+So `info.description` in the override beats an appended description, while an
+override that says nothing about `description` leaves the appending intact.
+Both directions are tested, because this is the one interaction where the
+feature could quietly undo an existing one.
+
+### 10.4 The CLI exposes a narrow subset
+
+`title`, `version` and `description` rather than the whole Info object.
+`contact`, `licence` and `termsOfService` are available to library callers but
+are not worth the generated-schema surface for a configuration file; keeping the
+schema small is also what lets `--noExtraProps` turn a typo like `titel` into an
+error instead of a silent no-op. There is a test for exactly that.
+
+### 10.5 Verification
+
+- 8 library tests in `document-metadata.test.ts`, which owns document-level
+  metadata. **5 fail against `origin/main`**, confirmed in a detached worktree.
+- 3 CLI tests for the wiring, including the typo case.
+- Gate green: lint, 395 tests, 48 artifact checks.
