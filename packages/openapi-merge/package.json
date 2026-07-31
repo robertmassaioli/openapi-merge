@@ -40,14 +40,14 @@
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.14.150",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
-    "eslint": "^10.0.0",
+    "eslint": "^10.8.0",
     "eslint-formatter-visualstudio": "^9.0.1",
-    "globals": "^17.7.0",
+    "globals": "^17.8.0",
     "typescript-eslint": "^8.65.0"
   },
   "dependencies": {
     "@atlassian/atlassian-openapi": "^1.0.6",
-    "lodash": "^4.17.15",
+    "lodash": "^4.18.1",
     "ts-is-present": "^1.1.1"
   },
   "publishConfig": {
