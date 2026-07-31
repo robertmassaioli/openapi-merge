@@ -100,13 +100,21 @@ function pathItemHasContent(pathItem: PathItem32): boolean {
 function dropPathItemsWithNoOperations(originalOas: OpenApiDocument): OpenApiDocument {
   const oas = _.cloneDeep(originalOas);
 
-  for (const path in oas.paths) {
-    /* eslint-disable-next-line no-prototype-builtins */
-    if (oas.paths.hasOwnProperty(path)) {
-      const pathItem = oas.paths[path];
+  // Webhooks as well as paths. An `excludeTags` rule that empties a webhook
+  // used to leave `{ ping: {} }` behind -- an event the document announces and
+  // then says nothing about -- while the equivalent path was dropped. Surfaced
+  // by a wildcard test for issue #111; the inconsistency predates it.
+  for (const map of [oas.paths, oas.webhooks]) {
+    // Not just `!== undefined`: a document in the wild can carry `paths: null`,
+    // which the previous `for...in` tolerated silently and `Object.keys` does
+    // not. There is a test for exactly that input, and it caught this.
+    if (map === undefined || map === null) {
+      continue;
+    }
 
-      if (!pathItemHasContent(pathItem)) {
-        delete oas.paths[path];
+    for (const key of Object.keys(map)) {
+      if (!pathItemHasContent(map[key])) {
+        delete map[key];
       }
     }
   }
