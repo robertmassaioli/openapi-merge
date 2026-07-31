@@ -2,7 +2,7 @@
 
 **Issue:** [#71 — Possible to skip duplicate paths?](https://github.com/robertmassaioli/openapi-merge/issues/71)
 
-**Status:** Proposal
+**Status:** ✅ Implemented — see §10
 
 **Value:** 4 | **Effort:** 3 | **ROI:** Medium
 
@@ -263,3 +263,98 @@ We do **not** recommend adding a `skipped` field to `MergeResult.output` because
 1. **Decision:** Approve per-input `duplicatePathHandling` design vs. alternative (global option).
 2. **Coordination:** Plan parallelization with #8 and #109 as a unified "Conflict Policies" release.
 3. **Implementation:** Start with per-method granularity built-in (higher effort upfront, better UX long-term).
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/71-skip-duplicate-paths`. §4.1's three-value
+`duplicatePathHandling`, per input, defaulting to `'error'` so nothing that
+worked before behaves differently.
+
+### 10.1 On `SingleMergeInputBase`, not `SingleMergeInputV2`
+
+§4.1 puts it on `SingleMergeInputV2`. It went on the shared base instead, so it
+also works with the deprecated `disputePrefix` form. There is no reason a policy
+about paths should be unavailable to someone who has not yet migrated their
+dispute configuration.
+
+### 10.2 Two operationId bugs the design did not anticipate
+
+Neither is visible from the proposal, and both produce a valid-looking document
+with wrong names.
+
+**Skipped paths must not consume operationIds.** `'skip-later'` returns before
+`ensureUniqueOperationIds`. Registering the ids of a path that is not going into
+the output would push an unrelated later operation onto a numeric suffix, for a
+collision with something that was discarded.
+
+**Replaced paths must release theirs.** Under `'prefer-later'` the earlier
+definition leaves the output, so its ids have to leave `seenOperationIds` with
+it. Without that, two inputs that both define `getThing` on the same path yield
+an output where the surviving operation is called `getThing1` and `getThing`
+exists nowhere. Handled by a new `releaseOperationIds`; both cases are tested.
+
+### 10.3 Webhooks too
+
+Not mentioned in the proposal. Webhooks collide by event name through the same
+code shape and produced the same unconditional `duplicate-webhooks` error, so
+the policy applies there as well. It would be arbitrary for the same
+configuration to resolve a path collision and hard-fail an event-name one.
+
+### 10.4 §4.3 per-method granularity — implemented as a fourth policy
+
+Initially left out for want of an answer to "what happens to the path item's own
+`summary`, `parameters` and `$ref` when two inputs disagree?". Raised again in
+review, and the answer turned out to be simple: **refuse**.
+
+`'merge-operations'` combines two path items when, and only when, the union is
+unambiguous:
+
+- their method sets are disjoint (standard slots and 3.2 `additionalOperations`
+  alike, the latter compared case-sensitively);
+- their path-level fields are identical — every key that is not an operation,
+  compared deeply, including vendor extensions;
+- neither is a `$ref`.
+
+Anything else returns `duplicate-paths` (or `duplicate-webhooks`) with a message
+naming the reason: which methods overlapped, which fields differed, or that a
+`$ref` cannot be compared without resolving it.
+
+`parameters` is the case that justifies the strictness. They are inherited by
+every operation in the path item, so combining an input whose path declares
+`tenantId` with one that does not silently adds a required parameter to
+operations that never had it. That is a merge tool changing what a document
+means, which is worse than a merge tool that stops. The same argument covers a
+field present on one side and absent on the other, so that counts as a
+difference too.
+
+Incoming operations go through `ensureUniqueOperationIds` before being combined,
+since they are joining a document that already contains the existing ones —
+otherwise two inputs each contributing an operation called `thing` to the same
+path would emit a duplicate id.
+
+Applies to webhooks on the same terms.
+
+### 10.5 What #8 and #109 still want
+
+Unchanged: both are additional *values* on this union rather than new
+mechanisms. #8 wants the dispute prefix applied to a colliding path; #109 wants
+a designated input to win, which `'prefer-later'` may already cover.
+
+### 10.6 Verification
+
+- 24 unit tests in `merge-path-items.test.ts` for the combine decision itself,
+  weighted towards the refusals: overlapping standard methods, partial overlap,
+  overlapping custom verbs, differing `parameters` / `summary` / `servers` /
+  vendor extensions, a field present on one side only, and all three `$ref`
+  arrangements. Plus immutability of both arguments.
+- 14 further tests in `paths.test.ts` driving real merges: three inputs
+  contributing three methods, a duplicate created by `pathModification`,
+  operationId disambiguation and dispute prefixes across the combine, webhooks,
+  and the per-input nature of the policy.
+- 3 CLI tests, including that the failure message names the overlapping method.
+- Two `KNOWN LIMITATION` tests remain, now pinning what `skip-later` and
+  `prefer-later` still discard — which is the point of having a third option.
+- Gate green: lint, 523 tests, 48 artifact checks.

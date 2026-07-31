@@ -145,6 +145,24 @@ export interface ConfigurationInputBase {
   description?: DescriptionMergeBehaviour;
 
   /**
+   * What to do when this input declares a path (or webhook) that an earlier
+   * input already contributed (issue #71).
+   *
+   * - `error` (default) — fail the merge, as it always has.
+   * - `skip-later` — keep the definition already present, drop this one.
+   * - `prefer-later` — replace the definition already present with this one.
+   * - `merge-operations` — combine them when their methods do not overlap and
+   *   their path-level fields agree, so `GET /thing` from one input and
+   *   `POST /thing` from another end up in one path item. Refuses rather than
+   *   guessing when the methods overlap, the path-level fields differ, or
+   *   either side is a `$ref`.
+   *
+   * Per input rather than global, so a configuration can say "this gateway
+   * input wins and the rest are additive".
+   */
+  duplicatePathHandling?: 'error' | 'skip-later' | 'prefer-later' | 'merge-operations';
+
+  /**
    * Add a tag to every operation from this input (issue #112).
    *
    * Lets the merged document say which service an operation came from without
