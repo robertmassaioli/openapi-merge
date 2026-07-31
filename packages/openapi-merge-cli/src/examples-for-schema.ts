@@ -117,3 +117,8 @@ export const ConfigurationInputExamples: Array<Array<ConfigurationInput>> = [
     }
   ]
 ];
+/** Per-input tag injection (issue #112). */
+export const TagInjectionExamples: Array<{ name: string; description?: string }> = [
+  { name: 'billing' },
+  { name: 'billing', description: 'Everything served by the billing service.' },
+];

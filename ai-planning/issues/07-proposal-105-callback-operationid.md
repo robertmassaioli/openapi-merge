@@ -2,7 +2,7 @@
 
 **Issue Link:** https://github.com/robertmassaioli/openapi-merge/issues/105
 
-**Status:** Proposal
+**Status:** ✅ Implemented — see §10
 
 **Value:** 4 / **Effort:** 2
 
@@ -400,3 +400,41 @@ Recommend bundling #40, #99, #105, #106, and #111 into a single minor release ("
 3. **Import scope:** Ensure `TC` is in scope; it's already imported in most modules.
 4. **Deployment:** This is a bug fix, not a breaking change. Consider a patch or minor version bump depending on release strategy.
 5. **Documentation:** Update the CHANGELOG to note that callback operationIds are now included in dispute resolution.
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/105-callback-operationid`. `ensureUniqueOperationIds` now descends
+into each operation's `callbacks`.
+
+### 10.1 One namespace, not a separate one
+
+The specification says an operationId must be "unique among all operations
+described in the API". A callback operation is one of them, so callback ids
+share the single `seenOperationIds` set with everything else rather than getting
+their own. A callback id colliding with an ordinary operation id is
+disambiguated, and there is a test for that specific case — it is the one a
+separate namespace would get wrong.
+
+### 10.2 A `$ref` callback is not descended into
+
+Its operations live in the component it points at, and that component is
+already walked in its own right. Descending here would count them twice and
+rename the second copy for colliding with the first. Tested.
+
+### 10.3 Also covers collisions inside a single input
+
+Two callbacks on the same operation declaring the same id are a duplicate in the
+same document, so the second is disambiguated even with one input. Not something
+the proposal mentions; it falls out of using the same set, and is tested so it
+stays deliberate.
+
+### 10.4 Verification
+
+- 6 tests in `operation-ids.test.ts`, the suite that owns id uniqueness.
+  **4 fail against `origin/main`**, confirmed in a detached worktree; the other
+  two assert what must *not* change — a non-colliding id, and a `$ref` callback
+  left alone.
+- Gate green: lint, 390 tests, 48 artifact checks.
