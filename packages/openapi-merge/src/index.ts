@@ -7,6 +7,7 @@ import { mergeInfos } from './info';
 import { negotiateOutputVersion, validateInputVersions } from './openapi-version';
 import { OpenApiDocument } from './oas31';
 import { mergeServers, ServersStrategy } from './servers';
+import { pruneUnusedComponents } from './prune-components';
 
 export { isErrorResult };
 export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy };
@@ -82,5 +83,8 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
     inputs.map(input => input.oas)
   );
 
-  return { output };
+  // Last, so that reachability is computed against the finished document --
+  // after operation selection, renaming and reference rewriting have all had
+  // their say. Anything earlier would measure a document that does not exist.
+  return { output: options?.pruneUnusedComponents === true ? pruneUnusedComponents(output) : output };
 }

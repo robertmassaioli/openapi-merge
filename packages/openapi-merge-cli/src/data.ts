@@ -276,6 +276,19 @@ export type Configuration = {
   serversStrategy?: 'first' | 'concat';
 
   /**
+   * Drop components that nothing in the merged output references (issue #94).
+   *
+   * Defaults to false. Useful with `operationSelection`, where excluding tags
+   * removes operations but would otherwise leave the schemas only those
+   * operations used behind. A component still referenced by another surviving
+   * endpoint is kept.
+   *
+   * Off by default because pruning is destructive: a document may carry
+   * definitions referenced only from outside it.
+   */
+  pruneUnusedComponents?: boolean;
+
+  /**
    * Override fields of the merged `info` object (issue #102).
    *
    * Without this, `info` comes from the first input, so a merged document is

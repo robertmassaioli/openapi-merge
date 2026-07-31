@@ -252,6 +252,7 @@ export async function main(): Promise<void> {
 
   const mergeResult = merge(inputs, {
     serversStrategy: config.serversStrategy,
+    pruneUnusedComponents: config.pruneUnusedComponents,
     info: config.info,
   });
 

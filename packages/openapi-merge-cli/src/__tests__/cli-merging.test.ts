@@ -132,6 +132,61 @@ describe('main - serversStrategy (issue #4)', () => {
 });
 
 /**
+ * Issue #94: component pruning reaching the library from a config file.
+ */
+describe('main - pruneUnusedComponents (issue #94)', () => {
+  const withSchemas = (paths: Record<string, unknown>) => ({
+    openapi: '3.0.3',
+    info: { title: 'A', version: '1.0.0' },
+    paths,
+    components: { schemas: { Used: { type: 'object' }, Unused: { type: 'object' } } },
+  });
+
+  const usesUsed = {
+    get: {
+      operationId: 'getA',
+      responses: {
+        '200': { description: 'ok', content: { 'application/json': { schema: { $ref: '#/components/schemas/Used' } } } },
+      },
+    },
+  };
+
+  it('keeps unused components by default', async () => {
+    cli.writeJson('a.json', withSchemas({ '/a': usesUsed }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+    expect(Object.keys(JSON.parse(cli.read()).components.schemas).sort()).toEqual(['Unused', 'Used']);
+  });
+
+  it('drops unused components when enabled', async () => {
+    cli.writeJson('a.json', withSchemas({ '/a': usesUsed }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+      pruneUnusedComponents: true,
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+    expect(Object.keys(JSON.parse(cli.read()).components.schemas)).toEqual(['Used']);
+  });
+
+  it('rejects a non-boolean value against the generated schema', async () => {
+    cli.writeJson('a.json', withSchemas({ '/a': usesUsed }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+      pruneUnusedComponents: 'yes',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
+  });
+});
+
+/**
  * Issue #102: the info override reaching the library from a config file.
  */
 describe('main - info override (issue #102)', () => {
