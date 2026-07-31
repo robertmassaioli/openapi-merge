@@ -1,3 +1,4 @@
+import { Swagger } from '@atlassian/atlassian-openapi';
 import { OpenApiDocument } from './oas31';
 
 import { ServersStrategy } from './servers';
@@ -40,6 +41,30 @@ export interface DisputeSuffix extends DisputeBase {
 
 export type Dispute = DisputePrefix | DisputeSuffix;
 
+/**
+ * A tag applied to every operation coming from one input (issue #112).
+ *
+ * Lets a merged document distinguish which service each operation came from
+ * without anybody editing the upstream specifications -- which is the point,
+ * since those are usually owned by another team.
+ */
+export type TagInjection = {
+  /**
+   * The tag to add to every operation from this input.
+   *
+   * @minLength 1
+   */
+  name: string;
+
+  /**
+   * Description for this tag in the output's top-level `tags` array.
+   *
+   * Ignored if another input already contributed a tag of the same name --
+   * first-wins, as everywhere else in this merge.
+   */
+  description?: string;
+};
+
 export interface SingleMergeInputBase {
   oas: OpenApiDocument;
 
@@ -56,6 +81,16 @@ export interface SingleMergeInputBase {
    * into the final resulting OpenAPI file
    */
   description?: DescriptionMergeBehaviour;
+
+  /**
+   * Add a tag to every operation from this input (issue #112).
+   *
+   * Applied *after* `operationSelection`, so an injected tag cannot influence
+   * the include/exclude rules that decided which operations survive. Injecting
+   * first would make `includeTags: ['billing']` match operations solely because
+   * this input injects `billing`, which reads as a filter doing nothing.
+   */
+  tag?: TagInjection;
 }
 
 /**
@@ -134,6 +169,19 @@ export type MergeInput = Array<SingleMergeInput>;
  * existed before the option did, so `merge(inputs)` is unchanged.
  */
 export interface MergeOptions {
+  /**
+   * Override fields of the merged `info` object (issue #102).
+   *
+   * `info` is otherwise taken from the first input, so a merged document is
+   * titled after whichever service happens to be listed first -- misleading for
+   * an aggregate API that is none of its inputs.
+   *
+   * Merged field by field, so overriding only `title` does not require
+   * restating the required `version`. Applied after description appending, so
+   * an explicit `description` wins over the appended one.
+   */
+  info?: Partial<Swagger.Info>;
+
   /**
    * How to combine the top-level `servers` array. Defaults to `'first'`.
    * See {@link ServersStrategy} for why that is the default (issue #4).

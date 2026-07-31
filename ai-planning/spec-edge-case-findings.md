@@ -108,17 +108,24 @@ for.
 
 ### 2.4 Discriminator pointers are not rewritten on rename — FIXED (#99, #106)
 
-Already tracked as **issues #99 and #106**, with proposals in
-`issues/10-proposal-99-discriminator-mapping-prefix.md` and
-`issues/09-proposal-106-discriminator-mappings.md`. Confirmed still present for
-both `mapping` (3.0) and the new 3.2 `defaultMapping`:
+**`mapping` fixed** (issue #99). `defaultMapping` (3.2) and Link `operationRef`
+(§2.5) remain, tracked as issue #106.
+
+The reference walker now treats a Discriminator Object's `mapping` values as
+pointers. They are plain strings in a plain object rather than `$ref` members,
+which is why nothing saw them:
 
 ```
-oneOf $ref            -> #/components/schemas/Dog1   (correctly rewritten)
-discriminator.mapping -> #/components/schemas/Dog    (stale)
+oneOf $ref            -> #/components/schemas/Dog1   (was always correct)
+discriminator.mapping -> #/components/schemas/Dog1   (now follows the rename)
 ```
 
-The new tests add `defaultMapping` coverage those proposals predate.
+Both spellings the specification permits are handled — a full reference, and a
+bare schema name, which is shorthand for one. A bare name stays bare after
+rewriting; expanding every shorthand would produce a large, noisy diff in
+documents this tool is only passing through.
+
+The `KNOWN GAP` test that pinned this now asserts the fix instead.
 
 ### 2.5 A Link `operationRef` is not rewritten when its path moves — FIXED (#106)
 

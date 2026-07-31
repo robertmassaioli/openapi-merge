@@ -2,7 +2,7 @@
 
 **Issue:** [#112 — Option to merge an input into a tag](https://github.com/robertmassaioli/openapi-merge/issues/112)
 
-**Status:** Proposal
+**Status:** ✅ Implemented — see §10
 
 **Value:** 4 / **Effort:** 3 / **ROI:** 5 / **Quadrant:** Big Bet (low)
 
@@ -481,3 +481,61 @@ Update the "Key types" section of "The `openapi-merge` Library" to document `Tag
 **Value:** 4 (users get a powerful per-input tag-injection feature; improves UI organization in API gateways)  
 **Effort:** 3 (well-defined scope; reuses existing markdown-heading logic; ~3 hours coding)  
 **ROI:** 5 (4 ÷ 3 ≈ 1.33, high impact relative to effort)
+
+
+---
+
+## 10. What was implemented
+
+Branch `issue/112-merge-into-tag`. §3.1's `TagInjection` with `name` and
+`description`, and §3.2's per-input `tag` field.
+
+### 10.1 `appendInfoDescription` not implemented
+
+§3.1 also proposes a flag appending the input's `info.description` to the tag's
+description, using `DescriptionMergeBehaviour`'s heading rules. Left out.
+
+It duplicates an existing mechanism against a different target, and the two
+would then disagree about what a heading level means depending on where the
+text landed. Nobody has asked for it; `description` covers the stated need, and
+a second description-assembly path is worth avoiding until someone does.
+
+### 10.2 Ordering: after selection, and after empty path items are dropped
+
+§3.2 says "after operationSelection filtering", which is right and worth
+spelling out. Injecting first would let `includeTags: ['billing']` match
+operations *because this input injects `billing`* — a filter that appears to do
+nothing and quietly keeps everything. Running after the empty-path-item drop
+also means nothing is tagged that is not in the output. Both are tested.
+
+### 10.3 Appended, never replacing
+
+An operation's own tags say what it does; the injected one says where it came
+from. Both are worth keeping, and a document that lost the former would be far
+less useful than one that never gained the latter. A tag the operation already
+carries is not added twice — that would be an invalid duplicate.
+
+### 10.4 The tag is declared, not just applied
+
+Not in the proposal. Operations carrying a tag the document never declares is
+legal but unhelpful: anything building navigation from `tags` shows a heading
+with no description, or omits the group. The injected tag is added to the
+top-level `tags` array, before the input's own declarations so it reads as the
+grouping it is, and first-wins if two inputs inject the same name.
+
+### 10.5 Verification
+
+- 11 tests in `tag-injection.test.ts`. **9 fail against `origin/main`**,
+  confirmed in a detached worktree.
+- Cover: appending to existing tags, no duplicate, the top-level declaration
+  with and without a description, first-wins across inputs, webhooks, input
+  immutability, and the ordering guarantee in §10.2.
+- 3 CLI tests including ajv rejecting a missing and an empty tag name.
+- Gate green: lint, 398 tests, 48 artifact checks.
+
+### 10.6 Completes the tag trio
+
+With #100 (tag-based path selection) and #111 (wildcards), this is the third of
+three features on the same tag machinery. Injection is the write side of what
+those two read: an input can now be tagged on the way in and filtered by that
+tag downstream.
