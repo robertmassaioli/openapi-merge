@@ -2,7 +2,7 @@ import path from 'path';
 import { OpenApiDocument } from 'openapi-merge/dist/oas31';
 import { walkAllReferences } from 'openapi-merge/dist/reference-walker';
 import { readFileAsString, readYamlOrJSON } from './file-loading';
-import { resolveConfigPath } from './path-resolution';
+import { assertInputContained, InputOutsideRootError, resolveConfigPath } from './path-resolution';
 
 /**
  * Discovering and loading `$ref`-only documents (issue #10) -- files or URLs
@@ -117,9 +117,16 @@ export type DiscoveryWarning = {
   message: string;
 };
 
+/** A discovered local file that would have been read from outside `inputRoot` (proposal 38). Never read. */
+export type ContainmentViolation = {
+  reference: DocumentReference;
+  message: string;
+};
+
 export type DiscoveryResult = {
   externalDocuments: Record<string, OpenApiDocument>;
   warnings: DiscoveryWarning[];
+  containmentViolations: ContainmentViolation[];
 };
 
 /**
@@ -146,14 +153,26 @@ export function urlInputIdentity(inputURL: string): DocumentReference {
  * `externalDocuments` -- any `$ref` naming it is then simply unresolved by
  * the library, exactly as a `$ref` to a declared input that does not exist
  * would be.
+ *
+ * `inputRoot`, when set, bounds every discovered *file* identity (proposal
+ * 38): before a discovered file is loaded, it must resolve inside
+ * `inputRoot` or it is never read at all, only recorded as a
+ * `ContainmentViolation`. Unlike an ordinary load failure this is not a
+ * warning -- the worklist keeps draining so every reachable violation (and
+ * every ordinary warning) in the same run still surfaces, but the caller is
+ * expected to treat any non-empty `containmentViolations` as fatal and skip
+ * the merge entirely. URL identities are untouched: `inputRoot` is a
+ * filesystem-containment mechanism, not a network allow-list.
  */
 export async function discoverExternalDocuments(
   declaredInputs: ReadonlyArray<{ document: OpenApiDocument; reference: DocumentReference }>,
   enableDiscovery: boolean,
+  inputRoot?: string,
 ): Promise<DiscoveryResult> {
   const known = new Set(declaredInputs.map(input => input.reference.identity));
   const externalDocuments: Record<string, OpenApiDocument> = {};
   const warnings: DiscoveryWarning[] = [];
+  const containmentViolations: ContainmentViolation[] = [];
 
   const worklist: DocumentReference[] = [];
   for (const input of declaredInputs) {
@@ -177,6 +196,21 @@ export async function discoverExternalDocuments(
       break;
     }
 
+    if (next.kind === 'file' && inputRoot !== undefined) {
+      try {
+        assertInputContained(next.identity, inputRoot);
+      } catch (e) {
+        if (e instanceof InputOutsideRootError) {
+          // Never read: the file's own refs are therefore never discovered
+          // either, but the rest of the worklist keeps going so every
+          // violation reachable via an in-bounds path still surfaces.
+          containmentViolations.push({ reference: next, message: e.message });
+          continue;
+        }
+        throw e;
+      }
+    }
+
     try {
       const document = await loadDocument(next);
       externalDocuments[next.identity] = document;
@@ -193,5 +227,5 @@ export async function discoverExternalDocuments(
     }
   }
 
-  return { externalDocuments, warnings };
+  return { externalDocuments, warnings, containmentViolations };
 }

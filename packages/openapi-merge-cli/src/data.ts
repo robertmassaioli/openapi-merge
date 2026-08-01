@@ -275,6 +275,32 @@ export type Configuration = {
   outputRoot?: string;
 
   /**
+   * Optional defence-in-depth restriction, the read-side counterpart to
+   * `outputRoot` (proposal 38): when set, the CLI will refuse to read a
+   * local file -- whether a declared `inputFile` or a file discovered via
+   * `resolveExternalReferences` -- from anywhere outside this directory.
+   *
+   * Any local file load that would reach outside `inputRoot` is a hard
+   * error: the merge does not proceed and no output is written, whether the
+   * offending path came from a declared `inputFile` or was reached
+   * transitively by following a `$ref` out of some other document. Every
+   * violation found is reported together, not just the first. The check
+   * compares the realpath of the resolved input's nearest existing ancestor
+   * against the realpath of this root, so symlinks cannot be used to escape.
+   *
+   * Applies to local files only. `inputURL` and URLs discovered via
+   * `resolveExternalReferences` are a different trust boundary (network
+   * egress, not filesystem containment) and are not affected by this option.
+   *
+   * Leave unset to keep the historical permissive default; this option is
+   * intended for embedded / multi-tenant uses of the CLI, or for configs
+   * whose `resolveExternalReferences` inputs are not fully trusted.
+   *
+   * @minLength 1
+   */
+  inputRoot?: string;
+
+  /**
    * Optional output-formatting controls (issue #114). When omitted, the
    * output is formatted with 2 spaces of indentation (the historical
    * default).

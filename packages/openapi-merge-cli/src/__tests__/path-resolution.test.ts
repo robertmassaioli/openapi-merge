@@ -2,7 +2,9 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 import {
+  assertInputContained,
   assertOutputContained,
+  InputOutsideRootError,
   OutputOutsideRootError,
   resolveConfigPath,
 } from '../path-resolution';
@@ -117,6 +119,110 @@ describe('assertOutputContained', () => {
       expect((e as OutputOutsideRootError).message).toContain(path.resolve('/root'));
       expect((e as OutputOutsideRootError).resolved).toBe(path.resolve('/etc/passwd'));
       expect((e as OutputOutsideRootError).root).toBe(path.resolve('/root'));
+    }
+  });
+});
+
+describe('assertInputContained', () => {
+  it('is a no-op when inputRoot is undefined', () => {
+    const input = path.resolve('/anywhere/at/all.json');
+    expect(assertInputContained(input, undefined)).toBe(input);
+  });
+
+  it('accepts an input exactly at the root', () => {
+    const root = path.resolve('/root');
+    const input = path.resolve('/root');
+    const realpath = (p: string): string => p;
+    const exists = (): boolean => true;
+    expect(assertInputContained(input, root, realpath, exists)).toBe(input);
+  });
+
+  it('accepts an input beneath the root', () => {
+    const root = path.resolve('/root');
+    const input = path.resolve('/root/sub/dir/file.json');
+    const realpath = (p: string): string => p;
+    const exists = (): boolean => true;
+    expect(assertInputContained(input, root, realpath, exists)).toBe(input);
+  });
+
+  it('rejects an input above the root with InputOutsideRootError', () => {
+    const root = path.resolve('/root/inner');
+    const input = path.resolve('/root/escape.json');
+    const realpath = (p: string): string => p;
+    const exists = (): boolean => true;
+    expect(() => assertInputContained(input, root, realpath, exists))
+      .toThrow(InputOutsideRootError);
+  });
+
+  it('rejects an input on a completely different branch', () => {
+    const root = path.resolve('/root');
+    const input = path.resolve('/etc/passwd');
+    const realpath = (p: string): string => p;
+    const exists = (): boolean => true;
+    expect(() => assertInputContained(input, root, realpath, exists))
+      .toThrow(InputOutsideRootError);
+  });
+
+  it('defeats a symlink-out-of-jail by realpath-ing the existing ancestor', () => {
+    const root = path.resolve('/safe');
+    const input = path.resolve('/safe/link/file.json');
+
+    // Stubbed realpath: `/safe/link` is a symlink to `/elsewhere`.
+    const realpath = (p: string): string => {
+      if (p === path.resolve('/safe/link')) return path.resolve('/elsewhere');
+      return p;
+    };
+    const exists = (): boolean => true;
+
+    expect(() => assertInputContained(input, root, realpath, exists))
+      .toThrow(InputOutsideRootError);
+  });
+
+  it('defeats a symlink planted as the leaf itself, not just a symlinked ancestor directory', () => {
+    // The read/write asymmetry that matters here: an output usually doesn't
+    // exist yet, so only its parent chain can carry a planted symlink. An
+    // input is the thing being read and normally *does* exist, so the leaf
+    // itself has to be checked too -- real filesystem, since a stub would
+    // just assert the mock was written correctly rather than the behaviour.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'openapi-merge-38-leaf-'));
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openapi-merge-38-outside-'));
+    try {
+      const outsideFile = path.join(outsideDir, 'secret.yml');
+      fs.writeFileSync(outsideFile, 'openapi: "3.0.0"\n');
+      const link = path.join(root, 'link.yml');
+      fs.symlinkSync(outsideFile, link);
+
+      expect(() => assertInputContained(link, root)).toThrow(InputOutsideRootError);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it('walks up to the closest existing ancestor when the input does not exist yet', () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'openapi-merge-38-'));
+    try {
+      const input = path.join(tmpRoot, 'not', 'yet', 'created', 'file.json');
+      expect(assertInputContained(input, tmpRoot)).toBe(input);
+    } finally {
+      fs.rmdirSync(tmpRoot);
+    }
+  });
+
+  it('includes both paths in the thrown error message', () => {
+    const root = path.resolve('/root');
+    const input = path.resolve('/etc/passwd');
+    const realpath = (p: string): string => p;
+    const exists = (): boolean => true;
+    try {
+      assertInputContained(input, root, realpath, exists);
+      throw new Error('expected InputOutsideRootError');
+    } catch (e) {
+      expect(e).toBeInstanceOf(InputOutsideRootError);
+      expect((e as InputOutsideRootError).message).toContain(path.resolve('/etc/passwd'));
+      expect((e as InputOutsideRootError).message).toContain(path.resolve('/root'));
+      expect((e as InputOutsideRootError).resolved).toBe(path.resolve('/etc/passwd'));
+      expect((e as InputOutsideRootError).root).toBe(path.resolve('/root'));
     }
   });
 });

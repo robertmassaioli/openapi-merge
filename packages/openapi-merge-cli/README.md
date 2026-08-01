@@ -263,7 +263,7 @@ in your `openapi-merge.json` (or via `--config`). The tool assumes that this
 configuration file is **trusted**, the same way you trust a `Makefile`,
 `package.json`, or `webpack.config.js` in your repository. Do not run the CLI
 against a configuration file from an untrusted source without restricting the
-output location.
+input and output locations.
 
 `resolveExternalReferences` widens what gets *read*, not just written: with
 it on, the files and URLs the CLI loads are no longer limited to what
@@ -287,6 +287,34 @@ are defeated by realpath-ing the closest existing ancestor of the output.
 When unset, the CLI keeps its historical permissive default and writes
 wherever you tell it to.
 
+You can restrict where the CLI will *read* local files from the same way --
+the read-side counterpart, and the one that matters most once
+`resolveExternalReferences` is on, since that setting is what makes the
+reachable file set transitive rather than confined to what `inputs` lists:
+
+* Add `"inputRoot": "/path/to/safe/dir"` to your `openapi-merge.json`, **or**
+* Pass `--restrict-input-to /path/to/safe/dir` on the command line (the flag
+  takes precedence over the config field).
+
+When set, any local file the CLI would read -- a declared `inputFile` or a
+file `resolveExternalReferences` discovers -- that does not lie under the
+configured root is refused, and the CLI exits with code `10`
+(`ExitCode.ErrorUnsafeInputPath`). The offending file is never opened: the
+check runs before the read is attempted, using the same realpath-based
+containment check as `outputRoot`, extended to also realpath the file itself
+(not just its parent directory) before comparing -- an input, unlike an
+output, normally already exists, so a symlink planted as the file itself,
+not just an ancestor directory, has to be defeated too. A declared
+`inputFile` outside the root is reported before the merge starts at all; a
+discovered file outside the root
+aborts the merge the same way, rather than being left as an unresolved `$ref`
+the way an ordinary missing or unparseable discovered file is. `inputURL` and
+URLs discovered via `resolveExternalReferences` are unaffected -- `inputRoot`
+bounds the filesystem, not the network.
+
+When unset, the CLI keeps its historical permissive default and reads
+whatever the inputs point to.
+
 ## Exit codes
 
 The CLI's exit codes are part of its contract; scripts and CI pipelines can
@@ -304,6 +332,7 @@ branch on them.
 | `7` | An `inputURL` responded with a **5xx** status |
 | `8` | An `inputURL` responded with some other non-2xx status |
 | `9` | An input declared an unsupported OpenAPI version, or the inputs disagreed |
+| `10` | A local file read escaped `inputRoot` / `--restrict-input-to` |
 
 Codes `6`–`8` are separate from `2` on purpose. `2` means an input could not be
 obtained at all — a missing file, an unreachable host, content that parses as
