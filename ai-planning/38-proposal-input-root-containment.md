@@ -62,15 +62,12 @@ than inventing new vocabulary.
  * whether a declared `inputFile` or a file discovered via
  * `resolveExternalReferences` — from anywhere outside this directory.
  *
- * Declared inputs outside `inputRoot` are a config error: the merge never
- * starts, and every offending input is reported at once (the same
+ * Any local file load that would reach outside `inputRoot` is a hard
+ * error: the merge does not proceed and no output is written, whether the
+ * offending path came from a declared `inputFile` or was reached
+ * transitively by following a `$ref` out of some other document. Every
+ * violation found is reported together, not just the first (the same
  * report-everything-then-exit shape `ErrorLoadingInputs` already uses).
- * Discovered files outside `inputRoot` are treated the same way a discovery
- * load failure already is: a warning, the referencing `$ref` left
- * unresolved, the merge proceeds. The distinction matters because a
- * declared input is something the config author wrote and is responsible
- * for; a discovered file is named by a `$ref` inside a document the config
- * author may not have authored themselves.
  *
  * Applies to local files only. `inputURL` and URLs discovered via
  * `resolveExternalReferences` are a different trust boundary (network
@@ -106,28 +103,42 @@ compare" shape, unchanged.
 
 ### 2.4 Where the check runs
 
+Both call sites are hard errors, and both are resolved *before* `merge()`
+is ever invoked — the "Option 2, refined" architecture already puts all I/O
+in the CLI ahead of the synchronous merge (proposal 37), so there is no
+point after discovery has run where a violation could sneak past
+undetected.
+
 **Declared inputs — eager, before any merge work starts.** Resolve every
 `inputFile`'s full path up front (this already happens once per input) and
 check containment before `loadOasForInput` reads anything. Collect *every*
 violating input, not just the first — matching `ErrorLoadingInputs`'s
 existing "all inputs are attempted before exiting" philosophy
 (`exit-codes.ts:62-63`), so a config with three bad `inputFile` entries
-doesn't require three separate fix-and-rerun cycles. On any violation, exit
-before the merge is attempted at all.
+doesn't require three separate fix-and-rerun cycles.
 
-**Discovered files — soft, per-file, during the breadth-first walk.** Inside
-`discoverExternalDocuments`'s worklist loop (`external-reference-discovery.ts:171-194`),
-check containment immediately before `loadDocument` for a `kind: 'file'`
-reference. A violation becomes a `DiscoveryWarning` with a message that
-names the file and the configured root — reusing the exact shape
-already used for "file does not exist" and "file fails to parse" — and the
-referencing `$ref` is left unresolved, exactly as it would be for a missing
-file. This is a deliberate asymmetry from the declared-input case: one
-adversarial or careless `$ref` inside a *discovered* document — which the
-config author did not necessarily write — should not abort an otherwise
-successful merge of everything else. The security property that matters is
-that the file is never read, not that the whole run dies; both the warning
-path and the hard-fail path satisfy that.
+**Discovered files — checked per-file during the breadth-first walk, but
+still fatal.** Inside `discoverExternalDocuments`'s worklist loop
+(`external-reference-discovery.ts:171-194`), check containment immediately
+before `loadDocument` for a `kind: 'file'` reference. A violation is never
+read — that is the property that actually matters — but instead of being
+downgraded to a `DiscoveryWarning` (as a missing or unparseable file already
+is), it is collected into a distinct `containmentViolations` list alongside
+the existing `warnings`. The worklist continues draining (so every
+reachable, non-violating branch still gets a chance to surface its own
+violations or its own ordinary warnings in the same pass — one bad `$ref`
+should not hide a second one three files over), but a violating identity's
+*own* refs are never discovered, since the file was never read. Once the
+worklist is empty, if `containmentViolations` is non-empty, `main()` skips
+calling `merge()` entirely: no output is written, and every violation found
+— declared and discovered together — is reported in one pass.
+
+The result is symmetric with the declared-input case in outcome (hard
+failure, nothing written, everything found is reported at once) even though
+*where* the check runs differs (eagerly for declared inputs, which are
+known up front; interleaved with discovery for transitive references,
+which by definition are not known until something else has already been
+read).
 
 ### 2.5 New exit code
 
@@ -135,9 +146,10 @@ Append `ErrorUnsafeInputPath = 10` (do not reuse `ErrorUnsafePath` — that
 code's TSDoc is specifically about the *output* escaping its root, and CI
 scripts branching on exit codes need the two directions to stay
 distinguishable, same reasoning that kept the three `ErrorInputUrl*Status`
-codes separate from each other). Fires only for the declared-input case
-(§2.4); discovered-file violations exit `0` with a warning already printed,
-same as any other discovery failure.
+codes separate from each other). Fires for both cases in §2.4 — declared
+input outside the root, or a reference discovered from inside an input
+resolving outside the root — since from a caller's perspective both are the
+same failure: "this config would have read something outside `inputRoot`."
 
 ### 2.6 Resolution semantics
 
@@ -180,9 +192,19 @@ Following the pattern already established for `outputRoot`
   `--restrict-input-to` overriding a config `inputRoot` (mirroring the
   existing `--restrict-output-to` precedence test).
 - CLI end-to-end test: `resolveExternalReferences: true` with `inputRoot`
-  set, a discovered file outside the root — merge succeeds, a warning names
-  the file, the `$ref` is left unresolved (reusing the existing missing-file
-  test's assertion shape).
+  set, a discovered file outside the root — merge does not run, no output
+  file is written, exit code is `ErrorUnsafeInputPath`, and the error names
+  the offending file and the referencing document.
+- CLI end-to-end test: two separate containment violations in one run — one
+  declared `inputFile` outside the root and one discovered file outside the
+  root (reached via a *different*, in-bounds input) — both are named in the
+  single error report, confirming the worklist keeps draining after the
+  first violation instead of stopping short.
+- CLI end-to-end test: a discovered file outside the root sits alongside an
+  ordinary discovery failure (a genuinely missing file, reached via another
+  ref) in the same run — the missing file still produces its existing
+  non-fatal warning shape, while the containment violation still aborts the
+  merge; the two failure modes don't get conflated.
 - Regression guard: `inputRoot` unset behaves identically to today (every
   existing `cli-*.test.ts` file already exercises this by omission).
 
