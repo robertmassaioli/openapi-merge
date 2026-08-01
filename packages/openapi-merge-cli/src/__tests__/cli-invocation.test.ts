@@ -141,6 +141,68 @@ describe('init command', () => {
     expect(Object.keys(merged.paths).sort()).toEqual(['/a', '/b']);
   });
 
+  it('the resolveExternalReferences/inputRoot defaults (proposal 39) actually resolve a $ref, unmodified', async () => {
+    // A shared-components subdirectory `init`'s (non-recursive) scan never
+    // declares as an input, referenced from a file it does scan -- exactly
+    // the case resolveExternalReferences exists for. Proves the default is
+    // not just present in the generated file but functionally does
+    // something useful with zero edits, and that inputRoot: '.' doesn't
+    // reject a file that legitimately lives inside '.', just not at its
+    // top level.
+    cli.write('common/ServerError.yml', 'openapi: "3.0.0"\ncomponents:\n  schemas:\n    ServerError:\n      type: object\n');
+    cli.write('a.yaml', [
+      'openapi: "3.0.0"',
+      'info: { title: A, version: "1.0" }',
+      'components:',
+      '  schemas:',
+      '    Widget:',
+      '      $ref: "./common/ServerError.yml#/components/schemas/ServerError"',
+      '',
+    ].join('\n'));
+
+    expect(await runInDir('init')).toBe(ExitCode.Success);
+    expect(generated().inputs).toEqual([{ inputFile: './a.yaml' }]);
+
+    expect(await runInDir()).toBe(ExitCode.Success);
+
+    const merged = loadYaml(fs.readFileSync(path.join(cli.dir(), generated().output), 'utf8')) as {
+      components: { schemas: Record<string, unknown> };
+    };
+    expect(merged.components.schemas.Widget).toEqual({ $ref: '#/components/schemas/ServerError' });
+    expect(merged.components.schemas.ServerError).toEqual({ type: 'object' });
+  });
+
+  it('turns a shared-components-one-directory-up layout into a hard failure, not the old silent success (proposal 39 §9.5)', async () => {
+    // Before resolveExternalReferences/inputRoot were on by default, this
+    // exact layout produced ExitCode.Success with the $ref left unresolved
+    // -- discovery never ran, so nothing was ever attempted, let alone
+    // rejected. With the default on, discovery reaches the file and
+    // inputRoot correctly refuses to read it, so the merge now hard-fails
+    // instead. "Shared components live one directory up" is a common
+    // layout, and this is the one behaviour change worth a second look
+    // before relying on the new defaults for an existing directory -- not
+    // a silent footnote, see proposal 39 §9.5.
+    const outsidePath = path.join(cli.dir(), '..', 'shared-common.yaml');
+    fs.writeFileSync(outsidePath, 'openapi: "3.0.0"\ncomponents:\n  schemas:\n    ServerError:\n      type: object\n');
+    try {
+      cli.write('a.yaml', [
+        'openapi: "3.0.0"',
+        'info: { title: A, version: "1.0" }',
+        'components:',
+        '  schemas:',
+        '    Widget:',
+        '      $ref: "../shared-common.yaml#/components/schemas/ServerError"',
+        '',
+      ].join('\n'));
+
+      expect(await runInDir('init')).toBe(ExitCode.Success);
+      expect(await runInDir()).toBe(ExitCode.ErrorUnsafeInputPath);
+      expect(cli.exists('openapi.yaml')).toBe(false);
+    } finally {
+      fs.rmSync(outsidePath, { force: true });
+    }
+  });
+
   it('refuses to overwrite an existing openapi-merge.yaml', async () => {
     cli.write('openapi-merge.yaml', 'inputs:\n  - inputFile: ./hand-written.yaml\noutput: ./out.json\n');
 

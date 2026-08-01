@@ -1,6 +1,6 @@
 import {
-  buildConfiguration, CandidateFile, chosenInputs, classify, isScannable, OptionalFieldBlock, PER_INPUT_OPTIONAL_BLOCKS,
-  PLACEHOLDER_INPUT, renderInitYaml, selectInputs, suggestedOutput, TOP_LEVEL_OPTIONAL_BLOCKS,
+  ACTIVE_TOP_LEVEL_DEFAULTS, buildConfiguration, CandidateFile, chosenInputs, classify, isScannable, OptionalFieldBlock,
+  PER_INPUT_OPTIONAL_BLOCKS, PLACEHOLDER_INPUT, renderInitYaml, selectInputs, suggestedOutput, TOP_LEVEL_OPTIONAL_BLOCKS,
 } from '../init-command';
 import { load as loadYaml } from 'js-yaml';
 import Ajv from 'ajv';
@@ -207,24 +207,60 @@ describe('init YAML rendering (renderInitYaml)', () => {
     return renderInitYaml(chosenInputs(inputs), buildConfiguration(inputs).output);
   }
 
-  describe('the active part is inert -- comments add nothing to what is parsed', () => {
+  /** {@link buildConfiguration}'s output, plus the two fields proposal 39 turns on by default. */
+  function withActiveDefaults(inputs: ReadonlyArray<string>): Configuration {
+    return { ...buildConfiguration(inputs), resolveExternalReferences: true, inputRoot: '.' };
+  }
+
+  describe('the active part is inert -- comments add nothing beyond inputs/output/the active defaults', () => {
     it('with several inputs', () => {
       const inputs = ['./service-a.yaml', './service-b.yaml'];
-      expect(parseActive(render(inputs))).toEqual(buildConfiguration(inputs));
+      expect(parseActive(render(inputs))).toEqual(withActiveDefaults(inputs));
     });
 
     it('with a single input', () => {
       const inputs = ['./only.yaml'];
-      expect(parseActive(render(inputs))).toEqual(buildConfiguration(inputs));
+      expect(parseActive(render(inputs))).toEqual(withActiveDefaults(inputs));
     });
 
     it('with no inputs -- the placeholder case', () => {
-      expect(parseActive(render([]))).toEqual(buildConfiguration([]));
+      expect(parseActive(render([]))).toEqual(withActiveDefaults([]));
     });
   });
 
   it('the active document validates against the real configuration schema', () => {
     expect(validate(parseActive(render(['./a.yaml', './b.yaml', './c.yaml'])))).toBe(true);
+  });
+
+  describe('proposal 39 -- resolveExternalReferences and inputRoot are active defaults, not commented suggestions', () => {
+    it('renders both uncommented, not as "# resolveExternalReferences:" / "# inputRoot:"', () => {
+      const rendered = render(['./a.yaml', './b.yaml']);
+
+      expect(rendered).toContain('\nresolveExternalReferences: true\n');
+      expect(rendered).toContain('\ninputRoot: .\n');
+      expect(rendered).not.toContain('# resolveExternalReferences:');
+      expect(rendered).not.toContain('# inputRoot:');
+    });
+
+    it('every other top-level optional field stays commented (regression guard against widening the active set)', () => {
+      const rendered = render(['./a.yaml', './b.yaml']);
+
+      for (const block of TOP_LEVEL_OPTIONAL_BLOCKS) {
+        const firstLine = block.yaml.split('\n')[0];
+        expect(rendered).toContain(`# ${firstLine}`);
+        expect(rendered).not.toContain(`\n${firstLine}\n`);
+      }
+    });
+
+    it('explains each active default with a commented line above it', () => {
+      const rendered = render(['./a.yaml']);
+
+      for (const block of ACTIVE_TOP_LEVEL_DEFAULTS) {
+        for (const explanationLine of block.explanation.split('\n')) {
+          expect(rendered).toContain(`# ${explanationLine}`);
+        }
+      }
+    });
   });
 
   it('is deterministic -- the same inputs render the same bytes twice', () => {
@@ -264,13 +300,16 @@ describe('init YAML rendering (renderInitYaml)', () => {
   });
 
   describe('field coverage matches data.ts', () => {
-    it('every optional top-level Configuration field is represented', () => {
-      // Cross-checked by hand against Configuration in data.ts. Update this list
-      // (and TOP_LEVEL_OPTIONAL_BLOCKS) if a field is added, renamed or removed.
-      const expected = [
-        'outputRoot', 'formatting', 'serversStrategy', 'securitySchemesStrategy', 'pruneUnusedComponents', 'info',
-      ];
-      expect(TOP_LEVEL_OPTIONAL_BLOCKS.map(block => block.name).sort()).toEqual([...expected].sort());
+    it('every optional top-level Configuration field is represented, as either a commented suggestion or an active default', () => {
+      // Cross-checked by hand against Configuration in data.ts. Update these
+      // lists (and TOP_LEVEL_OPTIONAL_BLOCKS / ACTIVE_TOP_LEVEL_DEFAULTS) if a
+      // field is added, renamed or removed. init-command.ts also enforces this
+      // at compile time (proposal 39 §2.2) -- this test is a readable,
+      // explicit cross-check, not the only guard against drift.
+      const expectedCommented = ['outputRoot', 'formatting', 'serversStrategy', 'securitySchemesStrategy', 'pruneUnusedComponents', 'info'];
+      const expectedActive = ['resolveExternalReferences', 'inputRoot'];
+      expect(TOP_LEVEL_OPTIONAL_BLOCKS.map(block => block.name).sort()).toEqual([...expectedCommented].sort());
+      expect(ACTIVE_TOP_LEVEL_DEFAULTS.map(block => block.name).sort()).toEqual([...expectedActive].sort());
     });
 
     it('every optional per-input field (ConfigurationInputBase + DisputeV2) is represented', () => {

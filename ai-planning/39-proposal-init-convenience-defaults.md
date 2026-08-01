@@ -1,6 +1,6 @@
 # Proposal 39: Which `init` defaults should be turned *on*, not just shown
 
-**Status:** Proposal (not yet implemented)
+**Status:** ✅ Implemented on branch `feature/init-convenience-defaults`, at Robert's explicit direction, exactly as §3/§4/§5 recommend. See §9 for what was actually built and the calls made on the three §8 open questions.
 
 **Not tied to a filed GitHub issue.** Robert's ask directly: turn on some
 `Configuration` fields by default in the file `openapi-merge-cli init`
@@ -236,3 +236,128 @@ out of scope for proposal 38 (§3: *"Worth its own proposal"*).
    `inputURL` specifically, or keep it more general ("if any input is
    remote...") so it doesn't need updating if URL discovery containment
    (proposal 38 §3's stated non-goal) is ever built?
+
+## 9. What was actually built
+
+### 9.1 §3/§4/§5 landed as specified
+
+`ACTIVE_TOP_LEVEL_DEFAULTS` (`init-command.ts`) holds exactly the two
+entries §3 recommends -- `resolveExternalReferences: true` and
+`inputRoot: .`, in that order, adjacent in the generated file, each with a
+commented explanation above the active line -- rendered by a new
+`renderActiveBlock`, kept structurally separate from `TOP_LEVEL_OPTIONAL_BLOCKS`'s
+`renderCommentedBlock` rather than adding a branch/flag to one shared
+function, since the two need visibly different treatment (the whole point)
+and conflating them risked a bug where a flag gets flipped wrong on one
+entry and nobody notices.
+
+### 9.2 §8's three open questions, resolved during implementation
+
+1. **`outputRoot: .` (§8.1): not bundled in.** Left exactly as proposed --
+   a pure restriction with no forcing reason tied to this proposal's actual
+   ask, so it stays a separate decision rather than being smuggled in
+   alongside `resolveExternalReferences`/`inputRoot`. `outputRoot` remains
+   commented, unchanged, in `TOP_LEVEL_OPTIONAL_BLOCKS`.
+2. **The `keyof Configuration` exhaustiveness check (§8.2): built, and it
+   works.** Implemented via `[...] as const satisfies ReadonlyArray<OptionalFieldBlock>`
+   on both `TOP_LEVEL_OPTIONAL_BLOCKS` and `ACTIVE_TOP_LEVEL_DEFAULTS` (to
+   keep each entry's literal `name` type rather than widening it to `string`),
+   plus a `type _MissingTopLevelInitBlocks = Exclude<TopLevelOptionalConfigurationKey, DeclaredTopLevelBlockName>`
+   check that fails to typecheck -- not silently, a real `tsc`/`tsgo` error
+   naming the missing field -- if either list ever drifts from `Configuration`
+   again. Verified directly, not just written and hoped: temporarily
+   renaming `inputRoot`'s entry to `inputRoot_TYPO` and running `bun run
+   typecheck` produced `Type 'boolean' is not assignable to type ["...", "inputRoot"]`,
+   naming the exact missing field. This is the mechanism that would have
+   caught the `resolveExternalReferences`/`inputRoot` gap §2 found, had it
+   existed before those fields were added -- which is the whole reason for
+   building it now rather than leaving the comment-only fallback. `PER_INPUT_OPTIONAL_BLOCKS`
+   was deliberately left with the plain hand-copied-list test only (no
+   `satisfies`/exhaustiveness check) -- out of this proposal's scope, and
+   its own coverage test already exists.
+3. **The residual-gap comment (§8.3): kept general.** The generated comment
+   says *"a $ref inside a remote (URL) input isn't restricted the same
+   way"* rather than naming `inputURL` as a config field -- concrete enough
+   to be useful, general enough that it does not need editing if URL
+   containment is ever designed.
+
+### 9.3 One thing worth flagging that the proposal didn't anticipate
+
+§2's fix for the pre-existing coverage gap changed the *shape* of the
+existing `'every optional top-level Configuration field is represented'`
+test, not just its `expected` list: since `resolveExternalReferences` and
+`inputRoot` moved to a wholly separate list (`ACTIVE_TOP_LEVEL_DEFAULTS`)
+rather than just being added to `TOP_LEVEL_OPTIONAL_BLOCKS`'s existing
+`expected` array, that test now asserts two lists instead of one. This
+wasn't a design decision proposal 39 called out explicitly, but follows
+directly from §4's own recommendation to keep active and commented
+rendering structurally distinct -- worth noting only because a reader
+diffing the test file against §7's testing plan might otherwise wonder why
+the test changed shape and not just content.
+
+Separately, the three existing `'the active part is inert'` tests
+(`init-command.test.ts`) needed their assertions widened from
+`.toEqual(buildConfiguration(inputs))` to a new `withActiveDefaults(inputs)`
+helper that adds the two active fields -- an expected, mechanical
+consequence of §1's point that the active part of the file is no longer
+*just* `inputs`/`output`, but worth recording since it is the most direct,
+concrete evidence that §1's named invariant genuinely changed, not just in
+prose but in what the test suite itself asserts.
+
+### 9.4 Verification
+
+- `bun test`: 682 tests pass (up from 677 before this proposal's
+  implementation commit), including 3 new rendering tests confirming the
+  active/commented distinction, 1 new coverage test, 1 new CLI end-to-end
+  test proving the `resolveExternalReferences`/`inputRoot` pairing resolves
+  a real `$ref` into an undeclared subdirectory file with zero edits to
+  `init`'s own output, and 1 new CLI test pinning the behaviour change
+  recorded in §9.5.
+- Lint and typecheck clean in both packages; `init-command.ts` and
+  `index.ts` both at 100% function/line coverage.
+- Manual verification: ran `openapi-merge-cli init` against a real temp
+  directory and eyeballed the generated file (matches the §4 sketch
+  exactly), then ran the merge against that file unmodified to confirm
+  `ExitCode.Success` and a written output.
+
+### 9.5 A behaviour change worth Robert's attention specifically, not a footnote
+
+§5's "costs nothing" claim is true of what `init` itself generates in a
+single scan, and only that. The first edit a user makes changes the
+calculus, and one very ordinary edit makes it worse, not better:
+
+**A `$ref` to a file one directory up (a common "shared components live in
+`../common/`" layout) used to fail silently; now it fails loudly, and it is
+the *default*, not an opt-in, that changed this.** Traced and verified with
+a real CLI run, not just reasoned about:
+
+- **Before this proposal** (`resolveExternalReferences` unset/`false`):
+  discovery never runs at all. The `$ref` is normalised to an absolute path
+  and left exactly as unresolved as it always was. The merge succeeds,
+  output is written, exit `0`. Silent, but not destructive.
+- **After** (`resolveExternalReferences: true` + `inputRoot: .`, both
+  defaults from this proposal): discovery reaches the file, finds it
+  outside `.`, and -- correctly, per proposal 38's design -- refuses to
+  read it. The merge does not run. No output is written. Exit `10`.
+
+This is not a bug -- `inputRoot`'s hard-fail-on-violation behaviour is
+exactly what proposal 38 was built to do, deliberately, at Robert's own
+prior direction (that conversation's confirmation: *"Both should error,
+[...] Yes, hard error both cases"*). And arguably loud-and-wrong beats
+quiet-and-wrong: a merge that silently drops a `$ref` unresolved was never
+actually correct either, it just failed in a way nobody noticed until
+later. But it is a genuine behaviour change specifically caused by turning
+`resolveExternalReferences` on by *default*, for the single most common way
+someone extends a freshly `init`-generated project (adding a second
+directory of shared specs next to the first) -- and it converts a
+previously non-fatal surprise into a merge that produces *no output at
+all*, which is a bigger blast radius than "the `$ref` didn't resolve."
+
+Recorded here explicitly, with a regression test pinning the exact exit
+code (`ExitCode.ErrorUnsafeInputPath`, `cli-invocation.test.ts`), rather
+than left as something only discoverable by reading the generated file's
+comments. Worth Robert's explicit sign-off before this ships as the
+default rather than an opt-in the way #10 originally was: the remedy is
+simple and already documented in the generated comment (widen `inputRoot`,
+or set it to `false`), but the first time someone hits it will be a build
+failure, not a warning.

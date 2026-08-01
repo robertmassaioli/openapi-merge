@@ -65,9 +65,10 @@ function buildProgram(): Command {
 Commands:
   init [--force]             Write a starter openapi-merge.yaml in the current
                              directory, filled in with any OpenAPI 3.x files
-                             found alongside it, and every optional setting
-                             shown commented out. Refuses to overwrite an
-                             existing configuration (openapi-merge.yaml or
+                             found alongside it, with resolveExternalReferences
+                             and inputRoot turned on and every other optional
+                             setting shown commented out. Refuses to overwrite
+                             an existing configuration (openapi-merge.yaml or
                              openapi-merge.json) unless --force is given.
 
 Run with no arguments to perform the merge described by openapi-merge.yaml
@@ -138,7 +139,8 @@ async function runInit(force: boolean, logger: LogWithMillisDiff): Promise<ExitC
     logger.log(`##   placeholder input -- replace '${PLACEHOLDER_INPUT}' before running the merge.`);
   }
 
-  logger.log(`##   Every other setting is included, commented out -- uncomment what you need.`);
+  logger.log(`##   resolveExternalReferences and inputRoot are turned on by default -- see the`);
+  logger.log(`##   comments above them. Every other setting is included, commented out -- uncomment what you need.`);
 
   if (swagger2.length > 0) {
     // Named rather than ignored: people do try to merge 2.0 documents (issue

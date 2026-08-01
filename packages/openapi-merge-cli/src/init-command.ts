@@ -179,7 +179,7 @@ export type OptionalFieldBlock = {
  * there. Deliberately excludes the deprecated `disputePrefix` -- only the
  * current `dispute` shape (`DisputeV2`) is worth showing to a new user.
  */
-export const TOP_LEVEL_OPTIONAL_BLOCKS: ReadonlyArray<OptionalFieldBlock> = [
+export const TOP_LEVEL_OPTIONAL_BLOCKS = [
   {
     name: 'outputRoot',
     explanation: 'Defence in depth: refuse to write the merged output anywhere outside this directory.',
@@ -220,7 +220,68 @@ export const TOP_LEVEL_OPTIONAL_BLOCKS: ReadonlyArray<OptionalFieldBlock> = [
       '  description: A description for the merged document.',
     ].join('\n'),
   },
-];
+] as const satisfies ReadonlyArray<OptionalFieldBlock>;
+
+/**
+ * Top-level `Configuration` fields written ACTIVE (uncommented) rather than
+ * as a suggestion (proposal 39), because for these two specifically, on is
+ * what a first-time user scanning a directory of specs almost always wants,
+ * and it costs nothing for the config `init` itself just generated: every
+ * input `init` found came from scanning `.` only (no recursion -- see
+ * `isScannable`), so `inputRoot: .` can never reject anything `init` itself
+ * produced. They are paired deliberately, not two independent defaults:
+ * turning `resolveExternalReferences` on alone would widen the local-file
+ * read surface with nothing bounding it, exactly the gap proposal 38's
+ * `inputRoot` exists to close.
+ *
+ * Rendered via {@link renderActiveBlock}, not {@link renderCommentedBlock} --
+ * same shape as {@link OptionalFieldBlock}, but `yaml` is written out as-is,
+ * not commented, with `explanation` still commented above it as a `# ` block.
+ */
+export const ACTIVE_TOP_LEVEL_DEFAULTS = [
+  {
+    name: 'resolveExternalReferences',
+    explanation: [
+      "Follows $refs into files these inputs don't declare, and files those pull",
+      "in, however many deep -- so a $ref like '../common/Errors.yml#/...' just",
+      "works without listing every file it touches in 'inputs'. Paired below",
+      'with inputRoot, which bounds every local file this can reach to \'.\' --',
+      "note that bound is local files only, so a $ref inside a remote (URL) input",
+      "isn't restricted the same way. Set to false to turn this off.",
+    ].join('\n'),
+    yaml: 'resolveExternalReferences: true',
+  },
+  {
+    name: 'inputRoot',
+    explanation: [
+      'Defence in depth for the setting above: refuses to read any local file --',
+      'declared or discovered -- from outside this directory. Already covers',
+      "everything init found here; only needs widening if you add an inputFile,",
+      "or a discovered $ref, that reaches outside '.'.",
+    ].join('\n'),
+    yaml: 'inputRoot: .',
+  },
+] as const satisfies ReadonlyArray<OptionalFieldBlock>;
+
+/**
+ * Compile-time guard (proposal 39 §2.2): if `Configuration` gains a new
+ * optional top-level field that nobody adds to either
+ * {@link TOP_LEVEL_OPTIONAL_BLOCKS} or {@link ACTIVE_TOP_LEVEL_DEFAULTS}
+ * above, this fails to typecheck instead of `init`'s output silently falling
+ * behind `Configuration` again the way it did for `resolveExternalReferences`
+ * and `inputRoot` themselves before this guard existed. `'inputs'` and
+ * `'output'` are excluded: they are required, not optional, and are always
+ * rendered directly rather than through either block list.
+ */
+type TopLevelOptionalConfigurationKey = Exclude<keyof Configuration, 'inputs' | 'output'>;
+type DeclaredTopLevelBlockName =
+  | (typeof TOP_LEVEL_OPTIONAL_BLOCKS)[number]['name']
+  | (typeof ACTIVE_TOP_LEVEL_DEFAULTS)[number]['name'];
+type _MissingTopLevelInitBlocks = Exclude<TopLevelOptionalConfigurationKey, DeclaredTopLevelBlockName>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- exists for its type error, not its value
+const _assertNoMissingTopLevelInitBlocks: _MissingTopLevelInitBlocks extends never
+  ? true
+  : ['Add a TOP_LEVEL_OPTIONAL_BLOCKS or ACTIVE_TOP_LEVEL_DEFAULTS entry in init-command.ts for:', _MissingTopLevelInitBlocks] = true;
 
 /**
  * `ConfigurationInputBase` and `DisputeV2`'s optional fields (data.ts), in
@@ -288,6 +349,18 @@ function renderCommentedBlock(block: OptionalFieldBlock, indent: string): string
   return lines.join('\n');
 }
 
+/**
+ * Renders one {@link ACTIVE_TOP_LEVEL_DEFAULTS} entry as an ACTIVE
+ * (uncommented) top-level setting -- `explanation` is still commented above
+ * it, `yaml` is not. Always top-level: unlike {@link renderCommentedBlock},
+ * takes no indent, since nothing currently in {@link ACTIVE_TOP_LEVEL_DEFAULTS}
+ * is per-input.
+ */
+function renderActiveBlock(block: OptionalFieldBlock): string {
+  const explanationLines = block.explanation.split('\n').map(line => `# ${line}`);
+  return [...explanationLines, block.yaml].join('\n');
+}
+
 /** Indent of a second-or-later key inside an `inputs` list item, matching js-yaml's own 2-space nesting. */
 const PER_INPUT_BLOCK_INDENT = '    ';
 
@@ -298,9 +371,9 @@ function yamlScalar(value: string): string {
 
 /**
  * Renders the full file `init` writes: real `inputs`/`output`, computed
- * exactly as {@link buildConfiguration} does, interleaved with every
- * optional field from `Configuration` and `ConfigurationInputBase`,
- * commented out.
+ * exactly as {@link buildConfiguration} does, {@link ACTIVE_TOP_LEVEL_DEFAULTS}
+ * turned on (proposal 39), and every other optional field from
+ * `Configuration` and `ConfigurationInputBase` commented out.
  *
  * Not built by serialising a `Configuration` object -- js-yaml's `dump()`
  * has no notion of a comment attached to a key, so comments cannot survive
@@ -324,18 +397,22 @@ export function renderInitYaml(chosenInputs: ReadonlyArray<string>, output: stri
     return [line, `${PER_INPUT_BLOCK_INDENT}# Per-input options: see the commented block under the first input above -- the same fields apply here.`];
   });
 
+  const activeLines = ACTIVE_TOP_LEVEL_DEFAULTS.flatMap(block => ['', renderActiveBlock(block)]);
   const topLevelLines = TOP_LEVEL_OPTIONAL_BLOCKS.flatMap(block => ['', renderCommentedBlock(block, '')]);
 
   return [
     '# openapi-merge-cli configuration.',
     '#',
-    "# Everything from here down to 'output:' is required; everything after it",
-    '# is optional and commented out. Uncomment a block to turn it on.',
+    "# Everything from here down to 'output:' is required. A couple of settings",
+    '# right after it are turned on by default -- see their own comments below --',
+    '# and everything after that is optional and commented out. Uncomment a block',
+    '# to turn it on.',
     '# Full documentation: https://github.com/robertmassaioli/openapi-merge/wiki/README',
     '',
     'inputs:',
     ...inputLines,
     `output: ${yamlScalar(output)}`,
+    ...activeLines,
     ...topLevelLines,
     '',
   ].join('\n');
