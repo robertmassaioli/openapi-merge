@@ -38,10 +38,11 @@ export enum ExitCode {
   /**
    * The configuration file could not be found, read, parsed, or validated.
    *
-   * Covers the whole config-loading stage: a missing `openapi-merge.json`, a
-   * file that is neither valid JSON nor valid YAML, a document that fails the
-   * generated JSON Schema, and the cross-field semantic checks that the schema
-   * cannot express (currently: tab indentation paired with a YAML output).
+   * Covers the whole config-loading stage: a missing `openapi-merge.yaml` (or,
+   * as a fallback, `openapi-merge.json`), a file that is neither valid JSON
+   * nor valid YAML, a document that fails the generated JSON Schema, and the
+   * cross-field semantic checks that the schema cannot express (currently: tab
+   * indentation paired with a YAML output).
    *
    * Nothing has been read or written by the time this fires, so it is always
    * safe to retry after fixing the config.

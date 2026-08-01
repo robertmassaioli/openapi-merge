@@ -1,8 +1,9 @@
 import { ConfigurationInput, isConfigurationInputFromFile } from "./data";
 import { loadConfiguration } from "./load-configuration";
 import {
-  buildConfiguration, CandidateFile, isScannable, PLACEHOLDER_INPUT, selectInputs, STANDARD_CONFIG_FILE,
+  buildConfiguration, CandidateFile, chosenInputs, isScannable, PLACEHOLDER_INPUT, renderInitYaml, selectInputs,
 } from "./init-command";
+import { STANDARD_CONFIG_FILE_CANDIDATES, STANDARD_CONFIG_FILE_JSON, STANDARD_CONFIG_FILE_YAML } from "./config-file-names";
 import { Command } from 'commander';
 // package.json sits outside tsconfig's rootDir, so it cannot be imported as a
 // module without widening the compilation. require() is the pragmatic option.
@@ -62,12 +63,15 @@ function buildProgram(): Command {
   // so `--help` still documents it.
   program.addHelpText('after', `
 Commands:
-  init [--force]             Write a starter openapi-merge.json in the current
+  init [--force]             Write a starter openapi-merge.yaml in the current
                              directory, filled in with any OpenAPI 3.x files
-                             found alongside it. Refuses to overwrite an
-                             existing configuration unless --force is given.
+                             found alongside it, and every optional setting
+                             shown commented out. Refuses to overwrite an
+                             existing configuration (openapi-merge.yaml or
+                             openapi-merge.json) unless --force is given.
 
-Run with no arguments to perform the merge described by openapi-merge.json.`);
+Run with no arguments to perform the merge described by openapi-merge.yaml
+(or openapi-merge.json, if that is the only one present).`);
 
   return program;
 }
@@ -80,12 +84,22 @@ Run with no arguments to perform the merge described by openapi-merge.json.`);
  * command exists to create.
  */
 async function runInit(force: boolean, logger: LogWithMillisDiff): Promise<ExitCode> {
-  const targetPath = path.resolve(process.cwd(), STANDARD_CONFIG_FILE);
+  const targetPath = path.resolve(process.cwd(), STANDARD_CONFIG_FILE_YAML);
 
-  if (fs.existsSync(targetPath) && !force) {
+  // Refuse if *either* default name is present, not just the one this writes.
+  // `init` now prefers `.yaml`, so a stray hand-edited `.json` that got no
+  // refusal would simply stop being used the moment a fresh `.yaml` landed
+  // next to it -- the config wouldn't be deleted, just silently shadowed on
+  // the very next merge. That is the same failure an overwrite would cause,
+  // with a longer fuse.
+  const existingConfigFiles = STANDARD_CONFIG_FILE_CANDIDATES.filter(fileName =>
+    fs.existsSync(path.resolve(process.cwd(), fileName)));
+
+  if (existingConfigFiles.length > 0 && !force) {
     console.error(
-      `'${STANDARD_CONFIG_FILE}' already exists in ${process.cwd()}. ` +
-        `Pass --force to overwrite it, or edit the existing file.`,
+      `${existingConfigFiles.map(fileName => `'${fileName}'`).join(' and ')} already ` +
+        `exist${existingConfigFiles.length === 1 ? 's' : ''} in ${process.cwd()}. ` +
+        `Pass --force to overwrite, or edit the existing file.`,
     );
     return ExitCode.ErrorLoadingConfig;
   }
@@ -114,15 +128,17 @@ async function runInit(force: boolean, logger: LogWithMillisDiff): Promise<ExitC
   const { inputs, swagger2, minorVersions } = selectInputs(candidates);
   const configuration = buildConfiguration(inputs);
 
-  fs.writeFileSync(targetPath, `${JSON.stringify(configuration, null, 2)}\n`);
+  fs.writeFileSync(targetPath, renderInitYaml(chosenInputs(inputs), configuration.output));
 
   if (inputs.length > 0) {
-    logger.log(`## Wrote ${STANDARD_CONFIG_FILE} with ${inputs.length} input${inputs.length === 1 ? '' : 's'}:`);
+    logger.log(`## Wrote ${STANDARD_CONFIG_FILE_YAML} with ${inputs.length} input${inputs.length === 1 ? '' : 's'}:`);
     inputs.forEach(input => logger.log(`##   ${input}`));
   } else {
-    logger.log(`## Wrote ${STANDARD_CONFIG_FILE}. No OpenAPI 3.x files were found here, so it contains a`);
+    logger.log(`## Wrote ${STANDARD_CONFIG_FILE_YAML}. No OpenAPI 3.x files were found here, so it contains a`);
     logger.log(`##   placeholder input -- replace '${PLACEHOLDER_INPUT}' before running the merge.`);
   }
+
+  logger.log(`##   Every other setting is included, commented out -- uncomment what you need.`);
 
   if (swagger2.length > 0) {
     // Named rather than ignored: people do try to merge 2.0 documents (issue
@@ -140,7 +156,15 @@ async function runInit(force: boolean, logger: LogWithMillisDiff): Promise<ExitC
     logger.log('##   before running the merge.');
   }
 
-  logger.log(`## Edit ${STANDARD_CONFIG_FILE}, then run openapi-merge-cli to produce '${configuration.output}'.`);
+  if (existingConfigFiles.includes(STANDARD_CONFIG_FILE_JSON)) {
+    // `--force` overwrote nothing named `.json` -- it can't have, the target is
+    // always `.yaml`. Said explicitly because the old file is now inert: the
+    // default lookup in load-configuration.ts prefers `.yaml`, so the `.json`
+    // file will simply never be read again unless it's passed via `-c`.
+    logger.log(`## '${STANDARD_CONFIG_FILE_JSON}' still exists but is no longer used -- '${STANDARD_CONFIG_FILE_YAML}' is preferred now. Delete it, or keep it as a backup.`);
+  }
+
+  logger.log(`## Edit ${STANDARD_CONFIG_FILE_YAML}, then run openapi-merge-cli to produce '${configuration.output}'.`);
 
   return ExitCode.Success;
 }
@@ -360,7 +384,9 @@ export async function main(): Promise<void> {
   const options = program.opts<CliOptions>();
   logger.log(`## ${process.argv[0]}: Running v${pjson.version}`);
 
-  const config = await loadConfiguration(options.config);
+  const config = await loadConfiguration(options.config, fileName => {
+    logger.log(`## Using '${fileName}' from ${process.cwd()}`);
+  });
 
   if (typeof config === 'string') {
     console.error(config);

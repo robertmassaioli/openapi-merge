@@ -10,7 +10,9 @@ used for most use cases, some of the feature decisions are tailored for that spe
 ## Getting started
 
 In order to use this merging cli tool you need to have one or more OpenAPI 3.0 files that you wish to merge. Then you need to create a configuration file,
-called `openapi-merge.json` by default, in your current directory. It should look something like this:
+called `openapi-merge.yaml` by default (`openapi-merge.json` is also read, for configurations written before this tool wrote YAML), in your current directory.
+The [`init`](#getting-started-init) command below writes a starting point for you, with every setting documented and commented out. Written by hand, it
+should look something like this:
 
 ``` json
 {
@@ -102,14 +104,42 @@ To write that configuration file for you, run:
 npx openapi-merge-cli init
 ```
 
-It creates `openapi-merge.json` in the current directory, pre-filled with any
+It creates `openapi-merge.yaml` in the current directory, pre-filled with any
 OpenAPI 3.x files it finds alongside it:
 
 ```
-## Wrote openapi-merge.json with 2 inputs:
+## Wrote openapi-merge.yaml with 2 inputs:
 ##   ./service-a.yaml
 ##   ./service-b.yaml
-## Edit openapi-merge.json, then run openapi-merge-cli to produce './openapi.yaml'.
+##   Every other setting is included, commented out -- uncomment what you need.
+## Edit openapi-merge.yaml, then run openapi-merge-cli to produce './openapi.yaml'.
+```
+
+The generated file is not just `inputs` and `output` -- every optional setting
+this tool supports, both per-input (`dispute`, `pathModification`,
+`operationSelection`, `description`, `duplicatePathHandling`, `tag`) and
+top-level (`outputRoot`, `formatting`, `serversStrategy`,
+`securitySchemesStrategy`, `pruneUnusedComponents`, `info`), is written out
+commented, with a one-line explanation and a working example. Uncomment a
+block and it is immediately valid -- nothing else to fill in:
+
+```yaml
+inputs:
+  - inputFile: ./service-a.yaml
+    # Per-input options (all optional, all commented out below).
+    # Rewrite this input's paths before merging: strip a prefix, then prepend one.
+    # pathModification:
+    #   stripStart: /v1
+    #   prepend: /service-a
+    # ... operationSelection, description, duplicatePathHandling, tag, dispute ...
+  - inputFile: ./service-b.yaml
+    # Per-input options: see the commented block under the first input above -- the same fields apply here.
+output: ./openapi.yaml
+
+# Defence in depth: refuse to write the merged output anywhere outside this directory.
+# outputRoot: .
+
+# ... formatting, serversStrategy, securitySchemesStrategy, pruneUnusedComponents, info ...
 ```
 
 Details worth knowing:
@@ -121,8 +151,11 @@ Details worth knowing:
 * **It scans the current directory only.** Not recursive: descending would mean
   guessing which directories to skip, and picking up a vendored copy of somebody
   else's API is a worse outcome than finding nothing.
-* **It will not overwrite an existing `openapi-merge.json`** unless you pass
-  `--force`.
+* **It will not overwrite an existing configuration** -- `openapi-merge.yaml`
+  *or* `openapi-merge.json` -- unless you pass `--force`. `--force` only ever
+  writes `openapi-merge.yaml`; a pre-existing `openapi-merge.json` is left in
+  place (and the command tells you it is no longer used, since `.yaml` is
+  preferred on load).
 * **Swagger 2.0 files are named, not silently skipped**, so you know the scan saw
   them and why they were left out. Convert them with `swagger2openapi` first.
 * **It warns if the files it found declare different OpenAPI minor versions**,
