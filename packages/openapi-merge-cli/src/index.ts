@@ -17,7 +17,7 @@ import { Swagger } from "@atlassian/atlassian-openapi";
 import { dump as dumpYaml } from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
 import { ExitCode } from "./exit-codes";
-import { assertOutputContained, OutputOutsideRootError, resolveConfigPath } from "./path-resolution";
+import { assertInputContained, assertOutputContained, InputOutsideRootError, OutputOutsideRootError, resolveConfigPath } from "./path-resolution";
 import { discoverExternalDocuments, DocumentReference, fileInputIdentity, urlInputIdentity } from "./external-reference-discovery";
 import { indentToJsonStringifyArg, indentToYamlArg } from "./formatting";
 import { DEFAULT_INDENT, Indent } from "./data";
@@ -34,6 +34,7 @@ export { ExitCode } from "./exit-codes";
 type CliOptions = {
   config?: string;
   restrictOutputTo?: string;
+  restrictInputTo?: string;
 };
 
 // Built per invocation rather than once at module scope. A Command retains the
@@ -48,7 +49,8 @@ function buildProgram(): Command {
 
   program
     .option('-c, --config <config_file>', 'The path to the configuration file for the merge tool.')
-    .option('--restrict-output-to <dir>', 'Refuse to write output anywhere outside this directory (overrides outputRoot in the config).');
+    .option('--restrict-output-to <dir>', 'Refuse to write output anywhere outside this directory (overrides outputRoot in the config).')
+    .option('--restrict-input-to <dir>', 'Refuse to read any local input file from outside this directory (overrides inputRoot in the config).');
 
   // `init` is deliberately NOT registered with `.command()`.
   //
@@ -215,9 +217,10 @@ function exitCodeForMergeError(type: ErrorMergeResult['type']): ExitCode {
   }
 }
 
-async function loadOasForInput(basePath: string, input: ConfigurationInput, inputIndex: number, logger: LogWithMillisDiff): Promise<Swagger.SwaggerV3> {
+async function loadOasForInput(basePath: string, input: ConfigurationInput, inputIndex: number, logger: LogWithMillisDiff, inputRoot: string | undefined): Promise<Swagger.SwaggerV3> {
   if (isConfigurationInputFromFile(input)) {
     const fullPath = resolveConfigPath(basePath, input.inputFile);
+    assertInputContained(fullPath, inputRoot);
     logger.log(`## Loading input ${inputIndex}: ${fullPath}`);
     return (await readYamlOrJSON(await readFileAsString(fullPath))) as Swagger.SwaggerV3;
   } else {
@@ -262,10 +265,10 @@ type ConvertedInputs = {
   references: DocumentReference[];
 };
 
-async function convertInputs(basePath: string, configInputs: ConfigurationInput[], logger: LogWithMillisDiff): Promise<ConvertedInputs | InputConversionErrors> {
+async function convertInputs(basePath: string, configInputs: ConfigurationInput[], logger: LogWithMillisDiff, inputRoot: string | undefined): Promise<ConvertedInputs | InputConversionErrors> {
   const results = await Promise.all(configInputs.map<Promise<SingleMergeInput | InputConversionError>>(async (input, inputIndex) => {
     try {
-      const oas = await loadOasForInput(basePath, input, inputIndex, logger);
+      const oas = await loadOasForInput(basePath, input, inputIndex, logger, inputRoot);
 
       const output: SingleMergeInput = {
         oas,
@@ -291,6 +294,12 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
 
       return output;
     } catch (e) {
+      if (e instanceof InputOutsideRootError) {
+        return {
+          message: `Input ${inputIndex}: ${e.message}`,
+          exitCode: ExitCode.ErrorUnsafeInputPath,
+        };
+      }
       return {
         message: `Input ${inputIndex}: could not load configuration file. ${e}`,
         exitCode: e instanceof InputUrlStatusError
@@ -363,7 +372,14 @@ export async function main(): Promise<void> {
 
   const basePath = path.dirname(options.config || './');
 
-  const converted = await convertInputs(basePath, config.inputs, logger);
+  // The CLI flag overrides whatever is in the config file. Both are resolved
+  // against the config's directory so that relative `inputRoot` values mean
+  // what a config author would expect. Computed before any input is read, so
+  // it can bound the very first file load (proposal 38).
+  const inputRootRaw: string | undefined = options.restrictInputTo || config.inputRoot;
+  const inputRoot = inputRootRaw === undefined ? undefined : resolveConfigPath(basePath, inputRootRaw);
+
+  const converted = await convertInputs(basePath, config.inputs, logger, inputRoot);
 
   if ('errors' in converted) {
     converted.errors.forEach(error => console.error(error));
@@ -378,15 +394,29 @@ export async function main(): Promise<void> {
   // input runs unconditionally -- that fix is always safe, since it only
   // ever affects a `$ref` that would otherwise be silently broken.
   // `resolveExternalReferences` controls only whether a `$ref` naming a file
-  // or URL nobody declared as an input gets followed and loaded.
+  // or URL nobody declared as an input gets followed and loaded. `inputRoot`
+  // bounds where a discovered *file* may come from (proposal 38); a
+  // discovered URL is untouched by it.
   const discovery = await discoverExternalDocuments(
     inputs.map((input, i) => ({ document: input.oas, reference: references[i] })),
     config.resolveExternalReferences === true,
+    inputRoot,
   );
 
+  // Reported before the containment check below exits, so an ordinary
+  // discovery failure elsewhere in the same run is not hidden behind a
+  // containment violation -- both are worth knowing about in one pass.
   discovery.warnings.forEach(warning => {
     logger.log(`## WARNING: could not load '${warning.reference.identity}', referenced via $ref -- left unresolved. (${warning.message})`);
   });
+
+  if (discovery.containmentViolations.length > 0) {
+    discovery.containmentViolations.forEach(violation => {
+      console.error(`${violation.message} (referenced via $ref, not a declared input)`);
+    });
+    process.exit(ExitCode.ErrorUnsafeInputPath);
+    return;
+  }
 
   logger.log(`## Loaded the inputs into memory, merging the results.`);
 

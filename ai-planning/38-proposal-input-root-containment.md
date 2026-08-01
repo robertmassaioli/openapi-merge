@@ -1,6 +1,6 @@
 # Proposal 38: `inputRoot` — a read-side containment boundary for local files
 
-**Status:** Proposal (not yet implemented)
+**Status:** ✅ Implemented on branch `issue/input-root-containment`, at Robert's explicit direction, with the strictness of §2.4 revised before implementation began (see §6).
 
 **Not tied to a filed GitHub issue.** This is the follow-up Robert asked for
 directly, off the back of a gap [proposal 37](issues/37-proposal-10-external-ref-bundling.md)
@@ -220,3 +220,106 @@ Following the pattern already established for `outputRoot`
   reasoning for why all file-path and network awareness stays out of the
   `openapi-merge` library itself: `inputRoot` is a CLI-only concept, and
   `merge()`'s signature does not change.
+
+## 6. What was actually built
+
+### 6.1 §2.4 was revised before implementation, not after
+
+The original draft of §2.4 made discovered-file violations a soft warning
+(ref left unresolved, merge proceeds), on the theory that a `$ref` inside a
+*discovered* document is content the config author may not have written
+themselves. Before any code was written, Robert was asked directly whether
+that asymmetry was intended and said no: a containment violation should be
+fatal whichever side it comes from. §2.1, §2.4, §2.5 and the §4 testing plan
+above already reflect that decision — this section records the outcome, not
+a second change. The distinction that survives is not *hard-fail vs. warn*
+but *where the check runs*: eagerly, before any input is read, for declared
+inputs; interleaved with the breadth-first discovery walk for transitive
+references, since those identities are not known any earlier.
+
+### 6.2 The design landed exactly as specified
+
+- `assertPathContained`'s generalisation (§2.3) is real: `path-resolution.ts`
+  now has one `resolveContainment` helper, and `assertOutputContained` /
+  `assertInputContained` are both thin wrappers throwing their own error
+  type. No behavioural change to the existing `outputRoot` check — same
+  tests (`path-resolution.test.ts`'s `assertOutputContained` suite) still
+  pass unmodified.
+- `ErrorUnsafeInputPath = 10` (§2.5) is used for both the eager declared-input
+  case and the interleaved discovered-file case, exactly as specified.
+- The worklist-keeps-draining behaviour (§2.4) works as designed: two
+  declared inputs, each pulling in a different out-of-root file via
+  `resolveExternalReferences`, produce one exit with both files named on
+  stderr, not two separate runs' worth of trial and error.
+
+### 6.3 One thing the proposal did not fully anticipate: declared-input checks are all-or-nothing before discovery even starts
+
+§2.4's "both are reported in one pass" language is only exactly true within
+each of the two categories (declared vs. discovered), not *across* them.
+`convertInputs` loads every declared input concurrently via `Promise.all`
+and only proceeds to cross-document discovery once *all* of them succeed —
+that was already the existing behaviour for ordinary load failures
+(`ErrorLoadingInputs`), before this proposal touched anything. A declared
+`inputFile` outside `inputRoot` therefore short-circuits before discovery
+ever runs, so a containment violation on a declared input and a containment
+violation on a file that same run *would have* discovered cannot both
+appear in one error report — the discovered-file violation is simply never
+reached. This is not a gap in the security property (nothing outside
+`inputRoot` is ever read either way), just a correction to an implicit claim
+in §2.4's phrasing. The §4 testing plan's "two separate containment
+violations in one run" test was adjusted accordingly, to combine two
+discovered-file violations reached via two different (individually valid)
+declared inputs, which does hit the "both reported together" path.
+
+### 6.4 Two gaps found in review, fixed before landing
+
+An advisor review of the first implementation pass caught two real defects,
+both fixed before this branch was considered done:
+
+- **The leaf itself wasn't realpath'd.** §2.3's shared `resolveContainment`
+  walks up to the nearest *existing ancestor* and realpaths that -- correct
+  for `outputRoot`, where the output file usually doesn't exist yet, so only
+  a symlinked ancestor *directory* is a real risk. For `inputRoot` the leaf
+  is the thing being read and normally already exists, so a symlink planted
+  as the file itself (`inputRoot/evil.yml -> /etc/passwd`) sailed through
+  the original check untouched. The existing symlink unit test only covered
+  a symlinked *directory* (copied case-for-case from the `outputRoot` suite),
+  which is exactly why the leaf gap didn't show up sooner. Fixed in
+  `assertInputContained` only (not the shared helper, and not
+  `assertOutputContained`): when the resolved input exists, it is realpathed
+  before being handed to `resolveContainment`, which then walks an
+  already-canonical path -- a no-op for it, but closes the gap. Covered by a
+  new real-filesystem test (a stub can't demonstrate this; it would just
+  assert the mock was written correctly).
+- **A fatal containment violation silently swallowed ordinary discovery
+  warnings from the same run.** In `main()`, the `containmentViolations`
+  check and `process.exit` originally sat *above* the `discovery.warnings`
+  reporting loop, so a run with both a missing discovered file and an
+  out-of-root one only ever showed the containment error -- exactly the
+  fix-and-rerun cycle the "report everything, then exit" philosophy (§2.1,
+  §2.4) exists to avoid, and a direct contradiction of the corresponding §4
+  test's own name. The test passed anyway because it never asserted the
+  warning was present. Fixed by moving the warnings loop above the
+  containment check, and the test now asserts both the stdout warning and
+  the stderr violation are present in the same run.
+
+### 6.5 Verification
+
+- `bun test`: 646 tests pass (up from 625 before this proposal), including
+  5 new declared-input containment tests (`cli-input-safety.test.ts`), 5 new
+  discovered-file containment tests (added to `cli-external-references.test.ts`),
+  1 new `inputRoot`-does-not-affect-`inputURL` test (added to
+  `cli-remote-inputs.test.ts`), and 9 new unit tests for `assertInputContained`
+  (added to `path-resolution.test.ts`, mirroring the existing
+  `assertOutputContained` suite case-for-case, plus the real-filesystem
+  leaf-symlink test from §6.4).
+- Lint and typecheck clean in both packages.
+- Coverage: `path-resolution.ts` and `index.ts` both 100% functions/lines;
+  `external-reference-discovery.ts` 100% functions / 97.98% lines, the one
+  uncovered line (a URL-fetch-non-ok-status branch in `loadDocument`)
+  pre-dating this proposal and unrelated to it.
+- Manual end-to-end smoke tests against the real CLI binary (not the test
+  harness) confirmed: a discovered file outside `inputRoot` exits `10` with
+  no output written; widening `inputRoot` to cover it succeeds; a declared
+  `inputFile` outside `inputRoot` exits `10` before the merge starts, also
+  with no output written.

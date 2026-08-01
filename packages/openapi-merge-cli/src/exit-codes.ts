@@ -21,6 +21,7 @@
  * | 7         | ExitCode.ErrorInputUrlServerStatus     | An `inputURL` returned 5xx               |
  * | 8         | ExitCode.ErrorInputUrlUnexpectedStatus | `inputURL` non-2xx, neither 4xx nor 5xx  |
  * | 9         | ExitCode.ErrorOpenApiVersion           | Input version unsupported or inconsistent |
+ * | 10        | ExitCode.ErrorUnsafeInputPath          | A local file read escaped `inputRoot`    |
  */
 export enum ExitCode {
   /**
@@ -168,4 +169,26 @@ export enum ExitCode {
    * 0. A loud failure here is the entire point.
    */
   ErrorOpenApiVersion = 9,
+
+  /**
+   * A local file the CLI would read lies outside the configured `inputRoot`.
+   *
+   * Fires when `inputRoot` (config) or `--restrict-input-to` (flag, which
+   * takes precedence) is set and either a declared `inputFile` or a file
+   * discovered via `resolveExternalReferences` resolves to somewhere outside
+   * it. The read-side counterpart to {@link ExitCode.ErrorUnsafePath}: kept
+   * as its own code rather than reused, since a script branching on exit
+   * codes needs "output escaped its root" and "input escaped its root" to
+   * stay distinguishable.
+   *
+   * Every violation found -- declared and discovered alike -- is reported
+   * together before exiting, matching {@link ExitCode.ErrorLoadingInputs}'s
+   * report-everything-then-exit shape. The offending file is never read: the
+   * check runs before the attempt, not after a failed one.
+   *
+   * Same realpath-based symlink defence as `ErrorUnsafePath`: the check
+   * re-anchors on the realpath of the closest existing ancestor before
+   * comparing, so a symlink pointing out of the jail does not defeat it.
+   */
+  ErrorUnsafeInputPath = 10,
 }
