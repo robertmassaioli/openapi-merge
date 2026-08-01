@@ -101,12 +101,23 @@ describe('loadConfiguration - file errors', () => {
     expect(message).toContain('nope.json');
   });
 
-  it('defaults to openapi-merge.json when no location is given', async () => {
-    // Nothing named openapi-merge.json exists in the test process's cwd, so this
-    // exercises the default-path branch through its failure message.
-    const message = expectError(await loadConfiguration());
+  it('defaults to openapi-merge.yaml, falling back to openapi-merge.json, when no location is given', async () => {
+    // Exercises the default-lookup branch (try .yaml, then .json) through its
+    // failure message, which names both candidates it tried. Runs from the
+    // empty temp dir rather than the test process's ambient cwd -- relying on
+    // "nothing named openapi-merge.* happens to exist in the package root
+    // right now" would make this test's outcome depend on what else is lying
+    // around there.
+    const previousCwd = process.cwd();
+    process.chdir(tmpDir);
+    try {
+      const message = expectError(await loadConfiguration());
 
-    expect(message).toContain('openapi-merge.json');
+      expect(message).toContain('openapi-merge.yaml');
+      expect(message).toContain('openapi-merge.json');
+    } finally {
+      process.chdir(previousCwd);
+    }
   });
 
   it('surfaces a parse failure for a file that is neither JSON nor YAML', async () => {

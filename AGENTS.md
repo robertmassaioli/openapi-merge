@@ -187,7 +187,8 @@ both point at `dist/index`. Only `dist/!(__tests__)` (and subtree) are published
 
 A thin command-line wrapper around the `openapi-merge` library that:
 
-1. Loads a JSON or YAML configuration file (default: `openapi-merge.json`).
+1. Loads a JSON or YAML configuration file (default: `openapi-merge.yaml`,
+   falling back to `openapi-merge.json` if that is the only one present).
 2. Validates it against a generated JSON Schema (`configuration.schema.json`).
 3. Loads each input OpenAPI document either from disk (`inputFile`) or HTTP
    (`inputURL`) — JSON or YAML.
