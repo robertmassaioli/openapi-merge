@@ -66,6 +66,7 @@ dependency health, build migrations. Named by topic rather than by issue number.
 | [`33-proposal-cli-init-command.md`](33-proposal-cli-init-command.md) | ✅ An `init` command that writes a starter configuration, scanning for inputs |
 | [`34-proposal-init-yaml-commented-options.md`](34-proposal-init-yaml-commented-options.md) | ✅ `init` writes YAML with every optional field present, commented out |
 | [`35-proposal-commented-yaml-section-type.md`](35-proposal-commented-yaml-section-type.md) | Evaluates a typed `Section`/`CommentedYaml` refactor of how 34's generator builds that file |
+| [`38-proposal-input-root-containment.md`](38-proposal-input-root-containment.md) | ✅ `inputRoot` — a read-side containment boundary mirroring `outputRoot`, closing the gap proposal 37 left open |
 | [`39-proposal-init-convenience-defaults.md`](39-proposal-init-convenience-defaults.md) | Which `Configuration` fields `init` should turn on by default, not just show commented out |
 | [`issue-triage-value-vs-effort.md`](issue-triage-value-vs-effort.md) | Value/effort scoring of every open issue; the index into `issues/` |
 | [`spec-edge-case-findings.md`](spec-edge-case-findings.md) | Divergences between the merge and the spec, found by edge-case testing |

@@ -168,6 +168,19 @@ describe('main - inputURL', () => {
     expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingInputs);
   });
 
+  it('is unaffected by inputRoot, which bounds local files only (proposal 38)', async () => {
+    // A narrow inputRoot that would reject every local file still lets an
+    // inputURL through -- inputRoot is a filesystem-containment mechanism,
+    // not a network allow-list.
+    const config = cli.writeJson('sub/openapi-merge.json', {
+      inputs: [{ inputURL: `${baseUrl}/spec.json` }],
+      output: '../output.json',
+      inputRoot: '.',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+  });
+
   it('reports the first failing input when inputs fail for different reasons', async () => {
     // Input 0 is a missing file (ErrorLoadingInputs), input 1 is a 404
     // (ErrorInputUrlStatus). The first failure decides the exit code.

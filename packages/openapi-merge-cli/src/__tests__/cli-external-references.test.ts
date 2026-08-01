@@ -268,6 +268,166 @@ describe('#10 -- discovering files nobody declared as an input (resolveExternalR
   });
 });
 
+describe('inputRoot -- containing discovered files (proposal 38)', () => {
+  it('aborts the merge when a discovered file resolves outside inputRoot', async () => {
+    // '../common/ServerError.yml' escapes 'specs/a', the directory inputRoot
+    // is set to -- discovery must never read it.
+    cli.write('specs/common/ServerError.yml', 'openapi: "3.0.0"\ncomponents:\n  schemas:\n    ServerError:\n      type: object\n');
+    cli.write('specs/a/Api.yml', [
+      'openapi: "3.0.0"',
+      'info: { title: A, version: "1.0" }',
+      'components:',
+      '  schemas:',
+      '    Widget:',
+      '      $ref: "../common/ServerError.yml#/components/schemas/ServerError"',
+      '',
+    ].join('\n'));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './specs/a/Api.yml' }],
+      output: './bundle.json',
+      resolveExternalReferences: true,
+      inputRoot: './specs/a',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorUnsafeInputPath);
+    expect(cli.exists('bundle.json')).toBe(false);
+    const stderr = cli.stderr().join('\n');
+    expect(stderr).toContain('ServerError.yml');
+    expect(stderr).toContain('inputRoot');
+  });
+
+  it('succeeds when the discovered file stays inside inputRoot', async () => {
+    cli.write('specs/a/common/ServerError.yml', 'openapi: "3.0.0"\ncomponents:\n  schemas:\n    ServerError:\n      type: object\n');
+    cli.write('specs/a/Api.yml', [
+      'openapi: "3.0.0"',
+      'info: { title: A, version: "1.0" }',
+      'components:',
+      '  schemas:',
+      '    Widget:',
+      '      $ref: "./common/ServerError.yml#/components/schemas/ServerError"',
+      '',
+    ].join('\n'));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './specs/a/Api.yml' }],
+      output: './bundle.json',
+      resolveExternalReferences: true,
+      inputRoot: './specs/a',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+    const output = JSON.parse(cli.read('bundle.json'));
+    expect(output.components.schemas.ServerError).toEqual({ type: 'object' });
+  });
+
+  it('reports every discovered-file violation in a run, not just the first', async () => {
+    // Both declared inputs load fine (containment for those is checked
+    // eagerly, before discovery ever starts), but each pulls in a different
+    // out-of-root file -- the worklist must keep draining past the first
+    // violation so both surface together.
+    cli.write('specs/common/ServerError.yml', 'openapi: "3.0.0"\ncomponents:\n  schemas:\n    ServerError:\n      type: object\n');
+    cli.write('specs/common/NotFound.yml', 'openapi: "3.0.0"\ncomponents:\n  schemas:\n    NotFound:\n      type: object\n');
+    cli.write('specs/a/Api.yml', [
+      'openapi: "3.0.0"',
+      'info: { title: A, version: "1.0" }',
+      'components:',
+      '  schemas:',
+      '    Widget:',
+      '      $ref: "../common/ServerError.yml#/components/schemas/ServerError"',
+      '',
+    ].join('\n'));
+    cli.write('specs/a/Api2.yml', [
+      'openapi: "3.0.0"',
+      'components:',
+      '  schemas:',
+      '    Gadget:',
+      '      $ref: "../common/NotFound.yml#/components/schemas/NotFound"',
+      '',
+    ].join('\n'));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './specs/a/Api.yml' }, { inputFile: './specs/a/Api2.yml' }],
+      output: './bundle.json',
+      resolveExternalReferences: true,
+      inputRoot: './specs/a',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorUnsafeInputPath);
+    const stderr = cli.stderr().join('\n');
+    expect(stderr).toContain('ServerError.yml');
+    expect(stderr).toContain('NotFound.yml');
+  });
+
+  it('keeps an ordinary discovery warning and a containment violation distinct in the same run', async () => {
+    // A missing file, reached via one ref, and an out-of-root file, reached
+    // via another -- the two failure modes must not get conflated: a
+    // containment violation is fatal, a missing file is not.
+    cli.write('specs/common/ServerError.yml', 'openapi: "3.0.0"\ncomponents:\n  schemas:\n    ServerError:\n      type: object\n');
+    cli.write('specs/a/Api.yml', [
+      'openapi: "3.0.0"',
+      'info: { title: A, version: "1.0" }',
+      'components:',
+      '  schemas:',
+      '    Widget:',
+      '      $ref: "./does-not-exist.yml#/components/schemas/ServerError"',
+      '    Gadget:',
+      '      $ref: "../common/ServerError.yml#/components/schemas/ServerError"',
+      '',
+    ].join('\n'));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './specs/a/Api.yml' }],
+      output: './bundle.json',
+      resolveExternalReferences: true,
+      inputRoot: './specs/a',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorUnsafeInputPath);
+    expect(cli.exists('bundle.json')).toBe(false);
+    // The missing-file warning must still be reported, not hidden behind the
+    // fatal containment violation -- otherwise fixing inputRoot and re-running
+    // would be the only way to learn about it.
+    expect(cli.stdout().join('\n')).toContain('does-not-exist.yml');
+    expect(cli.stderr().join('\n')).toContain('ServerError.yml');
+  });
+
+  it('does not restrict a discovered URL, only discovered local files', async () => {
+    const server = http.createServer((req, res) => {
+      if (req.url === '/errors.yaml') {
+        res.writeHead(200, { 'Content-Type': 'application/yaml' });
+        res.end('openapi: "3.0.0"\ncomponents:\n  schemas:\n    ServerError:\n      type: object\n');
+      } else {
+        res.writeHead(404);
+        res.end('not found');
+      }
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      const port = typeof address === 'object' && address !== null ? address.port : 0;
+
+      cli.write('specs/a/Api.yml', [
+        'openapi: "3.0.0"',
+        'info: { title: A, version: "1.0" }',
+        'components:',
+        '  schemas:',
+        '    Widget:',
+        `      $ref: "http://127.0.0.1:${port}/errors.yaml#/components/schemas/ServerError"`,
+        '',
+      ].join('\n'));
+      const config = cli.writeJson('openapi-merge.json', {
+        inputs: [{ inputFile: './specs/a/Api.yml' }],
+        output: './bundle.json',
+        resolveExternalReferences: true,
+        inputRoot: './specs/a',
+      });
+
+      expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+      const output = JSON.parse(cli.read('bundle.json'));
+      expect(output.components.schemas.ServerError).toEqual({ type: 'object' });
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+  });
+});
+
 describe('resolveExternalReferences schema validation', () => {
   it('rejects a non-boolean value', async () => {
     cli.write('a.json', JSON.stringify({ openapi: '3.0.3', info: { title: 'T', version: '1' }, paths: {} }));
