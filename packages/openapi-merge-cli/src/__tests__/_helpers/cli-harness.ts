@@ -33,6 +33,8 @@ export type CliHarness = {
   dir: () => string;
   /** Lines captured from console.error during the current test. */
   stderr: () => string[];
+  /** Lines captured from console.log (LogWithMillisDiff) during the current test. */
+  stdout: () => string[];
   /** Run `main()` with these argv entries; resolves to the exit code. */
   run: (...args: string[]) => Promise<number>;
   /** Write a file into the temp dir, returning its absolute path. */
@@ -47,7 +49,8 @@ export type CliHarness = {
 
 export function installCliHarness(): CliHarness {
   let tmpDir = '';
-  let captured: string[] = [];
+  let capturedErr: string[] = [];
+  let capturedOut: string[] = [];
 
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const realExit = process.exit;
@@ -57,13 +60,16 @@ export function installCliHarness(): CliHarness {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openapi-merge-cli-'));
-    captured = [];
+    capturedErr = [];
+    capturedOut = [];
     (process as any).exit = (code?: number): never => {
       throw new ExitError(code ?? 0);
     };
-    console.log = (): void => undefined;
+    console.log = (...args: unknown[]): void => {
+      capturedOut.push(args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '));
+    };
     console.error = (...args: unknown[]): void => {
-      captured.push(args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '));
+      capturedErr.push(args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '));
     };
   });
 
@@ -78,7 +84,8 @@ export function installCliHarness(): CliHarness {
 
   return {
     dir: () => tmpDir,
-    stderr: () => captured,
+    stderr: () => capturedErr,
+    stdout: () => capturedOut,
     run: async (...args: string[]): Promise<number> => {
       process.argv = ['node', 'openapi-merge-cli', ...args];
       try {

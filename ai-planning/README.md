@@ -64,6 +64,8 @@ dependency health, build migrations. Named by topic rather than by issue number.
 | [`29-proposal-node-runtime-verification.md`](29-proposal-node-runtime-verification.md) | ✅ Building with Bun while proving the artifacts run on Node |
 | [`30-proposal-bundle-the-cli.md`](30-proposal-bundle-the-cli.md) | ✅ Bundling the CLI so it runs under both Node and Bun; reduces 29 |
 | [`33-proposal-cli-init-command.md`](33-proposal-cli-init-command.md) | ✅ An `init` command that writes a starter configuration, scanning for inputs |
+| [`34-proposal-init-yaml-commented-options.md`](34-proposal-init-yaml-commented-options.md) | ✅ `init` writes YAML with every optional field present, commented out |
+| [`35-proposal-commented-yaml-section-type.md`](35-proposal-commented-yaml-section-type.md) | Evaluates a typed `Section`/`CommentedYaml` refactor of how 34's generator builds that file |
 | [`issue-triage-value-vs-effort.md`](issue-triage-value-vs-effort.md) | Value/effort scoring of every open issue; the index into `issues/` |
 | [`spec-edge-case-findings.md`](spec-edge-case-findings.md) | Divergences between the merge and the spec, found by edge-case testing |
 | [`bun-tsgo-migration-build-timings.md`](bun-tsgo-migration-build-timings.md) | Measured build timings for the Bun + tsgo migration |

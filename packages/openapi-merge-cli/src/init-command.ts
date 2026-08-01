@@ -1,5 +1,7 @@
 import path from 'path';
+import { dump as dumpYaml } from 'js-yaml';
 import { Configuration } from './data';
+import { STANDARD_CONFIG_FILE_CANDIDATES } from './config-file-names';
 
 /**
  * Building a starter configuration from the files already in a directory.
@@ -124,15 +126,23 @@ export function suggestedOutput(inputs: ReadonlyArray<string>): string {
 export const PLACEHOLDER_INPUT = './replace-me.openapi.yaml';
 
 /**
- * Builds the configuration to write.
+ * The inputs that will actually be written, given what the scan found.
  *
- * With no candidates this still emits one placeholder input rather than an
+ * With no candidates this still returns one placeholder input rather than an
  * empty list. `inputs` is `@minItems 1` in the schema, so an empty array would
  * produce a file that fails validation on the very next run -- a generator
  * whose output its own tool rejects.
+ *
+ * Shared between {@link buildConfiguration} and {@link renderInitYaml} so
+ * the "what counts as chosen" decision is made in exactly one place.
  */
+export function chosenInputs(inputs: ReadonlyArray<string>): string[] {
+  return inputs.length > 0 ? [...inputs] : [PLACEHOLDER_INPUT];
+}
+
+/** Builds the configuration to write. */
 export function buildConfiguration(inputs: ReadonlyArray<string>): Configuration {
-  const chosen = inputs.length > 0 ? [...inputs] : [PLACEHOLDER_INPUT];
+  const chosen = chosenInputs(inputs);
 
   return {
     inputs: chosen.map(inputFile => ({ inputFile })),
@@ -140,10 +150,199 @@ export function buildConfiguration(inputs: ReadonlyArray<string>): Configuration
   };
 }
 
+/**
+ * A single optional field (or optional group of fields) shown commented-out
+ * in the file `init` writes.
+ *
+ * `yaml` is written as if it were top-level, valid YAML on its own -- it is
+ * what you get by taking the leading `# ` off every line `render` produces
+ * for this block. That is the property the per-field tests rely on: each
+ * block, uncommented in isolation and merged into a minimal base document,
+ * must pass the real configuration schema. In particular every *required*
+ * sub-field of an optional object (`description.append`, `tag.name`,
+ * `dispute.prefix`, `formatting.indent.style`+`width`) is present, not just
+ * the optional leaves -- a block that only shows the optional parts of a
+ * required shape would fail validation the moment it is uncommented, which
+ * defeats the point of generating it.
+ */
+export type OptionalFieldBlock = {
+  /** Identifies the field for tests; not shown to the user. */
+  name: string;
+  /** One-line (or one-line-per-sub-field) explanation, condensed from the TSDoc in data.ts. */
+  explanation: string;
+  /** The field's YAML, uncommented, at zero indentation. */
+  yaml: string;
+};
+
+/**
+ * `Configuration`'s optional fields (data.ts), in the order they appear
+ * there. Deliberately excludes the deprecated `disputePrefix` -- only the
+ * current `dispute` shape (`DisputeV2`) is worth showing to a new user.
+ */
+export const TOP_LEVEL_OPTIONAL_BLOCKS: ReadonlyArray<OptionalFieldBlock> = [
+  {
+    name: 'outputRoot',
+    explanation: 'Defence in depth: refuse to write the merged output anywhere outside this directory.',
+    yaml: 'outputRoot: .',
+  },
+  {
+    name: 'formatting',
+    explanation: 'How the merged output file is indented. Defaults to 2 spaces.',
+    yaml: [
+      'formatting:',
+      '  indent:',
+      '    style: spaces # spaces | tabs (tabs are JSON-output only -- YAML forbids tab indentation)',
+      '    width: 2',
+    ].join('\n'),
+  },
+  {
+    name: 'serversStrategy',
+    explanation: "How to combine the top-level 'servers' array across inputs.",
+    yaml: 'serversStrategy: first # first (default, keep only the first input\'s servers) | concat (keep every input\'s, deduplicated)',
+  },
+  {
+    name: 'securitySchemesStrategy',
+    explanation: 'How to combine components.securitySchemes across inputs.',
+    yaml: 'securitySchemesStrategy: merge # merge (default, rename clashes) | first (drop the rest) | error (fail on a clash)',
+  },
+  {
+    name: 'pruneUnusedComponents',
+    explanation: 'Drop components that nothing in the merged output references. Off by default -- pruning is destructive.',
+    yaml: 'pruneUnusedComponents: false',
+  },
+  {
+    name: 'info',
+    explanation: "Override fields of the merged 'info' object instead of taking it from the first input.",
+    yaml: [
+      'info:',
+      '  title: My Merged API',
+      '  version: 1.0.0',
+      '  description: A description for the merged document.',
+    ].join('\n'),
+  },
+];
+
+/**
+ * `ConfigurationInputBase` and `DisputeV2`'s optional fields (data.ts), in
+ * the order they appear there. Shown once, under the first input -- see
+ * {@link renderInitYaml}.
+ */
+export const PER_INPUT_OPTIONAL_BLOCKS: ReadonlyArray<OptionalFieldBlock> = [
+  {
+    name: 'pathModification',
+    explanation: "Rewrite this input's paths before merging: strip a prefix, then prepend one.",
+    yaml: [
+      'pathModification:',
+      '  stripStart: /v1',
+      '  prepend: /service-a',
+    ].join('\n'),
+  },
+  {
+    name: 'operationSelection',
+    explanation: 'Only keep operations with these tags, or drop operations with these tags (exclusion wins on conflict).',
+    yaml: [
+      'operationSelection:',
+      '  includeTags: [public]',
+      '  excludeTags: [internal]',
+    ].join('\n'),
+  },
+  {
+    name: 'description',
+    explanation: "Fold this input's info.description into the merged document's description.",
+    yaml: [
+      'description:',
+      '  append: true',
+      '  title:',
+      "    value: A title for this input's section",
+      '    headingLevel: 2',
+    ].join('\n'),
+  },
+  {
+    name: 'duplicatePathHandling',
+    explanation: 'What to do when this input declares a path another input already contributed.',
+    yaml: 'duplicatePathHandling: error # error (default) | skip-later | prefer-later | merge-operations',
+  },
+  {
+    name: 'tag',
+    explanation: "Add a tag to every operation from this input, so the merged document shows which service it came from.",
+    yaml: [
+      'tag:',
+      '  name: service-a',
+      '  description: Endpoints from this input',
+    ].join('\n'),
+  },
+  {
+    name: 'dispute',
+    explanation: "If a component name clashes with another input's, disambiguate with this prefix (or 'suffix' instead of 'prefix').",
+    yaml: [
+      'dispute:',
+      '  prefix: serviceA_',
+      '  alwaysApply: false',
+    ].join('\n'),
+  },
+];
+
+/** Renders one {@link OptionalFieldBlock} as commented-out lines at the given indent. */
+function renderCommentedBlock(block: OptionalFieldBlock, indent: string): string {
+  const lines = [`${indent}# ${block.explanation}`, ...block.yaml.split('\n').map(line => `${indent}# ${line}`)];
+  return lines.join('\n');
+}
+
+/** Indent of a second-or-later key inside an `inputs` list item, matching js-yaml's own 2-space nesting. */
+const PER_INPUT_BLOCK_INDENT = '    ';
+
+/** A YAML scalar for `value`, quoted exactly as js-yaml would quote it -- so paths with special characters stay valid. */
+function yamlScalar(value: string): string {
+  return dumpYaml(value).trimEnd();
+}
+
+/**
+ * Renders the full file `init` writes: real `inputs`/`output`, computed
+ * exactly as {@link buildConfiguration} does, interleaved with every
+ * optional field from `Configuration` and `ConfigurationInputBase`,
+ * commented out.
+ *
+ * Not built by serialising a `Configuration` object -- js-yaml's `dump()`
+ * has no notion of a comment attached to a key, so comments cannot survive
+ * an object round-trip through it. This assembles the file as a template
+ * instead: real lines for the values `init` actually found, hand-written
+ * commented lines for everything it did not.
+ *
+ * The per-input block ({@link PER_INPUT_OPTIONAL_BLOCKS}) is shown in full
+ * only under the *first* input, with every later input pointing back to it.
+ * The fields are identical regardless of which input they are attached to,
+ * so repeating the block under every input would only add noise -- most
+ * directories this scans have more than one file.
+ */
+export function renderInitYaml(chosenInputs: ReadonlyArray<string>, output: string): string {
+  const inputLines = chosenInputs.flatMap((inputFile, index) => {
+    const line = `  - inputFile: ${yamlScalar(inputFile)}`;
+    if (index === 0) {
+      const blocks = PER_INPUT_OPTIONAL_BLOCKS.map(block => renderCommentedBlock(block, PER_INPUT_BLOCK_INDENT));
+      return [line, `${PER_INPUT_BLOCK_INDENT}# Per-input options (all optional, all commented out below).`, ...blocks];
+    }
+    return [line, `${PER_INPUT_BLOCK_INDENT}# Per-input options: see the commented block under the first input above -- the same fields apply here.`];
+  });
+
+  const topLevelLines = TOP_LEVEL_OPTIONAL_BLOCKS.flatMap(block => ['', renderCommentedBlock(block, '')]);
+
+  return [
+    '# openapi-merge-cli configuration.',
+    '#',
+    "# Everything from here down to 'output:' is required; everything after it",
+    '# is optional and commented out. Uncomment a block to turn it on.',
+    '# Full documentation: https://github.com/robertmassaioli/openapi-merge/wiki/README',
+    '',
+    'inputs:',
+    ...inputLines,
+    `output: ${yamlScalar(output)}`,
+    ...topLevelLines,
+    '',
+  ].join('\n');
+}
+
 /** Extensions worth opening. Everything else cannot be a specification. */
 const SCANNABLE_EXTENSIONS: ReadonlySet<string> = new Set(['.json', '.yaml', '.yml']);
-
-export const STANDARD_CONFIG_FILE = 'openapi-merge.json';
 
 /**
  * Whether a directory entry is worth reading.
@@ -153,7 +352,15 @@ export const STANDARD_CONFIG_FILE = 'openapi-merge.json';
  * and every such list is wrong for somebody. A predictable shallow scan the
  * user can correct by hand beats a clever deep one that quietly pulls in a
  * vendored copy of somebody else's API.
+ *
+ * Both default config filenames are excluded, not just the one `init`
+ * currently writes: a leftover `openapi-merge.json` from before this file
+ * existed is not an OpenAPI document either, and scanning it would be a
+ * waste even though `classify` would reject it anyway.
  */
 export function isScannable(fileName: string): boolean {
-  return fileName !== STANDARD_CONFIG_FILE && SCANNABLE_EXTENSIONS.has(path.extname(fileName).toLowerCase());
+  return (
+    !(STANDARD_CONFIG_FILE_CANDIDATES as readonly string[]).includes(fileName)
+    && SCANNABLE_EXTENSIONS.has(path.extname(fileName).toLowerCase())
+  );
 }
