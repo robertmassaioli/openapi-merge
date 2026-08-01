@@ -221,6 +221,41 @@ configuration file. Absolute paths (e.g. `/tmp/merged.yaml`,
 `C:\build\out.json`) are used as-is. This means you can safely write the
 merged spec into directories like `/tmp` or `/var/build/...` from CI.
 
+## Cross-document `$ref`s
+
+If one input's `$ref` points at *another file* rather than somewhere inside
+itself -- `$ref: "../common/Errors.yml#/components/schemas/ServerError"` --
+two different things can happen, depending on whether that file is one of
+your declared `inputs`:
+
+* **It's one of your `inputs` already.** The `$ref` is rewritten to point at
+  wherever that component ended up in the merged document, automatically and
+  unconditionally -- no configuration needed. This is always correct to do:
+  the alternative is a `$ref` that is already broken in the merged output,
+  since the original relative path means nothing once the inputs are combined
+  into one document (issue #104).
+* **It isn't one of your `inputs`.** By default the `$ref` is left as-is
+  (now resolved to an absolute path or URL, so at least it's unambiguous, but
+  still not something the merged document can resolve). Set
+  `"resolveExternalReferences": true` in your configuration to have the CLI
+  follow it: load that file (or URL), pull in *just* the component the `$ref`
+  asked for, and rewrite the `$ref` to point at it locally -- following
+  further `$ref`s the same way, however many files deep, with cycles
+  detected and reported rather than hanging (issue #10).
+
+```json
+{
+  "inputs": [{ "inputFile": "./api.yaml" }],
+  "output": "./bundle.yaml",
+  "resolveExternalReferences": true
+}
+```
+
+A `$ref` this discovers but cannot load -- a missing file, a failed fetch, a
+document that doesn't parse -- is left exactly as written and reported as a
+warning, not a hard failure, the same way an unresolvable `$ref` into a
+declared input is also left alone rather than erroring.
+
 ## Security
 
 `openapi-merge-cli` reads, merges, and writes files using the paths specified
@@ -229,6 +264,12 @@ configuration file is **trusted**, the same way you trust a `Makefile`,
 `package.json`, or `webpack.config.js` in your repository. Do not run the CLI
 against a configuration file from an untrusted source without restricting the
 output location.
+
+`resolveExternalReferences` widens what gets *read*, not just written: with
+it on, the files and URLs the CLI loads are no longer limited to what
+`inputs` names -- it follows wherever a `$ref` in *any* loaded document
+points, transitively. Leave it off (the default) unless your inputs are
+trusted to the same degree the configuration file itself is.
 
 For defence-in-depth in less-trusted contexts (for example a server that
 accepts user-supplied configs), you can restrict where the CLI will write the
@@ -256,7 +297,7 @@ branch on them.
 | `0` | Success — the merge completed and the output was written |
 | `1` | Failed to load or parse the configuration file |
 | `2` | Failed to load one or more inputs (missing file, unreachable URL, unparseable content) |
-| `3` | The merge itself failed (duplicate paths, unresolvable `operationId` conflicts, …) |
+| `3` | The merge itself failed (duplicate paths, unresolvable `operationId` conflicts, a cyclic cross-document `$ref` chain, …) |
 | `4` | An uncaught exception escaped the CLI |
 | `5` | The resolved output path escaped `outputRoot` / `--restrict-output-to` |
 | `6` | An `inputURL` responded with a **4xx** status |

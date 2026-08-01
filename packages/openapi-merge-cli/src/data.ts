@@ -332,6 +332,30 @@ export type Configuration = {
    * field, so setting only `title` does not require restating `version`.
    */
   info?: ConfigurationInfoOverride;
+
+  /**
+   * Follow `$ref`s that point outside the declared inputs -- to a file or URL
+   * this configuration never named -- and pull in just the specific
+   * components they ask for (issue #10).
+   *
+   * Defaults to `false`. A `$ref` into one of the *declared* `inputs` is
+   * always resolved correctly regardless of this setting (issue #104) --
+   * that fix is unconditional, since it only ever affects a `$ref` that is
+   * already broken today. This setting is what additionally lets a `$ref`
+   * discover and load documents nobody listed in `inputs`.
+   *
+   * Off by default because it changes what this tool reads: with it on, the
+   * files and URLs actually loaded are no longer limited to what `inputs`
+   * names, transitively following wherever a `$ref` in *any* loaded document
+   * points. Turn it on deliberately, for configurations whose inputs are
+   * trusted to the same degree the config file itself is.
+   *
+   * A `$ref` this discovers but cannot load (missing file, failed fetch,
+   * unparseable content) is left exactly as written and logged as a warning
+   * -- not a hard failure, matching how a `$ref` into a declared input that
+   * cannot be resolved is also left untouched rather than erroring.
+   */
+  resolveExternalReferences?: boolean;
 };
 
 /**

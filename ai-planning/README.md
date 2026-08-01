@@ -58,9 +58,9 @@ dependency health, build migrations. Named by topic rather than by issue number.
 | [`23-proposal-dependency-updates.md`](23-proposal-dependency-updates.md) | Dependency audit and the phased upgrade path |
 | [`24-proposal-openapi-3.2-support.md`](24-proposal-openapi-3.2-support.md) | What it would take to support OpenAPI 3.1 / 3.2 |
 | [`25-proposal-mixed-version-inputs.md`](25-proposal-mixed-version-inputs.md) | Policy for inputs of differing versions, and automatic upgrading |
-| [`26-proposal-oas-phase1-version-checking.md`](26-proposal-oas-phase1-version-checking.md) | Phase 1: detect the input versions and refuse mixed majors |
-| [`27-proposal-oas-phase2-31-support.md`](27-proposal-oas-phase2-31-support.md) | Phase 2: merging OpenAPI 3.1, including webhooks |
-| [`28-proposal-oas-phase3-32-support.md`](28-proposal-oas-phase3-32-support.md) | Phase 3: merging OpenAPI 3.2 |
+| [`26-proposal-oas-phase1-version-checking.md`](26-proposal-oas-phase1-version-checking.md) | ✅ Phase 1: detect the input versions and refuse mixed majors |
+| [`27-proposal-oas-phase2-31-support.md`](27-proposal-oas-phase2-31-support.md) | ✅ Phase 2: merging OpenAPI 3.1, including webhooks |
+| [`28-proposal-oas-phase3-32-support.md`](28-proposal-oas-phase3-32-support.md) | ✅ Phase 3: merging OpenAPI 3.2 |
 | [`29-proposal-node-runtime-verification.md`](29-proposal-node-runtime-verification.md) | ✅ Building with Bun while proving the artifacts run on Node |
 | [`30-proposal-bundle-the-cli.md`](30-proposal-bundle-the-cli.md) | ✅ Bundling the CLI so it runs under both Node and Bun; reduces 29 |
 | [`33-proposal-cli-init-command.md`](33-proposal-cli-init-command.md) | ✅ An `init` command that writes a starter configuration, scanning for inputs |
