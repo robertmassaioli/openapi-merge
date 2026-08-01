@@ -69,8 +69,9 @@ export enum ExitCode {
    *
    * Raised by the merge library rather than the CLI: duplicate paths across
    * inputs, an `operationId` conflict that no `dispute` setting could resolve,
-   * or a component that could not be deduplicated. The message names the
-   * offending element and the input index it came from.
+   * a component that could not be deduplicated, or a cross-document `$ref`
+   * chain that refers back to itself. The message names the offending
+   * element and the input index it came from.
    *
    * These are authoring problems, not transient ones -- retrying without
    * changing the inputs or the `dispute` configuration produces the same

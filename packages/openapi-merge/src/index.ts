@@ -54,7 +54,7 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
     return versionError;
   }
 
-  const pathAndComponentResult = mergePathsAndComponents(inputs, options?.securitySchemesStrategy);
+  const pathAndComponentResult = mergePathsAndComponents(inputs, options?.securitySchemesStrategy, options?.externalDocuments);
 
   if (isErrorResult(pathAndComponentResult)) {
     return pathAndComponentResult;

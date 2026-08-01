@@ -82,13 +82,13 @@ Higher is better; ties broken by lower effort first.
 | 19 | [#61](https://github.com/robertmassaioli/openapi-merge/issues/61) | Authorization config for `inputURL` | 3 | 2 | **4** | Quick Win | 📝 [17-proposal-61-input-url-auth.md](issues/17-proposal-61-input-url-auth.md) |
 | 20 | [#94](https://github.com/robertmassaioli/openapi-merge/issues/94) | `excludeTags` does not remove unreferenced schemas | 3 | 3 | **3** | Big Bet (low) | — |
 | 21 | [#75](https://github.com/robertmassaioli/openapi-merge/issues/75) | `atlassian-openapi` types incompatible with `openapi-types` | 3 | 3 | **3** | Big Bet (low) | — |
-| 22 | [#104](https://github.com/robertmassaioli/openapi-merge/issues/104) | Incorrect `$ref` paths in bundled file | 4 | 4 | **4** | Big Bet | — |
+| 22 | [#104](https://github.com/robertmassaioli/openapi-merge/issues/104) | Incorrect `$ref` paths in bundled file | 4 | 3 | **4** | Big Bet (low) | ✅ [36-proposal-104-external-ref-rewriting.md](issues/36-proposal-104-external-ref-rewriting.md) |
 | 23 | [#8](https://github.com/robertmassaioli/openapi-merge/issues/8) | Merge duplicate OAS paths using `disputePrefix` | 4 | 4 | **4** | Big Bet | — |
 | 24 | [#109](https://github.com/robertmassaioli/openapi-merge/issues/109) | Conflict-resolution strategies for duplicate paths | 4 | 4 | **4** | Big Bet | — |
 | 25 | [#110](https://github.com/robertmassaioli/openapi-merge/issues/110) | Swagger 2 "definitions" not included | 2 | 3 | **1** | Fill-in / Defer | — |
-| 26 | [#10](https://github.com/robertmassaioli/openapi-merge/issues/10) | Resolve / bundle external `$ref`s | 5 | 5 | **5** | Big Bet | — |
-| 27 | [#113](https://github.com/robertmassaioli/openapi-merge/issues/113) | Add support for OpenAPI 3.1.x | 5 | 5 | **5** | Big Bet | — |
-| 28 | [#96](https://github.com/robertmassaioli/openapi-merge/issues/96) | OpenAPI 3.1 `webhook` support | 3 | 4 | **2** | Big Bet | — |
+| 26 | [#10](https://github.com/robertmassaioli/openapi-merge/issues/10) | Resolve / bundle external `$ref`s | 5 | 5 | **5** | Big Bet | ✅ [37-proposal-10-external-ref-bundling.md](issues/37-proposal-10-external-ref-bundling.md) (Option 2-refined) |
+| 27 | [#113](https://github.com/robertmassaioli/openapi-merge/issues/113) | Add support for OpenAPI 3.1.x | 5 | 5 | **5** | Big Bet | ✅ [26](issues/26-proposal-oas-phase1-version-checking.md)/[27](issues/27-proposal-oas-phase2-31-support.md)/[28](issues/28-proposal-oas-phase3-32-support.md) |
+| 28 | [#96](https://github.com/robertmassaioli/openapi-merge/issues/96) | OpenAPI 3.1 `webhook` support | 3 | 4 | **2** | Big Bet | ✅ Closed 2026-08-01, shipped with #113 |
 
 ---
 
@@ -123,10 +123,13 @@ mappings + callbacks, then route both through `dispute.applyDispute` with
 matching tests in `__tests__/components.test.ts`.
 
 ### 3.3 Big Bets (high value, high effort) — quarter-sized investments
-- **#113** OpenAPI 3.1 support — touches every module because 3.1 reintroduces
-  webhooks, removes `nullable`, allows JSON Schema 2020-12, etc. Likely
-  requires a major version bump and a parallel codepath or upgrade of
-  `atlassian-openapi`.
+- ~~**#113** OpenAPI 3.1 support~~ — ✅ **Done.** Landed as the phase 1/2/3
+  work in [26](issues/26-proposal-oas-phase1-version-checking.md)/
+  [27](issues/27-proposal-oas-phase2-31-support.md)/
+  [28](issues/28-proposal-oas-phase3-32-support.md) (3.1 *and* 3.2, plus
+  webhooks — this bucket undersold it). This entry stayed marked as
+  unstarted "major 2.0" work well after it shipped; caught while triaging
+  #104/#96 and corrected here rather than left to drift further.
 - **#10** Resolve / bundle external `$ref`s — explicitly designed-around in the
   current architecture (the README of #10 notes that `merge()` is intentionally
   synchronous). Big change either way; could be delegated to a pre-pass /
@@ -134,8 +137,11 @@ matching tests in `__tests__/components.test.ts`.
 - **#8 / #109 / #71** Duplicate-path handling family — needs a configurable
   policy (`error` | `skip` | `merge` | `prefix`) with care to preserve the
   current strict semantics for users who rely on them.
-- **#104** Incorrect `$ref` paths after bundling. Requires reproducing the
-  multi-file CLI bundling scenario; may overlap with #10.
+- **#104** Incorrect `$ref` paths after bundling. Reproduced (still broken on
+  `main`) and does **not** need #10: every broken ref in the report points at
+  a file that's already a declared merge input, which is a narrower,
+  separately fixable problem. See
+  [36-proposal-104-external-ref-rewriting.md](issues/36-proposal-104-external-ref-rewriting.md).
 
 ### 3.4 Fill-ins (low value, low effort) — only if convenient
 - **#102** Global title/description override — small CLI config patch.
@@ -149,8 +155,8 @@ matching tests in `__tests__/components.test.ts`.
 - **#110** "Definitions not included" — user is on Swagger 2; project is OAS
   3.x only and Swagger 2 support has already been declined (closed issue #6).
   Recommend closing with a pointer to a v2→v3 converter.
-- **#96** OpenAPI 3.1 webhooks — completely dependent on #113. Should be
-  rolled in there rather than tackled alone.
+- ~~**#96** OpenAPI 3.1 webhooks~~ — ✅ **Done and closed.** Shipped with
+  #113's phase 2 work; re-verified end-to-end and closed 2026-08-01.
 
 ---
 
@@ -296,9 +302,16 @@ behind the value/effort scores, and a suggested implementation pointer.
 ### Tier 3 — Big Bets
 
 #### [#104 — Incorrect `$ref` in bundled file](https://github.com/robertmassaioli/openapi-merge/issues/104)
-- **Value 4 / Effort 4 / ROI 4**
-- May be tightly coupled to #10 (external refs). Needs a reproducer test
-  using the user's exact file layout.
+- **Value 4 / Effort 3 / ROI 4** *(revised from 4/4 after reproducing it —
+  see below)*
+- **Not** tightly coupled to #10, as this doc originally guessed. Reproduced
+  with the user's exact pattern (stripped down): every broken `$ref` in
+  their example points at a file that is itself already a declared merge
+  input. That's fixable by extending the existing per-input dispute/rename
+  rewriting to also recognise refs pre-qualified with a file path matching
+  another input, entirely inside this tool -- no general external-bundling
+  (#10) required. See
+  [36-proposal-104-external-ref-rewriting.md](issues/36-proposal-104-external-ref-rewriting.md).
 
 #### [#8 — Merge duplicate OAS paths using disputePrefix](https://github.com/robertmassaioli/openapi-merge/issues/8)
 - **Value 4 / Effort 4 / ROI 4**
@@ -315,18 +328,32 @@ behind the value/effort scores, and a suggested implementation pointer.
 
 #### [#10 — Resolve / bundle external references](https://github.com/robertmassaioli/openapi-merge/issues/10)
 - **Value 5 / Effort 5 / ROI 5**
-- The issue itself describes two implementation strategies and the
-  maintainer's preference. Pursuing Option 1 (pre-bundle via another tool)
-  would limit changes to the CLI.
+- The issue itself describes three implementation strategies (not two —
+  Robert's own note sketches a distinct "synchronous pre-resolved map"
+  design alongside the two he explicitly weighs) and a stated preference
+  for pre-bundling via another tool, limiting changes to the CLI. Full
+  evaluation, including how it relates to #104's narrower fix, in
+  [37-proposal-10-external-ref-bundling.md](issues/37-proposal-10-external-ref-bundling.md) —
+  kept at options-and-tradeoffs altitude rather than a design spec, since
+  the first open question is whether to take this on at all.
 
 #### [#113 — Add support for OpenAPI 3.1.x](https://github.com/robertmassaioli/openapi-merge/issues/113)
 - **Value 5 / Effort 5 / ROI 5**
-- Likely a 2.x major release. Requires version-aware merging, webhook
-  support (subsumes #96), and updated type definitions.
+- ✅ **Done.** Shipped as three phases —
+  [26](issues/26-proposal-oas-phase1-version-checking.md) (version
+  detection, refuse mixed majors),
+  [27](issues/27-proposal-oas-phase2-31-support.md) (3.1 merging, including
+  webhooks — subsumed #96 as predicted below), and
+  [28](issues/28-proposal-oas-phase3-32-support.md) (3.2). This tier's
+  "likely a 2.x major release" framing didn't happen; it shipped as normal
+  minor-version work instead.
 
 #### [#96 — OAS 3.1 webhook](https://github.com/robertmassaioli/openapi-merge/issues/96)
 - **Value 3 / Effort 4 / ROI 2**
-- Subsumed by #113; track as a child task.
+- ✅ **Done, as predicted here — subsumed by #113's phase 2.** Re-verified
+  against `main` (dedicated `webhooks.test.ts` coverage, plus a fresh
+  end-to-end CLI run merging webhooks from two 3.1 inputs) and closed
+  2026-08-01.
 
 ### Tier 5 — Defer
 
@@ -358,9 +385,14 @@ behind the value/effort scores, and a suggested implementation pointer.
 - #45 (no-config), #61 (auth headers), #60 (x-tagGroups), #102 (global
   info), #100 (docs), #94 (schema pruning).
 
-### Major release 2.0 — "OpenAPI 3.1"
-- #113 + #96 + #10 + #104 + #75. This is a multi-month effort; consider a
-  parallel `v2` branch with a separate `@next` dist-tag for early adopters.
+### ~~Major release 2.0 — "OpenAPI 3.1"~~ — done, and not as a major release
+- #113 and #96 both shipped (see above) as normal minor-version work, not
+  the parallel `v2` branch this roadmap entry planned for. #10 and #75
+  remain open and don't need 3.1 support as a prerequisite anymore — #10
+  now has its own evaluation ([37](issues/37-proposal-10-external-ref-bundling.md)),
+  kept deliberately unbucketed pending the "should we become a bundler"
+  decision it's actually blocked on. #104 was never in this bucket to begin
+  with (see 36) and doesn't need to wait on any of this.
 
 ---
 

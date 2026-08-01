@@ -89,6 +89,27 @@ export type TagInjection = {
 export interface SingleMergeInputBase {
   oas: OpenApiDocument;
 
+  /**
+   * An opaque identity for this input -- typically the resolved absolute path
+   * or URL it was loaded from (issue #104).
+   *
+   * The library never parses or resolves this string; it only compares it for
+   * exact equality against the non-fragment portion of a `$ref` elsewhere in
+   * the merge (in another input's document, or in {@link MergeOptions.externalDocuments}).
+   * A `$ref` shaped `<this input's sourceIdentity>#/components/schemas/X`
+   * found anywhere in the merge is treated as if it were the bare, in-document
+   * ref `#/components/schemas/X` *as seen from this input* -- rewritten to
+   * wherever this input's `X` ended up after deduplication/renaming, exactly
+   * like any other reference into this input.
+   *
+   * Resolving the file-path or URL portion of a cross-document `$ref` against
+   * this identity (e.g. deciding that `../common/Errors.yml` in one input
+   * refers to the same file as another input's own path) is the caller's job
+   * -- normally `openapi-merge-cli`, which is the layer that knows about file
+   * paths and can do the async I/O this library deliberately does not do.
+   */
+  sourceIdentity?: string;
+
   pathModification?: PathModification;
 
   /**
@@ -246,6 +267,26 @@ export interface MergeOptions {
    * one serves.
    */
   securitySchemesStrategy?: SecuritySchemesStrategy;
+
+  /**
+   * Documents this merge may need to pull individual components out of, keyed
+   * by the same opaque identity described on {@link SingleMergeInputBase.sourceIdentity}
+   * (issue #10).
+   *
+   * Unlike an input, a document here never contributes `paths`, `webhooks`,
+   * `info`, `security`, `tags` or anything else to the output on its own --
+   * only the specific components a `$ref` elsewhere in the merge actually asks
+   * for are pulled in (and, transitively, whatever those components' own
+   * references need), deduplicated against the rest of the output exactly like
+   * any other component. A document listed here that nothing ends up
+   * referencing contributes nothing at all.
+   *
+   * Loading these (from disk, or over the network) is entirely the caller's
+   * job -- by the time this reaches `merge()`, every document is already an
+   * in-memory `OpenApiDocument` and merging proceeds synchronously, same as
+   * always.
+   */
+  externalDocuments?: Record<string, OpenApiDocument>;
 }
 
 export type SuccessfulMergeResult = {
@@ -262,7 +303,14 @@ export type ErrorType =
   /** The inputs did not all declare the same OpenAPI major.minor version. */
   | 'mixed-openapi-versions'
   /** Two inputs declared the same webhook name (3.1). */
-  | 'duplicate-webhooks';
+  | 'duplicate-webhooks'
+  /**
+   * A component reachable from `externalDocuments` (issue #10) transitively
+   * references itself -- A's schema needs B's, which needs A's again. Reported
+   * rather than silently broken or stack-overflowing, since there is no
+   * sensible finite document to produce for a genuinely circular definition.
+   */
+  | 'cyclic-external-reference';
 
 export type ErrorMergeResult = {
   type: ErrorType;

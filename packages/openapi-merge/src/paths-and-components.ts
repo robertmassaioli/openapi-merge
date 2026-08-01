@@ -9,6 +9,7 @@ import { deepEquality } from "./component-equivalence";
 import { applyDispute, getDispute } from './dispute';
 import { DEFAULT_SECURITY_SCHEMES_STRATEGY, SecuritySchemesStrategy } from './security-schemes';
 import { Components31, getPathItemOperations, getPaths, getWebhooks, OpenApiDocument, PathItem32, PathItemMap } from './oas31';
+import { createCrossDocumentResolver, ReferenceModificationByIdentity, splitCrossDocumentRef } from './external-references';
 
 export type PathAndComponents = {
   paths: Swagger.Paths;
@@ -35,11 +36,27 @@ function removeFromStart(input: string, trim: string): string {
   return input;
 }
 
-type Components<A> = { [key: string]: A };
-type Equal<A> = (x: A, y: A) => boolean;
-type AddModRef = (from: string, to: string) => void;
+export type Components<A> = { [key: string]: A };
+export type Equal<A> = (x: A, y: A) => boolean;
+export type AddModRef = (from: string, to: string) => void;
 
-function processComponents<A>(results: Components<A>, components: Components<A>, areEqual: Equal<A>, dispute: Dispute | undefined, addModifiedReference: AddModRef): ErrorMergeResult | undefined {
+/**
+ * Every deduplicated component type goes through the same machinery. Kept as
+ * one list rather than nine near-identical blocks: the duplication is how
+ * `pathItems` came to be missing when 3.1 support landed, and how the error
+ * return in {@link processComponents} came to be dropped in all nine places.
+ *
+ * Exported (rather than local to {@link mergePathsAndComponents}) so
+ * `external-references.ts` validates a pulled-in `$ref`'s fragment against
+ * exactly the same set of bucket names this function already deduplicates --
+ * one list, not two that can drift apart.
+ */
+export const DEDUPLICATED_COMPONENT_TYPES = [
+  'schemas', 'responses', 'parameters', 'examples', 'requestBodies',
+  'headers', 'links', 'pathItems', 'callbacks',
+] as const;
+
+export function processComponents<A>(results: Components<A>, components: Components<A>, areEqual: Equal<A>, dispute: Dispute | undefined, addModifiedReference: AddModRef): ErrorMergeResult | undefined {
   for (const key in components) {
     /* eslint-disable-next-line no-prototype-builtins */
     if (components.hasOwnProperty(key)) {
@@ -323,6 +340,7 @@ function ensureUniqueCallbackOperationIds(
 export function mergePathsAndComponents(
   inputs: MergeInput,
   securitySchemesStrategy: SecuritySchemesStrategy = DEFAULT_SECURITY_SCHEMES_STRATEGY,
+  externalDocuments: Record<string, OpenApiDocument> = {},
 ): PathAndComponents | ErrorMergeResult {
   const seenOperationIds = new Set<string>();
 
@@ -331,6 +349,31 @@ export function mergePathsAndComponents(
     paths: {},
     components: {},
   };
+
+  // Every declared input's own `referenceModification` map, kept past the end
+  // of its loop iteration (unlike before #104/#10) so a *different* input's
+  // `$ref` into this one -- forward or backward, since this is only read once
+  // every input has had its turn -- can be resolved against it in the
+  // cross-document pass below.
+  const referenceModificationByIdentity: ReferenceModificationByIdentity = {};
+
+  // An identity claimed by more than one input (the config can legitimately
+  // list the same file twice, e.g. with different `pathModification`) has no
+  // principled resolution -- which copy would a cross-document `$ref` have
+  // meant? Treated as unmatched rather than guessed at (issue #104 §5.2).
+  const ambiguousIdentities = new Set<string>();
+  {
+    const seenIdentities = new Set<string>();
+    for (const input of inputs) {
+      if (input.sourceIdentity === undefined) {
+        continue;
+      }
+      if (seenIdentities.has(input.sourceIdentity)) {
+        ambiguousIdentities.add(input.sourceIdentity);
+      }
+      seenIdentities.add(input.sourceIdentity);
+    }
+  }
 
   for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
     const input = inputs[inputIndex];
@@ -349,6 +392,9 @@ export function mergePathsAndComponents(
 
     // Original references will be transformed to new non-conflicting references
     const referenceModification: { [originalReference: string]: string } = {};
+    if (input.sourceIdentity !== undefined && !ambiguousIdentities.has(input.sourceIdentity)) {
+      referenceModificationByIdentity[input.sourceIdentity] = referenceModification;
+    }
 
     // Security schemes are addressed by name rather than by `$ref`, so their
     // renames are tracked separately from `referenceModification` (issue #33).
@@ -361,14 +407,6 @@ export function mergePathsAndComponents(
       // document may legitimately have none, and the lookup only resolves
       // component `$ref`s, so an empty object is equivalent for its purposes.
       const currentLookup = new SwaggerLookup.InternalLookup({ ...oas, paths: getPaths(oas) });
-      // Every deduplicated component type goes through the same machinery. Kept
-      // as one list rather than nine near-identical blocks: the duplication is
-      // how `pathItems` came to be missing when 3.1 support landed, and how the
-      // error return below came to be dropped in all nine places.
-      const DEDUPLICATED_COMPONENT_TYPES = [
-        'schemas', 'responses', 'parameters', 'examples', 'requestBodies',
-        'headers', 'links', 'pathItems', 'callbacks',
-      ] as const;
 
       // Indexing a heterogeneous record by a dynamic key: every value here is a
       // `{ [name: string]: A }`, but TypeScript cannot prove the A matches
@@ -613,6 +651,52 @@ export function mergePathsAndComponents(
 
       return ref;
     });
+  }
+
+  // Cross-document `$ref`s (issues #104 and #10) -- deliberately a second
+  // pass over the *finished* `result`, not folded into the loop above. A
+  // `$ref` in input A may name input C, processed later in the loop above;
+  // C's own `referenceModification` map (and, for issue #10, anything
+  // `externalDocuments` needs pulled in) is only complete once every input
+  // has had its turn, so resolving cross-document refs any earlier would get
+  // a forward reference wrong.
+  const resolveCrossDocumentReference = createCrossDocumentResolver(
+    referenceModificationByIdentity,
+    ambiguousIdentities,
+    externalDocuments,
+    result.components,
+  );
+
+  let crossDocumentError: ErrorMergeResult | undefined;
+  // `walkAllReferences` wants a full `OpenApiDocument`; `result` only carries
+  // the subset it actually reads (`paths`/`webhooks`/`components`), the same
+  // gap `SwaggerLookup.InternalLookup` papers over elsewhere in this file.
+  walkAllReferences({ openapi: '3.0.1', info: { title: 'dummy', version: '0' }, ...result }, ref => {
+    if (crossDocumentError !== undefined || ref.startsWith('#')) {
+      // Bare same-document refs were already handled correctly by the
+      // per-input pass above; nothing further to do for them here.
+      return ref;
+    }
+
+    const split = splitCrossDocumentRef(ref);
+    if (split === undefined || split.fragment === undefined) {
+      // No fragment: a whole-document reference, left untouched (see
+      // `splitCrossDocumentRef`'s own note on why there is no single local
+      // pointer that could stand in for it).
+      return ref;
+    }
+
+    const resolution = resolveCrossDocumentReference(split.identity, split.fragment);
+    if (resolution.kind === 'error') {
+      crossDocumentError = resolution.error;
+      return ref;
+    }
+
+    return resolution.kind === 'resolved' ? resolution.ref : ref;
+  });
+
+  if (crossDocumentError !== undefined) {
+    return crossDocumentError;
   }
 
   return result;

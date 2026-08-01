@@ -18,6 +18,7 @@ import { dump as dumpYaml } from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
 import { ExitCode } from "./exit-codes";
 import { assertOutputContained, OutputOutsideRootError, resolveConfigPath } from "./path-resolution";
+import { discoverExternalDocuments, DocumentReference, fileInputIdentity, urlInputIdentity } from "./external-reference-discovery";
 import { indentToJsonStringifyArg, indentToYamlArg } from "./formatting";
 import { DEFAULT_INDENT, Indent } from "./data";
 
@@ -230,6 +231,13 @@ async function loadOasForInput(basePath: string, input: ConfigurationInput, inpu
   }
 }
 
+/** The identity a declared input is known by for cross-document `$ref` resolution (issues #104, #10). */
+function inputIdentity(basePath: string, input: ConfigurationInput): DocumentReference {
+  return isConfigurationInputFromFile(input)
+    ? fileInputIdentity(basePath, input.inputFile)
+    : urlInputIdentity(input.inputURL);
+}
+
 type InputConversionError = {
   message: string;
   exitCode: ExitCode;
@@ -248,13 +256,20 @@ function isSingleMergeInput(i: SingleMergeInput | InputConversionError): i is Si
   return !isConversionError(i);
 }
 
-async function convertInputs(basePath: string, configInputs: ConfigurationInput[], logger: LogWithMillisDiff): Promise<MergeInput | InputConversionErrors> {
+type ConvertedInputs = {
+  inputs: MergeInput;
+  /** Same order as `inputs` -- each input's own identity for cross-document `$ref` resolution. */
+  references: DocumentReference[];
+};
+
+async function convertInputs(basePath: string, configInputs: ConfigurationInput[], logger: LogWithMillisDiff): Promise<ConvertedInputs | InputConversionErrors> {
   const results = await Promise.all(configInputs.map<Promise<SingleMergeInput | InputConversionError>>(async (input, inputIndex) => {
     try {
       const oas = await loadOasForInput(basePath, input, inputIndex, logger);
 
       const output: SingleMergeInput = {
         oas,
+        sourceIdentity: inputIdentity(basePath, input).identity,
         pathModification: input.pathModification,
         operationSelection: input.operationSelection,
         description: input.description,
@@ -294,7 +309,8 @@ async function convertInputs(basePath: string, configInputs: ConfigurationInput[
     return { errors: errors.map(e => e.message), exitCode: errors[0].exitCode };
   }
 
-  return results.filter(isSingleMergeInput);
+  const inputs = results.filter(isSingleMergeInput);
+  return { inputs, references: configInputs.map(input => inputIdentity(basePath, input)) };
 }
 
 function isYamlExtension(filePath: string): boolean {
@@ -347,13 +363,30 @@ export async function main(): Promise<void> {
 
   const basePath = path.dirname(options.config || './');
 
-  const inputs = await convertInputs(basePath, config.inputs, logger);
+  const converted = await convertInputs(basePath, config.inputs, logger);
 
-  if ('errors' in inputs) {
-    inputs.errors.forEach(error => console.error(error));
-    process.exit(inputs.exitCode);
+  if ('errors' in converted) {
+    converted.errors.forEach(error => console.error(error));
+    process.exit(converted.exitCode);
     return;
   }
+
+  const { inputs, references } = converted;
+
+  // Cross-document `$ref` resolution (issues #104, #10). Normalising each
+  // input's own refs and resolving anything that names *another* declared
+  // input runs unconditionally -- that fix is always safe, since it only
+  // ever affects a `$ref` that would otherwise be silently broken.
+  // `resolveExternalReferences` controls only whether a `$ref` naming a file
+  // or URL nobody declared as an input gets followed and loaded.
+  const discovery = await discoverExternalDocuments(
+    inputs.map((input, i) => ({ document: input.oas, reference: references[i] })),
+    config.resolveExternalReferences === true,
+  );
+
+  discovery.warnings.forEach(warning => {
+    logger.log(`## WARNING: could not load '${warning.reference.identity}', referenced via $ref -- left unresolved. (${warning.message})`);
+  });
 
   logger.log(`## Loaded the inputs into memory, merging the results.`);
 
@@ -361,6 +394,7 @@ export async function main(): Promise<void> {
     serversStrategy: config.serversStrategy,
     securitySchemesStrategy: config.securitySchemesStrategy,
     pruneUnusedComponents: config.pruneUnusedComponents,
+    externalDocuments: discovery.externalDocuments,
     info: config.info,
   });
 
