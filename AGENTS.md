@@ -481,7 +481,8 @@ Runs on every push to a non-`main` branch. Two parallel jobs:
 
 ### `.github/workflows/npm-publish.yml`
 
-Runs on every push to `main`:
+Runs when a GitHub Release is published (not on every push to `main` --
+see [`ai-planning/41-proposal-release-gated-npm-publish.md`](ai-planning/41-proposal-release-gated-npm-publish.md)):
 
 1. `bun install --frozen-lockfile`
 2. `bun run lint`
@@ -500,8 +501,11 @@ Required GitHub secrets:
 
 > **Release flow**: bump the relevant `version` in
 > `packages/openapi-merge/package.json` and/or
-> `packages/openapi-merge-cli/package.json`, merge to `main`, and the workflow
-> handles publication to <https://registry.npmjs.org>.
+> `packages/openapi-merge-cli/package.json`, merge to `main`, then publish a
+> GitHub Release (tag conventionally `vX.Y.Z`) from that commit -- publishing
+> the release is what triggers the workflow and handles publication to
+> <https://registry.npmjs.org>. Merging to `main` alone no longer publishes
+> anything.
 
 ### `.github/workflows/codeql-analysis.yml`
 
@@ -598,7 +602,7 @@ When editing this repository, please follow these guidelines:
 | Regenerate the CLI Markdown docs           | `bun run --cwd packages/openapi-merge-cli gen-docs`            |
 | Run the CLI in dev mode                    | `bun run cli` (or `bun run --cwd packages/openapi-merge-cli start`) |
 | Run the CLI against the example config     | `bun run cli -- --config openapi-merge.test.json` |
-| Publish (CI only, on `main`)               | Handled by `npm-publish.yml` → `scripts/publish-changed.sh` after version bump |
+| Publish (CI only, on a published Release)   | Handled by `npm-publish.yml` → `scripts/publish-changed.sh` after version bump |
 
 ---
 

@@ -68,6 +68,7 @@ dependency health, build migrations. Named by topic rather than by issue number.
 | [`35-proposal-commented-yaml-section-type.md`](35-proposal-commented-yaml-section-type.md) | Evaluates a typed `Section`/`CommentedYaml` refactor of how 34's generator builds that file |
 | [`38-proposal-input-root-containment.md`](38-proposal-input-root-containment.md) | ✅ `inputRoot` — a read-side containment boundary mirroring `outputRoot`, closing the gap proposal 37 left open |
 | [`39-proposal-init-convenience-defaults.md`](39-proposal-init-convenience-defaults.md) | ✅ `resolveExternalReferences` + `inputRoot` turned on by default in `init`'s output |
+| [`41-proposal-release-gated-npm-publish.md`](41-proposal-release-gated-npm-publish.md) | `npm-publish.yml` triggers on a published GitHub Release instead of every push to `main` |
 | [`issue-triage-value-vs-effort.md`](issue-triage-value-vs-effort.md) | Value/effort scoring of every open issue; the index into `issues/` |
 | [`spec-edge-case-findings.md`](spec-edge-case-findings.md) | Divergences between the merge and the spec, found by edge-case testing |
 | [`bun-tsgo-migration-build-timings.md`](bun-tsgo-migration-build-timings.md) | Measured build timings for the Bun + tsgo migration |
