@@ -18,7 +18,7 @@ import { Swagger } from "@atlassian/atlassian-openapi";
 import { dump as dumpYaml } from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
 import { ExitCode } from "./exit-codes";
-import { assertInputContained, assertOutputContained, InputOutsideRootError, OutputOutsideRootError, resolveConfigPath } from "./path-resolution";
+import { assertInputContained, assertOutputContained, InputOutsideRootError, OutputDirectoryCreationError, OutputOutsideRootError, resolveConfigPath } from "./path-resolution";
 import { discoverExternalDocuments, DocumentReference, fileInputIdentity, urlInputIdentity } from "./external-reference-discovery";
 import { indentToJsonStringifyArg, indentToYamlArg } from "./formatting";
 import { DEFAULT_INDENT, Indent } from "./data";
@@ -363,6 +363,17 @@ function writeOutput(outputFullPath: string, outputSchema: OpenApiDocument, inde
     ? dumpAsYaml(outputSchema, indent)
     : JSON.stringify(outputSchema, null, indentToJsonStringifyArg(indent));
 
+  // Runs after assertOutputContained() has already approved outputFullPath
+  // (proposal 42) -- every directory this creates is an ancestor of an
+  // already-validated path, so it cannot land outside outputRoot.
+  const outputDir = path.dirname(outputFullPath);
+  try {
+    fs.mkdirSync(outputDir, { recursive: true });
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    throw new OutputDirectoryCreationError(outputDir, reason);
+  }
+
   fs.writeFileSync(outputFullPath, fileContents);
 }
 
@@ -483,8 +494,16 @@ export async function main(): Promise<void> {
 
   logger.log(`## Inputs merged, writing the results out to '${outputFullPath}'`);
 
-
-  writeOutput(outputFullPath, mergeResult.output, config.formatting?.indent);
+  try {
+    writeOutput(outputFullPath, mergeResult.output, config.formatting?.indent);
+  } catch (e) {
+    if (e instanceof OutputDirectoryCreationError) {
+      console.error(e.message);
+      process.exit(ExitCode.ErrorCreatingOutputDirectory);
+      return;
+    }
+    throw e;
+  }
 
   logger.log(`## Finished writing to '${outputFullPath}'`);
 }

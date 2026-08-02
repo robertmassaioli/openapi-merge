@@ -46,6 +46,29 @@ export class OutputOutsideRootError extends Error {
 }
 
 /**
+ * Error thrown when a directory in the resolved output path's ancestry is
+ * missing and `fs.mkdirSync(dir, { recursive: true })` fails to create it --
+ * a permissions error, a read-only filesystem, or a path component that
+ * already exists as a regular file rather than a directory.
+ *
+ * Raised strictly after {@link assertOutputContained} has already approved
+ * the path (proposal 42): this is the filesystem refusing to cooperate with
+ * an already-allowed location, not a rejection of the location itself. Kept
+ * as its own error/exit-code pair for the same reason `OutputOutsideRootError`
+ * is: a script branching on exit codes needs "the path was refused" and "the
+ * path was allowed but couldn't be created" to stay distinguishable.
+ */
+export class OutputDirectoryCreationError extends Error {
+  public readonly directory: string;
+
+  constructor(directory: string, reason: string) {
+    super(`Could not create output directory '${directory}': ${reason}`);
+    this.name = 'OutputDirectoryCreationError';
+    this.directory = directory;
+  }
+}
+
+/**
  * Error thrown when the (defence-in-depth) `inputRoot` safety knob is set
  * (proposal 38) and a local file the CLI would read -- a declared
  * `inputFile` or one discovered via `resolveExternalReferences` -- escapes

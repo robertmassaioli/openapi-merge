@@ -255,6 +255,8 @@ export type Configuration = {
    * The output file to put the results in. If you use the .yml or .yaml extension then the schema will be output
    * in YAML format, otherwise, it will be output in JSON format.
    *
+   * Any missing directories in this path are created automatically.
+   *
    * @minLength 1
    */
   output: string;

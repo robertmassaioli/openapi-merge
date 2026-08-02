@@ -255,6 +255,14 @@ configuration file. Absolute paths (e.g. `/tmp/merged.yaml`,
 `C:\build\out.json`) are used as-is. This means you can safely write the
 merged spec into directories like `/tmp` or `/var/build/...` from CI.
 
+Any directory in `output`'s path that doesn't exist yet is created
+automatically (including multiple missing levels at once), so
+`"output": "./dist/service.output.swagger.json"` works even on a project
+where `dist/` hasn't been created yet. If a directory can't be created --
+a permissions error, or a path component that's already a regular file --
+the CLI exits with `ErrorCreatingOutputDirectory` (see [Exit
+codes](#exit-codes)) rather than a raw stack trace.
+
 ## Cross-document `$ref`s
 
 If one input's `$ref` points at *another file* rather than somewhere inside
@@ -367,6 +375,7 @@ branch on them.
 | `8` | An `inputURL` responded with some other non-2xx status |
 | `9` | An input declared an unsupported OpenAPI version, or the inputs disagreed |
 | `10` | A local file read escaped `inputRoot` / `--restrict-input-to` |
+| `11` | The output directory could not be created (permissions, read-only filesystem, or a path component that's an existing file) |
 
 Codes `6`–`8` are separate from `2` on purpose. `2` means an input could not be
 obtained at all — a missing file, an unreachable host, content that parses as
