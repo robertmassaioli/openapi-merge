@@ -1,8 +1,10 @@
 name: npm-publish
+# Publishing is a maintainer-triggered event, not a side effect of merging to
+# main. `published` excludes draft releases -- drafting doesn't publish,
+# hitting "Publish release" does. See ai-planning/41-proposal-release-gated-npm-publish.md.
 on:
-  push:
-    branches:
-      - main # Change this to your default branch
+  release:
+    types: [published]
 jobs:
   npm-publish:
     name: npm-publish
