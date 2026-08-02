@@ -4,7 +4,7 @@
 
 **Status:** Options and tradeoffs — not yet a design, let alone an implementation. Written to evaluate PR #87 on today's codebase before deciding whether to merge it, adapt it, or supersede it.
 
-**Value:** 3 | **Effort:** 2–4 depending on option chosen (§4)
+**Value:** 3 | **Effort:** 1–4 depending on option chosen (§4)
 
 ---
 
@@ -13,14 +13,15 @@
 PR #87 proposes a five-line fix for a real crash. Reading it as "merge or
 close" undersells the decision: the codebase has grown a large, dedicated
 subsystem for cross-document references since this PR was opened
-(`external-references.ts`, issues #10/#104, proposals 36/37), and that
-subsystem changes what "the right fix" looks like. This document is deliberately
-kept at options-and-tradeoffs altitude, in the style of
+(`external-references.ts`, issues #10/#104, proposals 36–39), and that
+subsystem changes what "the right fix" looks like — in the PR's favour, as it
+turns out (§2). This document is kept at options-and-tradeoffs altitude, in
+the style of
 [`37-proposal-10-external-ref-bundling.md`](issues/37-proposal-10-external-ref-bundling.md),
 because the PR's own author flagged the real uncertainty themselves: *"in
 case anybody considers this change might have some unwanted effect, it could
 possibly be hidden behind some configuration option."* That instinct was
-right, and it's worth taking seriously rather than merging the five lines as-is.
+worth taking seriously — §2 traces exactly how the codebase already answers it.
 
 ## 1. The bug, confirmed still present today
 
@@ -57,25 +58,43 @@ compare(
 So this isn't a synthetic edge case — it's the ordinary shape of a
 multi-document merge where teams share a components file by reference rather
 than by copy-paste, which is exactly the workflow issues #10 and #104 (and
-proposals 36–38) were built to support. The crash sits in the one dedup path
-that subsystem doesn't touch.
+proposals 36–38) were built to support.
 
-### 1.2 Why the newer cross-document machinery doesn't already cover this
+### 1.2 The `library` and the `cli` see this differently — verified, not assumed
 
-`external-references.ts` (built for #10/#104) resolves `<identity>#<fragment>`
-refs — the same shape as this bug's refs — but only where they're
-encountered while **walking the merged output's own reference graph**
-(`walkComponentReferences`, wired into `createCrossDocumentResolver`). The
-dedup comparison in `processComponents` runs earlier, directly over each
-input's **raw, unmodified `components`** before any rewriting pass reaches
-them. `deepEquality`'s two `Lookup`s are throwaway `InternalLookup`s built
-fresh from the current document; they were never wired to
-`MergeOptions.externalDocuments` or to sibling inputs' `sourceIdentity`, so
-they have no way to resolve a cross-document ref even in principle. The two
-subsystems don't overlap today — which is exactly why the crash predates
-proposals 36–38 and survived them untouched.
+`packages/openapi-merge` (the library `deepEquality` lives in) never
+normalizes a `$ref` — by design, it "deliberately has no file-path or
+network awareness" (`external-references.ts`'s own docstring). Fed the raw
+document above directly, it throws exactly as shown.
 
-## 2. What PR #87 actually does, and its correctness gap
+`packages/openapi-merge-cli` is a different story, and this matters enough
+to the rest of this document that it's worth showing the exact source rather
+than asserting it. Every CLI merge run passes through
+`discoverExternalDocuments` (`external-reference-discovery.ts:167`), which
+calls `normalizeCrossDocumentRefs` on **every declared input**
+unconditionally — before `merge()` is ever called — rewriting each
+cross-document `$ref` in place to `<absolute identity>#<fragment>`. The call
+site in `index.ts:420-423` says why in so many words:
+
+> Normalising each input's own refs and resolving anything that names
+> *another* declared input runs unconditionally -- that fix is always safe,
+> since it only ever affects a `$ref` that would otherwise be silently
+> broken.
+
+`resolveExternalReferences` gates something narrower: whether a ref naming a
+file *nobody declared as an input* gets followed and loaded into
+`externalDocuments`. It does not gate normalization.
+
+Net effect: **by the time `deepEquality` ever sees a cross-document `$ref`
+coming from the CLI, that ref is already an absolute, canonical identity** —
+`/Users/.../common/errors.yaml#/components/schemas/Foo`, never the author's
+original `../common/errors.yaml#/Foo`. The crash in §1 is still real (it's a
+library-level bug, reachable directly and, as shown next, still reachable
+through the CLI too), but the *content* of the two `$ref` strings
+`deepEquality` receives from a real CLI run is not what a first read of the
+2022 PR would suggest.
+
+## 2. What PR #87 actually does, and why the risk isn't what it first looks like
 
 ```diff
 + const isExternalRef = !x.$ref.startsWith('#')
@@ -86,55 +105,69 @@ proposals 36–38 and survived them untouched.
 ```
 
 Trusts that identical `$ref` *strings* denote identical *content*, without
-resolving anything. Cheap, and correct under one condition: that a given ref
-string always names the same physical resource, everywhere it appears.
+resolving anything. The natural worry, and this document's first draft
+argued exactly this: proposal 38's `inputRoot` lets every input live in its
+own directory, so two inputs could each write a relative ref like
+`./errors.yaml#/Foo` — identical strings — while meaning two different
+physical files, and the heuristic would silently declare them equal.
 
-**That condition held in 2022 and no longer holds unconditionally.**
-Proposal 38 (`inputRoot`, on by default since proposal 39) gives every input
-its own base directory. Two inputs can each contain a schema `$ref`-ing a
-relative path like `./errors.yaml#/Foo` — identical strings — while
-`inputRoot` means they resolve to two *different physical files*, one per
-input's own directory. PR #87's fix would silently declare those equal and
-drop one copy. That's a **silent data-loss bug** dressed as a fix for a
-crash, and it would be strictly worse than the crash it replaces: a crash is
-loud, a wrong merge is not.
+**That worry doesn't hold, once §1.2 is accounted for.** Every CLI merge
+normalizes cross-document refs to absolute identities *before* `deepEquality`
+runs. Two inputs' relative refs that are lexically identical but mean
+different files, per input, normalize to two different absolute identities —
+so PR #87's string comparison correctly finds them *unequal*. Two refs that
+normalize to the *same* absolute identity do so because
+`resolveCrossDocumentIdentity` resolved them to the same physical file — so
+treating them as equal is correct, not a guess. The heuristic isn't lucky
+here; it's sound precisely *because* something else in the codebase already
+guarantees its precondition (ref strings name canonical identities) before it
+ever runs.
 
-The comment in the PR's own diff — *"these refs are merged into a single
-output, they are going to reference the same external file"* — was a fair
-assumption for the merge core as it existed in December 2022, before
-`inputRoot` existed. It is not a safe assumption today. This isn't a reason
-to dismiss the PR; it's the reason this needs a proposal rather than a
-one-line merge.
+**What's still true:** that guarantee is a property of the CLI, not of the
+`deepEquality`/`merge()` library contract. Anyone calling `openapi-merge`
+directly with hand-built documents, skipping the CLI's normalization pass,
+can still hand it two lexically-identical but semantically-different
+external refs and get a wrong "equal." The library's own stance — no
+file-path awareness, `externalDocuments` keys must already be caller-supplied
+canonical identities — means this was already the contract for cross-document
+refs to work *at all* (§3, Option C's residual case is the same gap under a
+different name). PR #87 doesn't introduce that gap; it inherits it.
 
 (The PR's test file otherwise still lines up with current code —
 `toOAS(paths, components)` at `_helpers/oas-generation.ts` has the identical
-signature the PR's test calls; only the import path moved.)
+signature the PR's test calls; only the import path moved. Its fixture
+(`/external/file.yaml#/...`, both sides using the same literal string) models
+exactly the CLI's post-normalization shape, not a raw un-normalized ref —
+worth noting since it means the PR's own test was implicitly right about
+which case matters, even without the author having traced why.)
 
 ## 3. Options
 
-### Option A — Merge PR #87's heuristic as-is
+### Option A — Merge PR #87's heuristic, library-side, documented as caller's-responsibility
 
-Trust identical `$ref` strings. Trivial (already written). Reintroduces the
-silent-wrong-merge risk in §2 for any `inputRoot`-using multi-directory
-setup — which is the *default* CLI configuration as of proposal 39. Not
-recommended without at least a guard limiting it to refs whose identity is
-known to be shared (e.g. matches a `sourceIdentity` or an `externalDocuments`
-key, rather than an arbitrary unqualified path) — at which point it has
-mostly become Option C.
+Trust identical `$ref` strings. Given §2, this is materially safer than it
+first appeared: it's exactly correct for the CLI's actual pipeline today, and
+for any future caller that normalizes cross-document refs before merging
+(which, per the library's own design, is already the precondition for
+cross-document resolution to work at all). The one thing worth adding beyond
+the PR's own diff: a doc comment on `deepEquality`/`compare` stating the
+precondition explicitly — *"a cross-document `$ref` is compared by string
+identity; callers that don't canonicalize such refs before merging may get a
+false positive here"* — so a future non-CLI caller doesn't have to
+rediscover §2 the hard way. Effort: the PR's five lines, plus that comment
+and updating the test's import path.
 
 ### Option B — Fail closed: replace the crash with a typed `MergeResult` error
 
-Catch the unresolvable-external-ref case in `deepEquality`'s call sites (or
-have `compare` signal it rather than throw) and surface a
-`component-definition-conflict`-shaped `ErrorMergeResult`, the same channel
-every other dedup conflict in this codebase already uses. Small, contained,
-and never wrong — it doesn't claim an equality it can't prove, it just stops
-being an *uncaught* exception, which is inconsistent with how every other
-conflict path in `paths-and-components.ts` behaves. Doesn't reduce false
-conflicts: a merge that's actually safe (two inputs really do share one
-external file) still fails and needs a manual rename/dispute workaround. Pure
-downside-removal, not a feature — but it's a prerequisite piece of either
-option below, since both still need a fallback for refs they can't resolve.
+Not needed as a substitute for Option A anymore (§2 removes the reason to
+distrust it), but still worth doing *underneath* whichever option ships, for
+the residual case Option A's own doc comment names: a caller who hasn't
+normalized refs, or a ref shaped in a way `deepEquality` can't parse at all.
+Catch that case in `deepEquality`'s call sites and surface a
+`component-definition-conflict`-shaped `ErrorMergeResult` — the channel
+every other dedup conflict in this codebase already uses — instead of an
+uncaught `Error`. Small, contained, and consistent with how every other
+conflict path in `paths-and-components.ts` already behaves.
 
 ### Option C — Resolve, don't guess: extend dedup to reuse the existing cross-document resolver
 
@@ -142,73 +175,68 @@ Give `deepEquality` a path parallel to its existing local-reference branch
 (`component-equivalence.ts:84-91`) for cross-document refs: use
 `splitCrossDocumentRef` to pull `{identity, fragment}` out of the `$ref`,
 resolve `identity` against `MergeOptions.externalDocuments` or a sibling
-input's `sourceIdentity` (the same resolution `createCrossDocumentResolver`
-already performs, currently private to `external-references.ts` and would
-need a shared/exported entry point), fetch the *actual* target schema, and
-deep-compare that — exactly as local refs already do via `xLookup.getSchema`.
+input's `sourceIdentity`, fetch the *actual* target schema, and deep-compare
+that — exactly as local refs already do via `xLookup.getSchema`.
 
-This is the only option that's unconditionally correct: it doesn't assume
-ref-string identity means content identity, so it isn't fooled by
-`inputRoot`'s per-input directories. It's also the option most consistent
-with the rest of the codebase, which already solved this exact
-identity-resolution problem once for issue #10/#104 — this is applying that
-solution to the one path it doesn't yet reach, not building something new.
-
-Cost: `deepEquality` currently takes two bare `Lookup`s; it would need
-either the `externalDocuments` map and sibling-input context threaded in, or
-a pre-built resolver function passed alongside the lookups. Some plumbing
-through `paths-and-components.ts:433` where `deepEquality` is constructed.
-Genuinely more work than Options A or B — call it half a day including
-tests, not five lines.
-
-Residual case: a ref to a document the merge never received at all (no
-`sourceIdentity` match, no `externalDocuments` entry) — PR #87's own literal
-example — still can't be resolved. That case needs Option B's graceful
-failure regardless of whether C is built.
+This is the only option that doesn't rely on string identity at all, so it's
+correct even for a caller that hasn't normalized its refs. But given §2, that
+buys correctness for a caller this repo doesn't have (the CLI already
+guarantees the precondition Option A needs) — it stops being "the fix that
+avoids a data-loss bug" and becomes "the fix that generalizes to callers this
+proposal can't identify a concrete need for yet." Worth keeping on the shelf,
+not worth building ahead of a real request: real effort (deepEquality's
+`Lookup` type would need `externalDocuments`/sibling-input context threaded
+in, plumbing through `paths-and-components.ts:433`; `resolveIdentityFragment`
+is currently private to `external-references.ts` and would need exporting)
+for a correctness gain with no known caller today.
 
 ### Option D — Configurable strategy (the PR author's own suggestion)
 
-Add a `MergeOptions` flag — e.g.
-`unresolvableExternalRefsStrategy: 'assume-equal-by-ref' | 'error'` (default
-`'error'`) — so a caller who knows their own pipeline guarantees ref-path
-stability (single shared root, no divergent `inputRoot`s) can opt into
-Option A's cheaper heuristic explicitly, while the default stays safe. Real
-work here is mostly wiring: a new field through `MergeOptions`, the ajv
-config schema (`configuration.schema.json`), `init`'s generated YAML
-(proposal 34), and documentation — the standard cost this codebase pays for
-every new option (see proposal 39's own footprint). Worth doing only if
-Option C's residual case (§3, "Option C", last paragraph) turns out to
-matter to real users after C ships — an escape hatch for what C structurally
-can't resolve, not a replacement for it.
+A `MergeOptions` flag choosing string-identity trust vs. erroring vs. real
+resolution. Given §2, the default answer (trust the string) is already safe
+for the one real caller, so this is now solving a problem that doesn't
+concretely exist yet rather than a live safety gap. Keep as a later option if
+a non-CLI library consumer actually reports the gap Option C would close.
 
 ## 4. Recommendation
 
-Phase 1: **Option B.** Removes the uncaught exception — the most acute part
-of PR #87's report — with no correctness risk, and is a prerequisite either
-way. Small enough to be its own PR.
+**Merge a corrected version of PR #87 (Option A)**, with:
+- the doc comment from §3 naming the precondition explicitly, since the
+  library can't enforce it, only warn about it;
+- Option B's graceful failure underneath it, so a caller that doesn't meet
+  the precondition gets a typed `MergeResult` error instead of an uncaught
+  exception — belt-and-braces, not a substitute;
+- the test file's import path updated to `_helpers/oas-generation`, its only
+  mechanical rot.
 
-Phase 2: **Option C**, scoped to refs resolvable via `externalDocuments` or a
-sibling input's `sourceIdentity` — which is the actual shape of PR #87's
-motivating case (a component shared across documents that *are* part of the
-same merge or declared as `externalDocuments`). This closes the bug
-correctly rather than heuristically, reusing infrastructure this repo
-already built and already trusts for the same class of problem elsewhere.
-
-Phase 3, only if requested after Phase 2 ships: **Option D**, as a narrow
-escape hatch for refs to documents genuinely outside the merge's knowledge —
-not before, since it's easy to reach for prematurely and its entire value
-depends on Phase 2 first proving where the real gap is.
-
-Not recommended: **Option A** as originally submitted. It fixes the crash
-but trades it for a silent-data-loss failure mode under the CLI's own
-default configuration (`inputRoot`, on since proposal 39) — worse than what
-it replaces, not better.
+Not recommended right now: Option C or D. Both solve a real gap in the
+library's contract (unnormalized cross-document refs), but it's a gap that
+predates this PR, is shared by every other cross-document feature in this
+codebase, and has no reported caller hitting it — building either ahead of
+that would be speculative generality this repo's own conventions argue
+against (see `41`'s "don't broaden scope" note, and `23`'s non-goals). Revisit
+if a non-CLI consumer of `openapi-merge` reports it.
 
 ## 5. What this means for PR #87 itself
 
-Not mergeable as-is (§2, §4). The right response to the contributor, if
-Robert wants to send one, is to credit the report (the crash is real and
-reproducible three years later) while explaining the `inputRoot` interaction
-that makes the literal patch unsafe today — the same courtesy this repo's
-`ai-planning/41` extended to PR #97 when closing it as superseded rather
-than silently.
+Closer to mergeable than a first read suggests, once §1.2 is verified rather
+than assumed — which is the whole reason this went through a proposal
+instead of a straight review comment. The PR needs: the doc-comment
+precondition from §4, the import-path fix, and ideally Option B landing
+alongside it so the residual case fails safely instead of crashing. None of
+that is a rewrite of the contributor's approach — it's the same fix, made
+explicit about why it's safe.
+
+### 5.1 Correction to this document's own first draft
+
+This section exists because §2's conclusion reverses this document's
+original recommendation, and the house convention (see proposal 23 §10.3) is
+to record that rather than edit it away quietly. The first draft asserted
+Option A was unsafe under `inputRoot`, reasoning from proposal 38's existence
+without reading `external-reference-discovery.ts`'s normalization pass or the
+comment at `index.ts:420-423` stating it runs unconditionally. Reading that
+code directly reversed the conclusion. The lesson generalizes past this one
+proposal: a `$ref`'s *literal text* and what it *resolves to* are two
+different questions in this codebase, and any claim about which one a given
+code path is looking at needs to be checked against the code, not inferred
+from a feature's name.
