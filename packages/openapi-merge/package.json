@@ -33,7 +33,8 @@
     "prepublishOnly": "bun run build",
     "test": "bun test --coverage",
     "lint": "eslint src --fix --format=visualstudio",
-    "start": "bun src/index.ts"
+    "start": "bun src/index.ts",
+    "docs": "typedoc"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -43,6 +44,7 @@
     "eslint": "^10.0.0",
     "eslint-formatter-visualstudio": "^9.0.1",
     "globals": "^17.7.0",
+    "typedoc": "^0.28.20",
     "typescript-eslint": "^8.65.0"
   },
   "dependencies": {

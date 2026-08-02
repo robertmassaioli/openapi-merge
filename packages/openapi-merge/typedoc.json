@@ -1,0 +1,10 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "tsconfig": "tsconfig.json",
+  "out": "docs-api",
+  "name": "openapi-merge",
+  "readme": "README.md",
+  "excludePrivate": true,
+  "excludeInternal": true
+}
