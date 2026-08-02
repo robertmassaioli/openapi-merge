@@ -1,469 +1,213 @@
 # Implementation Proposal: Issue #60 — Concatenate `x-tagGroups` Across Inputs
 
-**Status:** Proposal  
-**Value:** 3/5 — useful for ReDoc users who compose multiple specs with tag groups.  
-**Effort:** 2/5 — localized change to extension merge; no API changes required.
+**Status:** Proposal (revised 2026-08-02 — verified against current `main`;
+see §0)
+
+**Issue:** [robertmassaioli/openapi-merge#60](https://github.com/robertmassaioli/openapi-merge/issues/60)
 
 ---
+
+## 0. Revision note
+
+`extensions.ts` itself is essentially unchanged from the original draft —
+the "first-wins" merge it describes is verified accurate against current
+`main`, line for line. What's changed is everything *around* it: the
+implementation sketch in the original draft's §8 invented a `mergeTags(inputs,
+mergedOutput): Swagger.SwaggerV3` signature that has never existed —
+`tags.ts`'s real signature is `mergeTags(inputs: MergeInput): Swagger.Tag[] |
+undefined`, and `x-tagGroups` filtering was sketched against the wrong
+function shape entirely. §4–§6 below replace that sketch with one that
+matches how `mergeExtensions`/`mergeTags` are actually wired together in
+`packages/openapi-merge/src/index.ts` today, and §7 narrows scope
+accordingly.
 
 ## 1. Issue Summary
 
-**GitHub Issue:** [#60 — `x-tagGroups` only keeps first file's tags](https://github.com/robertmassaioli/openapi-merge/issues/60)
+When merging OpenAPI files that each define `x-tagGroups` at the top level
+(a ReDoc convention: `[{ name: string, tags: string[] }, ...]`, used to
+organize the sidebar), only the **first** input's `x-tagGroups` survives in
+the output. Every other input's groups are silently dropped, even though
+their `tags` (the plain OpenAPI field, not the extension) are correctly
+merged and deduplicated into the output.
 
-When merging multiple OpenAPI files that each define `x-tagGroups` at the top level, only the first input's groups appear in the output. This is because the current extension-merge logic applies "first-wins" semantics to all `x-*` extensions. However, tags from later inputs are correctly merged into the top-level `tags` array, creating an inconsistency: groups disappear but their corresponding tags exist.
+## 2. Current Behaviour, Verified Against `main`
 
-ReDoc uses `x-tagGroups` to organize the sidebar; users lose the grouping structure from later APIs even though their tags are included.
-
----
-
-## 2. Current Behaviour
-
-### Extension Merge (today: first-wins)
-
-From `packages/openapi-merge/src/extensions.ts`, lines 20–43:
+Confirmed still exactly true. `packages/openapi-merge/src/extensions.ts`:
 
 ```typescript
 function mergeExtensionsHelper(extensions: Extensions[]): Extensions {
-  if (extensions.length === 0) {
-    return {};
-  }
-
-  if (extensions.length === 1) {
-    return extensions[0];
-  }
-
+  // ...
   const result = { ...extensions[0] };
-
   for (let extensionIndex = 1; extensionIndex < extensions.length; extensionIndex++) {
     const ext = extensions[extensionIndex];
-
     for (const extensionKey in ext) {
-      /* eslint-disable-next-line no-prototype-builtins */
       if (result[extensionKey] === undefined && ext.hasOwnProperty(extensionKey)) {
         result[extensionKey] = ext[extensionKey];
       }
     }
   }
-
   return result;
 }
 ```
 
-**Current logic:** The result is seeded with `extensions[0]`. For any key in later extensions, the value is only added if the key is not already present in `result`. This means the first occurrence of any extension wins; all subsequent values are discarded.
+Every top-level `x-*` key is first-wins, unconditionally — and this is
+deliberate, not an oversight: `document-metadata.test.ts`'s `describe('extensions', ...)`
+suite has a test titled *"should take the first extension definition at the
+top level"*, pinning exactly this behaviour for arbitrary vendor extensions
+like `x-atlassian-narrative`. That's the right default for an opaque
+extension nobody can safely interpret. `x-tagGroups` is the one common
+exception: its shape is regular (`{ name, tags: string[] }[]`) and its
+semantics (grouping tag names for display) are well-known enough to
+concatenate safely — the same argument the original draft made, still
+valid.
 
-### Tags Merge (deduped by name)
+**The inconsistency the issue points at is real and reproducible today:**
+`tags` (the actual OpenAPI field) dedupe-merges across every input via
+`mergeTags()` in `tags.ts`; `x-tagGroups` (the ReDoc extension referencing
+those same tag names) keeps only the first input's groups. A tag surviving
+the merge with no group naming it, or a group naming a tag from an input
+whose group entry was silently discarded, is the exact symptom in the
+issue. Reproduced directly against this branch's built library (two inputs,
+each with one tag and one `x-tagGroups` entry):
 
-From `packages/openapi-merge/src/tags.ts`, lines 11–35:
+```
+tags:        [{"name":"user"},{"name":"admin"}]        <- both survive
+x-tagGroups: [{"name":"User","tags":["user"]}]          <- "Admin" silently dropped
+```
+
+## 3. How `mergeExtensions` and `mergeTags` are actually wired together
+
+This is the part the original draft's implementation sketch got wrong, and
+it matters for scoping the fix correctly. In `packages/openapi-merge/src/index.ts`:
 
 ```typescript
-export function mergeTags(inputs: MergeInput): Swagger.Tag[] | undefined {
-  const result = new Array<Swagger.Tag>();
-  const seenTags = new Set<string>();
-  inputs.forEach(input => {
-    const { operationSelection } = input;
-    const { tags } = input.oas;
-    if (tags !== undefined) {
-      const excludeTags = operationSelection !== undefined && operationSelection.excludeTags !== undefined ? operationSelection.excludeTags : [];
-      const nonExcludedTags = getNonExcludedTags(tags, excludeTags);
-
-      nonExcludedTags.forEach(tag => {
-        if (!seenTags.has(tag.name)) {
-          seenTags.add(tag.name);
-          result.push(tag);
-        }
-      });
-    }
-  });
-
-  if (result.length === 0) {
-    return undefined;
-  }
-
-  return result;
-}
+const output: OpenApiDocument = mergeExtensions(
+  {
+    // ...
+    tags: mergeTags(inputs),
+    // ...
+  },
+  inputs.map(input => input.oas)
+);
 ```
 
-**Key point:** Tags are deduped by name using a `Set`, preserving order of first occurrence. If `excludeTags` is specified, those tags are filtered out before deduping.
+`mergeTags(inputs)` computes the deduped top-level `tags` array
+**independently** of extension merging, and `mergeExtensions(mergeTarget,
+oass)` spreads `{ ...mergeTarget, ...mergeExtensionsHelper(...) }` — the
+extensions result is spread *last*, so whatever `mergeExtensionsHelper`
+decides for a given key wins over anything pre-computed in `mergeTarget`.
+That means:
 
----
+- `mergeTags` has no visibility into `x-tagGroups` at all today (it only
+  touches `Swagger.Tag[]`, not extensions), and
+- a `x-tagGroups`-aware merge has to live *inside* `extensions.ts` — as
+  the original draft's Option A/C recommended — not bolted onto `tags.ts`
+  as its Step 2 sketch actually wrote it. The original sketch's own
+  "Step 2: Update `tags.ts`" section calls a `mergeTags(inputs, mergedOutput)`
+  signature that has never existed in this codebase.
 
-## 3. Why `x-tagGroups` Is Special
+## 4. Revised Design
 
-Most top-level `x-*` extensions have opaque semantics; we cannot safely concatenate, merge, or transform them without risking corruption. For example, `x-atlassian-narrative` or custom vendor extensions are black boxes.
-
-**`x-tagGroups` is different:**
-
-- **Structure:** Each entry is a group object: `{ name: string; tags: string[] }`.
-- **Semantics:** Groups are a _flat list_ mapping group names to tag names; the order matters, but the structure is regular.
-- **Concatenation is safe:** Merging two lists of groups by dedupe + concatenation preserves all information and is a well-defined operation.
-- **Used by ReDoc:** ReDoc uses `x-tagGroups` to organize the sidebar; users expect all groups from all merged APIs to appear.
-
-This makes `x-tagGroups` a candidate for a special merge strategy, distinct from first-wins.
-
----
-
-## 4. Design Options
-
-### Option A: Hardcode `x-tagGroups` special case  
-**Pros:** Simple, solves the immediate problem.  
-**Cons:** Doesn't help future extensions with similar array-of-objects semantics. If another ReDoc extension needs concatenation, we're back to hardcoding.
-
-### Option B: Generic configurable extension-merge strategy  
-Add an optional `extensionMergeStrategies?: { [extensionKey: string]: 'first' | 'concat' | 'deep-merge' }` to allow users to opt extensions in.  
-**Pros:** Flexible; future-proof.  
-**Cons:** More complex API; users must understand extension semantics.
-
-### **Option C: Both hardcode `x-tagGroups` + expose configurable strategy** ✓ **Recommended**  
-- Ship the correct behaviour for `x-tagGroups` by default (concatenate + dedupe).
-- Expose the configurable mechanism so users and future developers can extend or override.
-- Default all other `x-*` extensions to first-wins for backwards compatibility.
-
-**Rationale:** Solves the immediate issue without breaking changes, and provides a path for future ReDoc-style extensions.
-
----
-
-## 5. Concatenation Semantics for `x-tagGroups`
-
-Define the merge algorithm precisely:
-
-1. **Per-input processing:** For each input, collect the `x-tagGroups` array (if present).
-2. **Group deduplication by name:** Iterate over all groups in input order. For each group:
-   - If a group with the same `name` has already been seen, concatenate the `tags` arrays.
-   - Dedupe tags within the concatenated array (first-seen wins).
-   - If after deduping the group has zero tags, drop it.
-3. **Order preservation:** Groups appear in the order they were first encountered across all inputs.
-4. **Tag filtering:** If `excludeTags` strips a tag from the top-level `tags` array, that tag is also removed from any `x-tagGroups` entries (see section 6).
-5. **Output:** If the result is an empty array, omit `x-tagGroups` from the output (consistent with `tags` merge).
-
-**Example:**
-
-```
-Input 1: x-tagGroups = [{ name: "User", tags: ["get-user", "put-user"] }]
-Input 2: x-tagGroups = [{ name: "User", tags: ["delete-user"] }, { name: "Admin", tags: ["admin-only"] }]
-
-Output: x-tagGroups = [
-  { name: "User", tags: ["get-user", "put-user", "delete-user"] },
-  { name: "Admin", tags: ["admin-only"] }
-]
-```
-
----
-
-## 6. Interaction with `excludeTags`
-
-When `operationSelection.excludeTags` is specified for an input, those tags are removed from the merged `tags` array. **The same filtering must apply to `x-tagGroups`:**
-
-1. After merging `x-tagGroups`, filter out any tags that appear in any input's `excludeTags`.
-2. If a group becomes empty after filtering, drop it.
-
-**Example:**
-
-```
-Input 1: tags = ["user", "post"], x-tagGroups = [{ name: "API", tags: ["user", "post"] }]
-         excludeTags = []
-Input 2: tags = ["user", "admin"], x-tagGroups = [{ name: "Ops", tags: ["admin"] }]
-         excludeTags = ["admin"]
-
-After merge:
-  - tags = ["user", "post"] (top-level)
-  - x-tagGroups = [{ name: "API", tags: ["user", "post"] }] ("admin" group dropped)
-```
-
----
-
-## 7. API Shape
-
-**Recommended:** Add an optional `extensionMergeStrategies` to a shared global `MergeOptions` (proposed in issue #76). For now, if a global options second parameter is not yet available, add it at the library level in `merge()`.
-
-### Option 1: Global `MergeOptions` (preferred, aligns with #76)
+Special-case `x-tagGroups` inside `mergeExtensionsHelper` (or a sibling
+helper called from `mergeExtensions`), independent of `mergeTags`:
 
 ```typescript
-export type MergeOptions = {
-  /**
-   * Control how specific extensions are merged across inputs.
-   * Keys are extension names (e.g., 'x-tagGroups').
-   * Values: 'first' (default) | 'concat'.
-   * 
-   * Default (omitted): all extensions use 'first-wins' for backwards compatibility.
-   * x-tagGroups: concatenate + dedupe by group name.
-   */
-  extensionMergeStrategies?: { [extensionKey: string]: 'first' | 'concat' };
-};
+type TagGroup = { name: string; tags: string[] };
 
-export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
-  // ...
-}
-```
-
-### Option 2: Minimal (no global options yet)
-
-Simply hardcode `x-tagGroups` to use concat strategy in `extensions.ts`, with a JSDoc note explaining it.
-
-**Recommended approach:** Option 1 (aligns with #76) if you're open to a global options parameter; otherwise, hardcode with a comment noting the special case.
-
----
-
-## 8. Implementation Steps
-
-### Step 1: Update `packages/openapi-merge/src/extensions.ts`
-
-Add a helper function to merge arrays of tag-group objects:
-
-```typescript
-interface TagGroup {
-  name: string;
-  tags: string[];
-}
-
-function mergeTagGroups(tagGroupsArray: (TagGroup[] | undefined)[]): TagGroup[] | undefined {
-  // Collect all groups and their tags
-  const groupMap = new Map<string, Set<string>>();
+function mergeTagGroups(perInputGroups: (TagGroup[] | undefined)[]): TagGroup[] | undefined {
+  const tagsByGroup = new Map<string, Set<string>>();
   const groupOrder: string[] = [];
 
-  tagGroupsArray.forEach(groups => {
-    if (groups !== undefined) {
-      groups.forEach(group => {
-        if (!groupMap.has(group.name)) {
-          groupMap.set(group.name, new Set());
-          groupOrder.push(group.name);
-        }
-        group.tags.forEach(tag => {
-          groupMap.get(group.name)!.add(tag);
-        });
-      });
+  for (const groups of perInputGroups) {
+    for (const group of groups ?? []) {
+      if (!tagsByGroup.has(group.name)) {
+        tagsByGroup.set(group.name, new Set());
+        groupOrder.push(group.name);
+      }
+      group.tags.forEach(tag => tagsByGroup.get(group.name)!.add(tag));
     }
-  });
+  }
 
-  if (groupMap.size === 0) {
+  if (groupOrder.length === 0) {
     return undefined;
   }
-
-  // Reconstruct in order, filtering empty groups
-  const result: TagGroup[] = [];
-  groupOrder.forEach(name => {
-    const tags = Array.from(groupMap.get(name)!);
-    if (tags.length > 0) {
-      result.push({ name, tags });
-    }
-  });
-
-  return result.length > 0 ? result : undefined;
+  return groupOrder.map(name => ({ name, tags: [...tagsByGroup.get(name)!] }));
 }
 ```
 
-Update `mergeExtensionsHelper` to dispatch on extension key:
+Wired into `mergeExtensionsHelper` as a special case dispatched by key,
+alongside (not replacing) the generic first-wins loop for every other
+extension — matching the original draft's Option C, now against the real
+function.
 
-```typescript
-// Add near the top of the function after initializing result
-if (extensions.length === 1) {
-  return extensions[0];
-}
+## 5. Scope cut: leave `excludeTags` interaction as a known limitation
 
-const result = { ...extensions[0] };
+The original draft's §6 wanted `excludeTags`-filtered tags also stripped out
+of the merged `x-tagGroups`. Verified against current code: `mergeExtensions`
+receives `inputs.map(input => input.oas)` — raw documents only, **not** the
+`MergeInput[]` that carries `operationSelection.excludeTags` per input.
+Making that filtering work would mean changing `mergeExtensions`'s signature
+to take the full `MergeInput[]` instead of `OpenApiDocument[]`, which is a
+larger, more invasive change than this issue's actual complaint.
 
-// Special handling for x-tagGroups
-const tagGroupsArrays = extensions.map(ext => ext['x-tagGroups']);
-const mergedTagGroups = mergeTagGroups(tagGroupsArrays);
-if (mergedTagGroups !== undefined) {
-  result['x-tagGroups'] = mergedTagGroups;
-}
+`x-tagGroups` is not part of the OpenAPI spec — it's a ReDoc-only rendering
+hint. A group naming a tag that no longer has any operations after
+`excludeTags` filtering is cosmetically odd (ReDoc shows an empty section)
+but not invalid, unsafe, or spec-violating. Recommend treating this as an
+explicit **non-goal for a first cut**: concatenate and dedupe `x-tagGroups`
+without threading `excludeTags` through it, and revisit only if someone
+actually reports the cosmetic mismatch as a problem in practice.
 
-// ... rest of the loop, but skip x-tagGroups
-for (let extensionIndex = 1; extensionIndex < extensions.length; extensionIndex++) {
-  const ext = extensions[extensionIndex];
-  for (const extensionKey in ext) {
-    if (
-      extensionKey === 'x-tagGroups' ||
-      (result[extensionKey] === undefined && ext.hasOwnProperty(extensionKey))
-    ) {
-      // x-tagGroups already handled; skip other keys if present
-      if (extensionKey !== 'x-tagGroups' && result[extensionKey] === undefined) {
-        result[extensionKey] = ext[extensionKey];
-      }
-    }
-  }
-}
+## 6. Tests
 
-return result;
-```
+Add to `packages/openapi-merge/src/__tests__/x-tensions.test.ts` (the
+existing extensions suite lives in `document-metadata.test.ts`'s
+`describe('extensions', ...)` block today — extend that, rather than the
+non-existent file the original draft named):
 
-### Step 2: Update `packages/openapi-merge/src/tags.ts`
+- Concatenates `x-tagGroups` from multiple inputs, preserving first-seen
+  group order.
+- Dedupes tags within a group of the same name across inputs.
+- Other `x-*` extensions (e.g. `x-atlassian-narrative`) remain first-wins —
+  regression test for the existing pinned behaviour in §2.
+- No input defines `x-tagGroups` → key absent from output (matches today).
+- Only one input defines it → passed through unchanged (matches today, no
+  regression from the single-input short-circuit in `mergeExtensionsHelper`).
 
-Add a helper to filter tags out of `x-tagGroups`:
+## 7. Effort
 
-```typescript
-function filterExcludedTagsFromTagGroups(
-  tagGroups: TagGroup[] | undefined,
-  excludedTagNames: string[]
-): TagGroup[] | undefined {
-  if (tagGroups === undefined || excludedTagNames.length === 0) {
-    return tagGroups;
-  }
+| Task | Effort |
+| --- | --- |
+| `mergeTagGroups` + dispatch in `extensions.ts` | 30 min |
+| Tests | 30 min |
+| JSDoc / README note (if `x-tagGroups` is mentioned there — it currently isn't) | 10 min |
+| **Total** | **~1.25 hours** |
 
-  const filtered = tagGroups
-    .map(group => ({
-      ...group,
-      tags: group.tags.filter(tag => !excludedTagNames.includes(tag))
-    }))
-    .filter(group => group.tags.length > 0);
+Lower than the original ~1.5h estimate, since dropping the `excludeTags`
+interaction (§5) removes the one piece that would have required a wider
+signature change.
 
-  return filtered.length > 0 ? filtered : undefined;
-}
-```
+## 8. Opinion: is this worth building?
 
-Call this in `mergeTags` after all tags are merged:
+**Yes, and it's cheaper than the original estimate once scoped correctly.**
+The problem is real, reproducible today, narrow, and the fix is a small,
+self-contained addition to a file (`extensions.ts`) that already has exactly
+one job. It doesn't touch the CLI, the schema, or any trust/containment
+boundary, unlike #61 and #45. The only judgment call is §5's scope cut,
+and I'd defend it: solving the *reported* problem (groups silently
+disappearing) doesn't require solving a cosmetic edge case
+(`excludeTags`-vs-`x-tagGroups` consistency) nobody has reported.
 
-```typescript
-export function mergeTags(inputs: MergeInput, mergedOutput: Swagger.SwaggerV3): Swagger.SwaggerV3 {
-  // ... existing tag merge logic ...
+**Recommendation: implement, scoped to §4 + §6, with §5 as an explicit,
+documented non-goal rather than a silent gap.**
 
-  // Apply excludeTags filtering to x-tagGroups if present
-  if (mergedOutput['x-tagGroups'] !== undefined) {
-    const allExcludedTags = new Set<string>();
-    inputs.forEach(input => {
-      const excludeTags = input.operationSelection?.excludeTags ?? [];
-      excludeTags.forEach(tag => allExcludedTags.add(tag));
-    });
+## 9. Non-goals
 
-    mergedOutput['x-tagGroups'] = filterExcludedTagsFromTagGroups(
-      mergedOutput['x-tagGroups'] as TagGroup[],
-      Array.from(allExcludedTags)
-    );
-  }
-
-  return result;
-}
-```
-
-### Step 3: Update `packages/openapi-merge/src/data.ts`
-
-Add JSDoc note to `SingleMergeInputBase` explaining `excludeTags` now affects `x-tagGroups`:
-
-```typescript
-/**
- * Any Operation tagged with one of the paths in this definition will be excluded from the merge result. 
- * Any tag mentioned in this list will also be excluded from the top level list of tags and from any
- * x-tagGroups entries.
- */
-excludeTags?: string[];
-```
-
----
-
-## 9. Tests
-
-Add to `packages/openapi-merge/src/__tests__/x-tensions.test.ts`:
-
-```typescript
-describe('x-tagGroups', () => {
-  it('should concatenate x-tagGroups from multiple inputs', () => {
-    const first = toOAS({});
-    first['x-tagGroups'] = [{ name: 'User', tags: ['get-user', 'post-user'] }];
-
-    const second = toOAS({});
-    second['x-tagGroups'] = [{ name: 'Admin', tags: ['admin-only'] }];
-
-    const expected = toOAS({});
-    expected['x-tagGroups'] = [
-      { name: 'User', tags: ['get-user', 'post-user'] },
-      { name: 'Admin', tags: ['admin-only'] }
-    ];
-
-    expectMergeResult(merge(toMergeInputs([first, second])), { output: expected });
-  });
-
-  it('should dedupe tags within x-tagGroups of the same name', () => {
-    const first = toOAS({});
-    first['x-tagGroups'] = [{ name: 'User', tags: ['get-user', 'put-user'] }];
-
-    const second = toOAS({});
-    second['x-tagGroups'] = [{ name: 'User', tags: ['delete-user', 'get-user'] }];
-
-    const expected = toOAS({});
-    expected['x-tagGroups'] = [{ name: 'User', tags: ['get-user', 'put-user', 'delete-user'] }];
-
-    expectMergeResult(merge(toMergeInputs([first, second])), { output: expected });
-  });
-
-  it('should filter excluded tags from x-tagGroups', () => {
-    const first = toOAS({});
-    first['x-tagGroups'] = [{ name: 'User', tags: ['get-user', 'delete-user'] }];
-
-    const second = toOAS({});
-    second['x-tagGroups'] = [{ name: 'Admin', tags: ['admin-only'] }];
-
-    const inputs = toMergeInputs([first, second]);
-    inputs[1].operationSelection = { excludeTags: ['admin-only'] };
-
-    const expected = toOAS({});
-    expected['x-tagGroups'] = [{ name: 'User', tags: ['get-user', 'delete-user'] }];
-
-    expectMergeResult(merge(inputs), { output: expected });
-  });
-
-  it('should drop empty x-tagGroups after filtering', () => {
-    const first = toOAS({});
-    first['x-tagGroups'] = [{ name: 'Admin', tags: ['admin-only'] }];
-
-    const inputs = toMergeInputs([first]);
-    inputs[0].operationSelection = { excludeTags: ['admin-only'] };
-
-    const expected = toOAS({});
-    // x-tagGroups should not be present
-
-    expectMergeResult(merge(inputs), { output: expected });
-  });
-
-  it('should still apply first-wins to other x-* extensions', () => {
-    const first = toOAS({});
-    first['x-custom-vendor'] = { setting: 'first' };
-
-    const second = toOAS({});
-    second['x-custom-vendor'] = { setting: 'second' };
-
-    const expected = toOAS({});
-    expected['x-custom-vendor'] = { setting: 'first' };
-
-    expectMergeResult(merge(toMergeInputs([first, second])), { output: expected });
-  });
-});
-```
-
----
-
-## 10. Backwards Compatibility & Versioning
-
-- **Behaviour change:** `x-tagGroups` now concatenates instead of using first-wins. This is a bug fix (the current behaviour silently loses data), but it is technically a breaking change if users relied on first-wins.
-- **Impact:** Users with `x-tagGroups` will see all groups from all inputs merged into the output. This is the expected behaviour.
-- **Recommendation:** Bump the library version to a minor release (e.g., `1.2.0` → `1.3.0`); call out in the changelog: "**Fixed:** `x-tagGroups` is now concatenated and deduped across inputs instead of using first-wins."
-- **Other extensions:** Unaffected; they continue to use first-wins.
-
----
-
-## 11. Acceptance Criteria
-
-- [ ] `mergeTagGroups` function correctly concatenates and dedupes groups by name.
-- [ ] Tags within merged groups are deduped (first-seen wins).
-- [ ] Empty groups after deduping are dropped.
-- [ ] `x-tagGroups` is omitted from output if no groups remain.
-- [ ] `excludeTags` filtering is applied to `x-tagGroups` entries.
-- [ ] Groups with zero tags after filtering are dropped.
-- [ ] Other `x-*` extensions continue to use first-wins (backwards compatible).
-- [ ] All existing tests pass.
-- [ ] New test cases cover concatenation, deduping, filtering, and interaction with `excludeTags`.
-- [ ] Library bumped to minor version.
-- [ ] Changelog updated with bug-fix entry.
-
----
-
-## 12. Effort Estimate
-
-**Confirmed:** Value 3/5, Effort 2/5.
-
-**Time breakdown:**
-- Implement `mergeTagGroups` and update `extensions.ts`: ~30 min.
-- Update `tags.ts` to filter `x-tagGroups`: ~20 min.
-- JSDoc updates: ~10 min.
-- Write and run tests: ~30 min.
-- **Total:** ~1.5 hours.
-
+- Filtering `x-tagGroups` by `excludeTags` (§5) — would require widening
+  `mergeExtensions`'s signature to accept `MergeInput[]`; deferred until
+  someone reports it as an actual problem, not merely a theoretical
+  inconsistency.
+- A generic, user-configurable per-extension merge strategy (the original
+  draft's Option B). Nothing else has asked for this; `x-tagGroups` is the
+  one extension with well-known, safely-mergeable semantics today.
+- Any other ReDoc/vendor extension beyond `x-tagGroups`.
