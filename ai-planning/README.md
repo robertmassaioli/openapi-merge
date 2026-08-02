@@ -72,6 +72,8 @@ dependency health, build migrations. Named by topic rather than by issue number.
 | [`41-proposal-release-gated-npm-publish.md`](41-proposal-release-gated-npm-publish.md) | `npm-publish.yml` triggers on a published GitHub Release instead of every push to `main` |
 | [`42-proposal-create-output-directories.md`](42-proposal-create-output-directories.md) | Auto-create missing output directories, improving on PR #88's non-recursive, uncaught-exception approach |
 | [`44-proposal-path-based-operation-selection.md`](44-proposal-path-based-operation-selection.md) | ✅ `includePaths`/`excludePaths`, wildcard-matched like `TagMatcher` (review of PR #67) |
+| [`45-proposal-external-ref-equality-in-dedup.md`](45-proposal-external-ref-equality-in-dedup.md) | ✅ `CrossDocumentLookup`: component dedup resolves a cross-document `$ref` instead of crashing on it (PR #87) |
+| [`46-proposal-local-reference-cycle-guard.md`](46-proposal-local-reference-cycle-guard.md) | ✅ Reimplements `CrossDocumentLookup`'s resolution directly so a single cycle guard covers local and cross-document refs alike |
 | [`issue-triage-value-vs-effort.md`](issue-triage-value-vs-effort.md) | Value/effort scoring of every open issue; the index into `issues/` |
 | [`spec-edge-case-findings.md`](spec-edge-case-findings.md) | Divergences between the merge and the spec, found by edge-case testing |
 | [`bun-tsgo-migration-build-timings.md`](bun-tsgo-migration-build-timings.md) | Measured build timings for the Bun + tsgo migration |

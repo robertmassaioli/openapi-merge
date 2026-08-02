@@ -1,5 +1,5 @@
 import { MergeInput, ErrorMergeResult, Dispute } from "./data";
-import { Swagger, SwaggerLookup } from "@atlassian/atlassian-openapi";
+import { Swagger } from "@atlassian/atlassian-openapi";
 import { walkAllReferences } from "./reference-walker";
 import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";
@@ -10,6 +10,7 @@ import { applyDispute, getDispute } from './dispute';
 import { DEFAULT_SECURITY_SCHEMES_STRATEGY, SecuritySchemesStrategy } from './security-schemes';
 import { Components31, getPathItemOperations, getPaths, getWebhooks, OpenApiDocument, PathItem32, PathItemMap } from './oas31';
 import { createCrossDocumentResolver, ReferenceModificationByIdentity, splitCrossDocumentRef } from './external-references';
+import { buildKnownDocuments, CrossDocumentLookup } from './cross-document-lookup';
 import { isReference, required } from './safe-type-checks';
 
 export type PathAndComponents = {
@@ -387,6 +388,15 @@ export function mergePathsAndComponents(
     }
   }
 
+  // Every document a cross-document `$ref` might name during dedup: each
+  // declared input's own (untransformed) document, keyed by its
+  // `sourceIdentity`, plus `externalDocuments`. Built once -- `inputs` and
+  // `externalDocuments` don't change across the loop below, and a later
+  // input's document must already be resolvable by an *earlier* input's
+  // dedup check (component content, unlike renames, doesn't depend on
+  // processing order).
+  const knownDocuments = buildKnownDocuments(inputs, ambiguousIdentities, externalDocuments);
+
   for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
     const input = inputs[inputIndex];
 
@@ -420,11 +430,16 @@ export function mergePathsAndComponents(
       const components = required(oas.components as Components31 | null, 'a Components Object', '#/components');
       oas.components = components;
 
-      const resultLookup = new SwaggerLookup.InternalLookup({ openapi: '3.0.1', info: { title: 'dummy', version: '0' }, paths: {}, components: result.components });
-      // InternalLookup is 3.0-shaped and needs a concrete `paths`. A 3.1
-      // document may legitimately have none, and the lookup only resolves
-      // component `$ref`s, so an empty object is equivalent for its purposes.
-      const currentLookup = new SwaggerLookup.InternalLookup({ ...oas, paths: getPaths(oas) });
+      // `CrossDocumentLookup` resolves a bare ref exactly as `InternalLookup`
+      // would (3.0-shaped, needing a concrete `paths`, which it supplies the
+      // same way `InternalLookup` used to be given one here); it additionally
+      // resolves a cross-document ref against `knownDocuments` instead of
+      // giving up on it (issue: PR #87 / proposal 45, Option C).
+      const resultLookup = new CrossDocumentLookup(
+        { openapi: '3.0.1', info: { title: 'dummy', version: '0' }, components: result.components },
+        knownDocuments,
+      );
+      const currentLookup = new CrossDocumentLookup(oas, knownDocuments);
 
       // Indexing a heterogeneous record by a dynamic key: every value here is a
       // `{ [name: string]: A }`, but TypeScript cannot prove the A matches
@@ -698,12 +713,13 @@ export function mergePathsAndComponents(
     ambiguousIdentities,
     externalDocuments,
     result.components,
+    knownDocuments,
   );
 
   let crossDocumentError: ErrorMergeResult | undefined;
   // `walkAllReferences` wants a full `OpenApiDocument`; `result` only carries
   // the subset it actually reads (`paths`/`webhooks`/`components`), the same
-  // gap `SwaggerLookup.InternalLookup` papers over elsewhere in this file.
+  // gap `CrossDocumentLookup`/`InternalLookup` paper over elsewhere in this file.
   walkAllReferences({ openapi: '3.0.1', info: { title: 'dummy', version: '0' }, ...result }, ref => {
     if (crossDocumentError !== undefined || ref.startsWith('#')) {
       // Bare same-document refs were already handled correctly by the
