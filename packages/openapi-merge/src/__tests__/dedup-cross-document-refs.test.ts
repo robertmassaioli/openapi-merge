@@ -2,7 +2,7 @@ import { merge } from '../index';
 import { at, doc30, expectSuccess, schema, schemaKeys } from './_helpers/documents';
 
 /**
- * End-to-end coverage for Option C of 42-proposal-external-ref-equality-in-dedup.md
+ * End-to-end coverage for Option C of 45-proposal-external-ref-equality-in-dedup.md
  * (`CrossDocumentLookup`): component dedup comparing two values that contain a
  * cross-document `$ref` no longer crashes, and -- the part a naive "trust
  * identical ref strings" fix (the PR #87 diff itself) would not get right --

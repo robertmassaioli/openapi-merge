@@ -1,3 +1,5 @@
+import { WILDCARD, patternToRegExp } from './wildcard-matching';
+
 /**
  * Tag matching for `includeTags` and `excludeTags`, with `*` wildcards
  * (issue #111).
@@ -6,26 +8,10 @@
  * enumerate every tag and remember to update the configuration whenever one was
  * added. Forgetting silently includes or excludes the wrong operations, which
  * is the failure mode the tag mechanism exists to prevent.
- */
-
-/**
- * `*` matches any run of characters, including none. Nothing else is special.
  *
- * Only `*` is supported — not `?`, not character classes, not full regular
- * expressions. Tag names are short identifiers and `service-*` is the whole of
- * what was asked for; accepting regular expressions would make every existing
- * configuration's tags into patterns whose meaning depends on characters people
- * did not know were significant.
+ * The wildcard syntax and its escaping/anchoring rules live in
+ * `wildcard-matching.ts`, shared with `PathMatcher` (proposal 43).
  */
-const WILDCARD = '*';
-
-function patternToRegExp(pattern: string): RegExp {
-  // Escape first, so a tag containing regex metacharacters -- `v1.0`, `a+b`,
-  // `(beta)` -- is matched literally, then reintroduce `*` as the one
-  // metacharacter. Anchored: `service-*` must not match `my-service-a`.
-  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`^${escaped.split('\\*').join('.*')}$`);
-}
 
 /**
  * A compiled matcher for a list of tag patterns.

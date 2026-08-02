@@ -22,6 +22,7 @@
  * | 8         | ExitCode.ErrorInputUrlUnexpectedStatus | `inputURL` non-2xx, neither 4xx nor 5xx  |
  * | 9         | ExitCode.ErrorOpenApiVersion           | Input version unsupported or inconsistent |
  * | 10        | ExitCode.ErrorUnsafeInputPath          | A local file read escaped `inputRoot`    |
+ * | 11        | ExitCode.ErrorCreatingOutputDirectory  | Could not create the output directory   |
  */
 export enum ExitCode {
   /**
@@ -192,4 +193,22 @@ export enum ExitCode {
    * comparing, so a symlink pointing out of the jail does not defeat it.
    */
   ErrorUnsafeInputPath = 10,
+
+  /**
+   * A directory in the resolved output path's ancestry was missing and could
+   * not be created.
+   *
+   * Fires after the `outputRoot`/`--restrict-output-to` containment check has
+   * already passed -- this is not a rejection of *where* the output would go,
+   * it is the filesystem refusing to cooperate once that location was
+   * allowed. Most commonly a permissions error, a read-only filesystem, or a
+   * path component that already exists as a regular file (e.g. `output:
+   * './build.json/nested/out.json'` where `build.json` is a file, not a
+   * directory).
+   *
+   * Distinguished from {@link ExitCode.ErrorUnsafePath}: that code means the
+   * path was never going to be attempted; this one means it was attempted and
+   * the filesystem said no.
+   */
+  ErrorCreatingOutputDirectory = 11,
 }

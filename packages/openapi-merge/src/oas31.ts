@@ -1,4 +1,5 @@
 import { Swagger } from '@atlassian/atlassian-openapi';
+import { required } from './safe-type-checks';
 
 /**
  * OpenAPI 3.1 modelled as a delta over the 3.0 types.
@@ -72,22 +73,42 @@ export type PathItemMap = { [key: string]: PathItem32 };
  * Returns entries rather than just values so callers that need to delete an
  * operation (tag-based selection) can address it.
  */
+/**
+ * The single place every caller reaches a Path Item's operations through
+ * (issue #92 / proposal 40) -- rather than guard `pathItem[method] !==
+ * undefined` at each of the seven call sites across five files, the guard
+ * lives here once, so every caller inherits it automatically.
+ *
+ * Filtering a `null` operation out of the returned list, rather than erroring,
+ * was considered and rejected: a Path Item whose only operation is `null`
+ * would then score zero operations, and `dropPathItemsWithNoOperations` would
+ * delete the whole path silently -- worse than today's crash, which at least
+ * reveals that something happened (proposal 40 §4.1).
+ */
 export function getPathItemOperations(
   pathItem: PathItem32,
 ): Array<{ method: string; operation: Swagger.Operation; isAdditional: boolean }> {
+  const item = required(pathItem as PathItem32 | null, 'a Path Item Object or Reference');
   const found: Array<{ method: string; operation: Swagger.Operation; isAdditional: boolean }> = [];
 
   for (const method of HTTP_METHODS) {
-    const operation = pathItem[method];
+    const operation = required(
+      item[method] as Swagger.Operation | null | undefined,
+      `an Operation Object for HTTP method '${method}'`,
+    );
     if (operation !== undefined) {
       found.push({ method, operation, isAdditional: false });
     }
   }
 
-  const additional = pathItem.additionalOperations;
+  const additional = item.additionalOperations;
   if (additional !== undefined) {
     for (const method of Object.keys(additional)) {
-      found.push({ method, operation: additional[method], isAdditional: true });
+      const operation = required(
+        additional[method] as Swagger.Operation | null,
+        `an Operation Object for method '${method}'`,
+      );
+      found.push({ method, operation, isAdditional: true });
     }
   }
 

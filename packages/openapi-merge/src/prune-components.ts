@@ -43,6 +43,17 @@ function collectReferences(collect: (type: string, name: string) => void): (ref:
  * made renaming them wrong in issue #33). Pruning without this would delete
  * every security scheme in the document.
  */
+/**
+ * `Object.keys(requirement)` would crash on a `null` requirement item
+ * (`security: [ ]`, an authoring mistake -- proposal 40), but nothing here
+ * guards against it: `pruneUnusedComponents` only ever runs, via `merge()`,
+ * on an already-merged `output` document, and every input's `security` and
+ * `operation.security` was already walked and validated (the same crash,
+ * caught earlier and clearly) while it was being merged in
+ * (`renameSecurityRequirements`, `paths-and-components.ts`). A `null` here
+ * would mean that guard was skipped, which is a bug elsewhere, not a case to
+ * silently tolerate a second time.
+ */
 function securitySchemesInUse(oas: OpenApiDocument): string[] {
   const names: string[] = [];
 

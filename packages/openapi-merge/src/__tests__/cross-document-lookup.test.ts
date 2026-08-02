@@ -4,7 +4,7 @@ import { doc30, schema } from './_helpers/documents';
 
 /**
  * Unit tests against `CrossDocumentLookup` directly, rather than only through
- * `merge()` -- the class is the seam Option C (42-proposal-external-ref-equality-in-dedup.md)
+ * `merge()` -- the class is the seam Option C (45-proposal-external-ref-equality-in-dedup.md)
  * adds, so it earns its own coverage independent of how `paths-and-components.ts`
  * and `external-references.ts` happen to wire it up today.
  */
@@ -59,7 +59,7 @@ describe('CrossDocumentLookup', () => {
 
       // Title backfill is keyed off the ref *passed in* ('A'), not where the
       // chain bottoms out ('C') -- matches InternalLookup's own rule for this
-      // fully-local case; see 43-proposal-local-reference-cycle-guard.md
+      // fully-local case; see 46-proposal-local-reference-cycle-guard.md
       // §2.1.1 for how a chain that also crosses a document boundary anchors.
       expect(lookup.getSchema({ $ref: '#/components/schemas/A' })).toEqual({ type: 'number', title: 'A' });
     });
@@ -109,6 +109,55 @@ describe('CrossDocumentLookup', () => {
       const lookup = new CrossDocumentLookup(local);
 
       expect(() => lookup.getSchema({ $ref: '#foo' })).toThrow('Invalid JSON pointer');
+    });
+
+    it('throws a clear MalformedDocumentError, not a raw TypeError, for a null structural slot (bare ref)', () => {
+      // `Foo:` with nothing written after it parses to `null`, not `{}`.
+      // `typeof null === 'object'`, so every `SwaggerTypeChecks` predicate
+      // this class calls (`TC.isReference` first) would otherwise throw an
+      // opaque `TypeError` from deep inside a dependency -- this class does
+      // its own `jsonpointer` fetch rather than going through `InternalLookup`,
+      // so it doesn't inherit that module's null-safety for free (see
+      // safe-type-checks.ts's own docstring, ai-planning/40-proposal-null-safe
+      // -document-walking.md §2.1). `required()` turns it into one clear,
+      // named, located error instead.
+      const local = doc30({ components: { schemas: { Foo: null as unknown as Record<string, unknown> } } });
+      const lookup = new CrossDocumentLookup(local);
+
+      expect(() => lookup.getSchema({ $ref: '#/components/schemas/Foo' }))
+        .toThrow('Expected a Schema Object at \'#/components/schemas/Foo\', found null');
+    });
+
+    it('throws a clear MalformedDocumentError for a null structural slot (cross-document ref)', () => {
+      const external = doc30({ components: { schemas: { Foo: null as unknown as Record<string, unknown> } } });
+      const lookup = new CrossDocumentLookup(doc30({}), { 'x.yaml': external });
+
+      expect(() => lookup.getSchema({ $ref: 'x.yaml#/components/schemas/Foo' }))
+        .toThrow('Expected a Schema Object at \'x.yaml#/components/schemas/Foo\', found null');
+    });
+
+    it('names the right expected type per accessor for a null structural slot', () => {
+      // Not just getSchema -- every accessor threads its own label through.
+      const local = doc30({
+        components: {
+          callbacks: { OnData: null as unknown as Swagger.Callback },
+          requestBodies: { Body: null as unknown as Swagger.RequestBody },
+        },
+      });
+      const lookup = new CrossDocumentLookup(local);
+
+      expect(() => lookup.getCallback({ $ref: '#/components/callbacks/OnData' })).toThrow('Expected a Callback Object');
+      expect(() => lookup.getRequestBody({ $ref: '#/components/requestBodies/Body' })).toThrow('Expected a Request Body Object');
+    });
+
+    it('does not throw for undefined (genuinely absent), only for null', () => {
+      // required() only guards against `null`; a jsonpointer miss (the target
+      // key doesn't exist at all) still returns `undefined` and is treated as
+      // "not found", not a malformed document.
+      const lookup = new CrossDocumentLookup(doc30({ components: { schemas: {} } }));
+
+      expect(() => lookup.getSchema({ $ref: '#/components/schemas/Missing' })).not.toThrow();
+      expect(lookup.getSchema({ $ref: '#/components/schemas/Missing' })).toBeUndefined();
     });
   });
 
@@ -205,7 +254,7 @@ describe('CrossDocumentLookup', () => {
       const lookup = new CrossDocumentLookup(doc30({}), { 'b.yaml': docB, 'c.yaml': docC });
 
       // Title anchors on the ref actually asked for ('Middle'), not wherever
-      // the chain bottoms out ('Inner') -- see 43-proposal-local-reference
+      // the chain bottoms out ('Inner') -- see 46-proposal-local-reference
       // -cycle-guard.md §2.1.1 for why this is a deliberate rule, not the
       // "whichever hop was the last foreign-boundary crossing" behaviour an
       // earlier, delegate-based implementation happened to produce.
@@ -281,7 +330,7 @@ describe('CrossDocumentLookup', () => {
       expect(lookup.getSchema({ $ref: 'x.yaml#/components/schemas/A' })).toBeUndefined();
     });
 
-    it('returns undefined, not a hang, for a purely local cycle (43-proposal-local-reference-cycle-guard.md)', () => {
+    it('returns undefined, not a hang, for a purely local cycle (46-proposal-local-reference-cycle-guard.md)', () => {
       // Previously *not* safe to test here at all: delegating a bare ref to
       // the third-party `InternalLookup` meant this exact input hung
       // indefinitely on Bun (confirmed with a 5-second hard timeout, exit

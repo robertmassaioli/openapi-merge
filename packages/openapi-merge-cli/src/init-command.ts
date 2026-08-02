@@ -325,11 +325,13 @@ export const PER_INPUT_OPTIONAL_BLOCKS: ReadonlyArray<OptionalFieldBlock> = [
   },
   {
     name: 'operationSelection',
-    explanation: 'Only keep operations with these tags, or drop operations with these tags (exclusion wins on conflict).',
+    explanation: 'Only keep operations with these tags or paths, or drop operations with these tags or paths (exclusion wins on conflict; * wildcards a path).',
     yaml: [
       'operationSelection:',
       '  includeTags: [public]',
       '  excludeTags: [internal]',
+      '  includePaths: [{ path: /public/* }]',
+      '  excludePaths: [{ path: /admin/*, method: get }]',
     ].join('\n'),
   },
   {

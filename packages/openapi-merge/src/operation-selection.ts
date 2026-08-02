@@ -1,8 +1,9 @@
 import _ from 'lodash';
 import { Swagger } from "@atlassian/atlassian-openapi";
-import { OperationSelection } from './data';
+import { OperationSelection, PathSelector } from './data';
 import { getPathItemOperations, HttpMethod, OpenApiDocument, PathItem32, PathItemMap } from './oas31';
 import { TagMatcher } from './tag-matching';
+import { PathMatcher } from './path-matching';
 
 /**
  * Remove an operation from a Path Item, whether it sits in a standard method
@@ -32,10 +33,16 @@ function operationBearingMaps(oas: OpenApiDocument): Array<PathItemMap | undefin
   return [oas.paths, oas.webhooks];
 }
 
-/** Remove every operation for which `shouldRemove` holds, across paths and webhooks. */
+/**
+ * Remove every operation for which `shouldRemove` holds, across paths and
+ * webhooks. `path` and `method` are the operation's own, pre-`pathModification`
+ * key and method (including a 3.2 `additionalOperations` custom verb) -- a
+ * tag-based predicate ignores them; a path-based one (`PathMatcher`) needs
+ * them, since neither is present on the Operation Object itself.
+ */
 function removeOperations(
   originalOas: OpenApiDocument,
-  shouldRemove: (operation: Swagger.Operation) => boolean,
+  shouldRemove: (operation: Swagger.Operation, path: string, method: string) => boolean,
 ): OpenApiDocument {
   const oas = _.cloneDeep(originalOas);
 
@@ -47,10 +54,10 @@ function removeOperations(
     for (const key of Object.keys(map)) {
       const pathItem = map[key];
 
-      // Covers `query` and every custom verb in `additionalOperations`, so tag
-      // filtering cannot silently skip a 3.2 operation either.
+      // Covers `query` and every custom verb in `additionalOperations`, so
+      // selection cannot silently skip a 3.2 operation either.
       for (const { method, operation, isAdditional } of getPathItemOperations(pathItem)) {
-        if (shouldRemove(operation)) {
+        if (shouldRemove(operation, key, method)) {
           deleteOperation(pathItem, method, isAdditional);
         }
       }
@@ -78,11 +85,50 @@ function includeOperationsThatHaveTags(originalOas: OpenApiDocument, includeTags
   return removeOperations(originalOas, operation => !operationContainsAnyTag(operation, matcher));
 }
 
+/**
+ * `includePaths`/`excludePaths` (proposal 43 / PR #67).
+ *
+ * Composed the same way `includeTags`/`excludeTags` already are in
+ * `runOperationSelection` below: sequential removal passes, which is what
+ * gives "an operation excluded by either kind is excluded" and "an operation
+ * must clear every include list configured" for free, without a separate
+ * combining step.
+ */
+function dropOperationsThatHavePaths(originalOas: OpenApiDocument, excludedPaths: PathSelector[]): OpenApiDocument {
+  const matcher = new PathMatcher(excludedPaths);
+  if (matcher.isEmpty) {
+    return originalOas;
+  }
 
+  return removeOperations(originalOas, (_operation, path, method) => matcher.matches(path, method));
+}
+
+function includeOperationsThatHavePaths(originalOas: OpenApiDocument, includedPaths: PathSelector[]): OpenApiDocument {
+  const matcher = new PathMatcher(includedPaths);
+  if (matcher.isEmpty) {
+    return originalOas;
+  }
+
+  return removeOperations(originalOas, (_operation, path, method) => !matcher.matches(path, method));
+}
+
+/**
+ * Runs before `pathModification` is applied (`paths-and-components.ts`), so
+ * `includePaths`/`excludePaths` selectors are matched against this input's
+ * own original path spelling, not the path it will have in the merged output.
+ */
 export function runOperationSelection(originalOas: OpenApiDocument, operationSelection: OperationSelection | undefined): OpenApiDocument {
   if (operationSelection === undefined) {
     return originalOas;
   }
 
-  return dropOperationsThatHaveTags(includeOperationsThatHaveTags(originalOas, operationSelection.includeTags || []), operationSelection.excludeTags || []);
+  const byTags = dropOperationsThatHaveTags(
+    includeOperationsThatHaveTags(originalOas, operationSelection.includeTags || []),
+    operationSelection.excludeTags || [],
+  );
+
+  return dropOperationsThatHavePaths(
+    includeOperationsThatHavePaths(byTags, operationSelection.includePaths || []),
+    operationSelection.excludePaths || [],
+  );
 }

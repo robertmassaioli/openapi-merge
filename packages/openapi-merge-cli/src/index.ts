@@ -9,7 +9,7 @@ import { Command } from 'commander';
 // module without widening the compilation. require() is the pragmatic option.
 /* eslint-disable-next-line @typescript-eslint/no-require-imports */
 const pjson = require('../package.json');
-import { merge, MergeInput } from 'openapi-merge';
+import { MalformedDocumentError, merge, MergeInput } from 'openapi-merge';
 import fs from 'fs';
 import path from 'path';
 import { ErrorMergeResult, isErrorResult, SingleMergeInput } from "openapi-merge/dist/data";
@@ -18,7 +18,7 @@ import { Swagger } from "@atlassian/atlassian-openapi";
 import { dump as dumpYaml } from 'js-yaml';
 import { readFileAsString, readYamlOrJSON } from "./file-loading";
 import { ExitCode } from "./exit-codes";
-import { assertInputContained, assertOutputContained, InputOutsideRootError, OutputOutsideRootError, resolveConfigPath } from "./path-resolution";
+import { assertInputContained, assertOutputContained, InputOutsideRootError, OutputDirectoryCreationError, OutputOutsideRootError, resolveConfigPath } from "./path-resolution";
 import { discoverExternalDocuments, DocumentReference, fileInputIdentity, urlInputIdentity } from "./external-reference-discovery";
 import { indentToJsonStringifyArg, indentToYamlArg } from "./formatting";
 import { DEFAULT_INDENT, Indent } from "./data";
@@ -363,6 +363,17 @@ function writeOutput(outputFullPath: string, outputSchema: OpenApiDocument, inde
     ? dumpAsYaml(outputSchema, indent)
     : JSON.stringify(outputSchema, null, indentToJsonStringifyArg(indent));
 
+  // Runs after assertOutputContained() has already approved outputFullPath
+  // (proposal 42) -- every directory this creates is an ancestor of an
+  // already-validated path, so it cannot land outside outputRoot.
+  const outputDir = path.dirname(outputFullPath);
+  try {
+    fs.mkdirSync(outputDir, { recursive: true });
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    throw new OutputDirectoryCreationError(outputDir, reason);
+  }
+
   fs.writeFileSync(outputFullPath, fileContents);
 }
 
@@ -425,11 +436,30 @@ export async function main(): Promise<void> {
   // or URL nobody declared as an input gets followed and loaded. `inputRoot`
   // bounds where a discovered *file* may come from (proposal 38); a
   // discovered URL is untouched by it.
-  const discovery = await discoverExternalDocuments(
-    inputs.map((input, i) => ({ document: input.oas, reference: references[i] })),
-    config.resolveExternalReferences === true,
-    inputRoot,
-  );
+  // A declared input's own malformed content (a `null` in a structural slot,
+  // e.g. `paths: { '/a': { get: } }`) is a hard failure here, not a warning --
+  // unlike a *discovered* document's, which `discoverExternalDocuments` itself
+  // already downgrades to a `DiscoveryWarning` (proposal 40 §4.4): the config
+  // author is responsible for what they declared, same posture as
+  // `inputRoot`'s hard-fail-on-violation for declared inputs (proposal 38
+  // §2.4). Caught narrowly and exits `ErrorMerging`, the same code and the
+  // same clean-message treatment `merge()`'s own errors already get below --
+  // this is the same class of authoring problem, just caught one step earlier.
+  let discovery: Awaited<ReturnType<typeof discoverExternalDocuments>>;
+  try {
+    discovery = await discoverExternalDocuments(
+      inputs.map((input, i) => ({ document: input.oas, reference: references[i] })),
+      config.resolveExternalReferences === true,
+      inputRoot,
+    );
+  } catch (e) {
+    if (e instanceof MalformedDocumentError) {
+      console.error(`Error merging files: ${e.message} (malformed-document)`);
+      process.exit(ExitCode.ErrorMerging);
+      return;
+    }
+    throw e;
+  }
 
   // Reported before the containment check below exits, so an ordinary
   // discovery failure elsewhere in the same run is not hidden behind a
@@ -483,8 +513,16 @@ export async function main(): Promise<void> {
 
   logger.log(`## Inputs merged, writing the results out to '${outputFullPath}'`);
 
-
-  writeOutput(outputFullPath, mergeResult.output, config.formatting?.indent);
+  try {
+    writeOutput(outputFullPath, mergeResult.output, config.formatting?.indent);
+  } catch (e) {
+    if (e instanceof OutputDirectoryCreationError) {
+      console.error(e.message);
+      process.exit(ExitCode.ErrorCreatingOutputDirectory);
+      return;
+    }
+    throw e;
+  }
 
   logger.log(`## Finished writing to '${outputFullPath}'`);
 }

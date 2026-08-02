@@ -20,6 +20,7 @@ const documented: { [member: string]: number } = {
   ErrorInputUrlUnexpectedStatus: 8,
   ErrorOpenApiVersion: 9,
   ErrorUnsafeInputPath: 10,
+  ErrorCreatingOutputDirectory: 11,
 };
 
 describe('ExitCode contract', () => {

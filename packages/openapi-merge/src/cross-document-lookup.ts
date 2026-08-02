@@ -2,6 +2,7 @@ import jsonpointer from 'jsonpointer';
 import { Swagger, SwaggerLookup, SwaggerTypeChecks as TC } from '@atlassian/atlassian-openapi';
 import { OpenApiDocument } from './oas31';
 import { splitCrossDocumentRef } from './external-references';
+import { required } from './safe-type-checks';
 
 /**
  * `SwaggerLookup.InternalLookup` (from `@atlassian/atlassian-openapi`) is not
@@ -31,8 +32,21 @@ import { splitCrossDocumentRef } from './external-references';
  * falls out of not having two different resolution mechanisms to keep a
  * cycle guard in sync with.
  *
- * @see 42-proposal-external-ref-equality-in-dedup.md, Option C.
- * @see 43-proposal-local-reference-cycle-guard.md, Option B.
+ * `typeof null === 'object'` in JavaScript, and every `SwaggerTypeChecks`
+ * predicate this class calls relies on that to mean "a real object" --
+ * so a `null` in a structural slot (an empty YAML value: a component name
+ * with nothing written after it) throws a raw `TypeError` from deep inside
+ * one of them, same as it always did before `safe-type-checks.ts` existed
+ * (see ai-planning/40-proposal-null-safe-document-walking.md §2.1). This
+ * class does its own `jsonpointer` fetch rather than going through
+ * `InternalLookup`, so it did not inherit that module's guard for free --
+ * every fetched value is passed through {@link required} before any
+ * `SwaggerTypeChecks` call sees it, for the same reason and with the same
+ * "fail clearly, don't crash or guess" answer proposal 40 already gave
+ * everywhere else in this library.
+ *
+ * @see 45-proposal-external-ref-equality-in-dedup.md, Option C.
+ * @see 46-proposal-local-reference-cycle-guard.md, Option B.
  */
 export class CrossDocumentLookup implements SwaggerLookup.Lookup {
   private readonly localDocument: OpenApiDocument;
@@ -44,35 +58,35 @@ export class CrossDocumentLookup implements SwaggerLookup.Lookup {
   }
 
   getCallback(c: Swagger.Callback | Swagger.Reference): Swagger.Callback | undefined {
-    return this.resolve(c, TC.isCallback);
+    return this.resolve(c, TC.isCallback, 'a Callback Object');
   }
 
   getExample(e: Swagger.Example | Swagger.Reference): Swagger.Example | undefined {
-    return this.resolve(e, TC.isExample);
+    return this.resolve(e, TC.isExample, 'an Example Object');
   }
 
   getHeaders(h: Swagger.Header | Swagger.Reference): Swagger.Header | undefined {
-    return this.resolve(h, TC.isHeader);
+    return this.resolve(h, TC.isHeader, 'a Header Object');
   }
 
   getLink(link: Swagger.Link | Swagger.Reference): Swagger.Link | undefined {
-    return this.resolve(link, TC.isLink);
+    return this.resolve(link, TC.isLink, 'a Link Object');
   }
 
   getParam(p: Swagger.ParameterOrRef): Swagger.Parameter | undefined {
-    return this.resolve(p, TC.isParameter);
+    return this.resolve(p, TC.isParameter, 'a Parameter Object');
   }
 
   getRequestBody(b: Swagger.RequestBody | Swagger.Reference): Swagger.RequestBody | undefined {
-    return this.resolve(b, TC.isRequestBody);
+    return this.resolve(b, TC.isRequestBody, 'a Request Body Object');
   }
 
   getResponse(r: Swagger.Response | Swagger.Reference): Swagger.Response | undefined {
-    return this.resolve(r, TC.isResponse);
+    return this.resolve(r, TC.isResponse, 'a Response Object');
   }
 
   getSecurityScheme(ss: Swagger.SecurityScheme | Swagger.Reference): Swagger.SecurityScheme | undefined {
-    return this.resolve(ss, TC.isSecurityScheme);
+    return this.resolve(ss, TC.isSecurityScheme, 'a Security Scheme Object');
   }
 
   /**
@@ -88,7 +102,7 @@ export class CrossDocumentLookup implements SwaggerLookup.Lookup {
   }
 
   getSchema(s: Swagger.Schema | Swagger.Reference): Swagger.Schema | undefined {
-    const result = this.resolve(s, TC.isSchema);
+    const result = this.resolve(s, TC.isSchema, 'a Schema Object');
     if (result === undefined || !TC.isReference(s) || (result as { title?: string }).title !== undefined) {
       return result;
     }
@@ -104,11 +118,15 @@ export class CrossDocumentLookup implements SwaggerLookup.Lookup {
     return segments.length === 4 ? { ...result, title: segments[3] } : result;
   }
 
-  private resolve<T>(value: T | Swagger.Reference, tCheck: (v: unknown) => v is T): T | undefined {
+  private resolve<T>(
+    value: T | Swagger.Reference,
+    tCheck: (v: unknown) => v is T,
+    expected: string,
+  ): T | undefined {
     if (!TC.isReference(value)) {
       return value;
     }
-    return this.resolveFrom(undefined, this.localDocument, value.$ref, tCheck, new Set());
+    return this.resolveFrom(undefined, this.localDocument, value.$ref, tCheck, expected, new Set());
   }
 
   /**
@@ -120,12 +138,15 @@ export class CrossDocumentLookup implements SwaggerLookup.Lookup {
    *   ref discovered partway through (another document's own local alias)
    *   resolves against *that* document, not back against the original
    *   caller's.
+   * @param expected Threaded through purely so a `null` structural slot names
+   *   what kind of object was expected there, via {@link required}.
    */
   private resolveFrom<T>(
     identity: string | undefined,
     doc: OpenApiDocument,
     ref: string,
     tCheck: (v: unknown) => v is T,
+    expected: string,
     seen: Set<string>,
   ): T | undefined {
     const split = splitCrossDocumentRef(ref);
@@ -150,7 +171,7 @@ export class CrossDocumentLookup implements SwaggerLookup.Lookup {
       // which *is* checked. Keying a redirect too would key it by a
       // different-looking string for the same eventual destination and
       // either under- or over-count revisits.
-      return this.resolveFrom(split.identity, target, split.fragment, tCheck, seen);
+      return this.resolveFrom(split.identity, target, split.fragment, tCheck, expected, seen);
     }
 
     // `ref` is bare here -- this is the one place an actual fetch happens, so
@@ -170,12 +191,25 @@ export class CrossDocumentLookup implements SwaggerLookup.Lookup {
     // Throws on a malformed pointer (missing the leading slash after `#`) --
     // matches InternalLookup's own behaviour, which hits the same
     // `jsonpointer.get` call today; not a new failure mode.
-    const raw: unknown = jsonpointer.get(doc, ref.slice(1));
+    const fetched: unknown = jsonpointer.get(doc, ref.slice(1));
+
+    // `null` (an empty YAML value) reaches here whenever a structural slot is
+    // left empty in the source document. Every `TC.*` predicate below throws
+    // a raw TypeError on `null` (`typeof null === 'object'`, same trap
+    // `safe-type-checks.ts` exists to close elsewhere) -- `required` turns
+    // that into one clear, named error instead, matching this repo's
+    // established answer to a malformed document (fail clearly, not a crash
+    // or a guess). `undefined` (genuinely not found) passes through unchanged.
+    const raw = required(
+      fetched as T | Swagger.Reference | null,
+      expected,
+      identity === undefined ? ref : `${identity}${ref}`,
+    );
 
     if (TC.isReference(raw)) {
       // Re-split on the next call: `raw.$ref` may itself be bare (same
       // document) or cross-document (hands off to another one entirely).
-      return this.resolveFrom(identity, doc, raw.$ref, tCheck, seen);
+      return this.resolveFrom(identity, doc, raw.$ref, tCheck, expected, seen);
     }
 
     return tCheck(raw) ? raw : undefined;
