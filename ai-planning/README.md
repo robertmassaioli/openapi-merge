@@ -70,6 +70,7 @@ dependency health, build migrations. Named by topic rather than by issue number.
 | [`39-proposal-init-convenience-defaults.md`](39-proposal-init-convenience-defaults.md) | ✅ `resolveExternalReferences` + `inputRoot` turned on by default in `init`'s output |
 | [`41-proposal-release-gated-npm-publish.md`](41-proposal-release-gated-npm-publish.md) | `npm-publish.yml` triggers on a published GitHub Release instead of every push to `main` |
 | [`42-proposal-external-ref-equality-in-dedup.md`](42-proposal-external-ref-equality-in-dedup.md) | ✅ `CrossDocumentLookup`: component dedup resolves a cross-document `$ref` instead of crashing on it (PR #87) |
+| [`43-proposal-local-reference-cycle-guard.md`](43-proposal-local-reference-cycle-guard.md) | A cheap pre-walk to stop a purely-local reference cycle hanging `deepEquality` forever |
 | [`issue-triage-value-vs-effort.md`](issue-triage-value-vs-effort.md) | Value/effort scoring of every open issue; the index into `issues/` |
 | [`spec-edge-case-findings.md`](spec-edge-case-findings.md) | Divergences between the merge and the spec, found by edge-case testing |
 | [`bun-tsgo-migration-build-timings.md`](bun-tsgo-migration-build-timings.md) | Measured build timings for the Bun + tsgo migration |
