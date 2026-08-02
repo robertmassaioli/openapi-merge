@@ -170,8 +170,19 @@ export type OptionalFieldBlock = {
   name: string;
   /** One-line (or one-line-per-sub-field) explanation, condensed from the TSDoc in data.ts. */
   explanation: string;
-  /** The field's YAML, uncommented, at zero indentation. */
+  /** The field's default/primary example, uncommented, at zero indentation. */
   yaml: string;
+  /**
+   * Other mutually-exclusive values for this same field (an enum, or a
+   * discriminated union like `dispute`'s prefix/suffix), each shown as its
+   * own additional commented example line right after `yaml` -- so every
+   * choice is visible without checking the README, and picking one means
+   * uncommenting the line you want rather than editing a value by hand.
+   * Each entry, alone, must be exactly as valid a standalone replacement
+   * for `yaml` as `yaml` itself -- covered by the same per-block validity
+   * test `yaml` gets (`init-command.test.ts`).
+   */
+  alternatives?: ReadonlyArray<string>;
 };
 
 /**
@@ -191,19 +202,33 @@ export const TOP_LEVEL_OPTIONAL_BLOCKS = [
     yaml: [
       'formatting:',
       '  indent:',
-      '    style: spaces # spaces | tabs (tabs are JSON-output only -- YAML forbids tab indentation)',
+      '    style: spaces # (default) width below sets how many spaces per level',
       '    width: 2',
     ].join('\n'),
+    alternatives: [
+      [
+        'formatting:',
+        '  indent:',
+        '    style: tabs # JSON output only -- YAML forbids tab indentation',
+      ].join('\n'),
+    ],
   },
   {
     name: 'serversStrategy',
     explanation: "How to combine the top-level 'servers' array across inputs.",
-    yaml: 'serversStrategy: first # first (default, keep only the first input\'s servers) | concat (keep every input\'s, deduplicated)',
+    yaml: "serversStrategy: first  # (default) keep only the first input's servers, discard the rest",
+    alternatives: [
+      'serversStrategy: concat # keep every input\'s servers, deduplicated by URL',
+    ],
   },
   {
     name: 'securitySchemesStrategy',
     explanation: 'How to combine components.securitySchemes across inputs.',
-    yaml: 'securitySchemesStrategy: merge # merge (default, rename clashes) | first (drop the rest) | error (fail on a clash)',
+    yaml: 'securitySchemesStrategy: merge # (default) combine, renaming clashing definitions',
+    alternatives: [
+      "securitySchemesStrategy: first # take the first input's schemes, drop the rest",
+      'securitySchemesStrategy: error # fail if two inputs define the same scheme name differently',
+    ],
   },
   {
     name: 'pruneUnusedComponents',
@@ -321,7 +346,12 @@ export const PER_INPUT_OPTIONAL_BLOCKS: ReadonlyArray<OptionalFieldBlock> = [
   {
     name: 'duplicatePathHandling',
     explanation: 'What to do when this input declares a path another input already contributed.',
-    yaml: 'duplicatePathHandling: error # error (default) | skip-later | prefer-later | merge-operations',
+    yaml: 'duplicatePathHandling: error            # (default) fail the merge',
+    alternatives: [
+      'duplicatePathHandling: skip-later       # keep the definition already present, drop this one',
+      'duplicatePathHandling: prefer-later     # replace the definition already present with this one',
+      "duplicatePathHandling: merge-operations # combine when methods don't overlap and path-level fields agree",
+    ],
   },
   {
     name: 'tag',
@@ -334,18 +364,35 @@ export const PER_INPUT_OPTIONAL_BLOCKS: ReadonlyArray<OptionalFieldBlock> = [
   },
   {
     name: 'dispute',
-    explanation: "If a component name clashes with another input's, disambiguate with this prefix (or 'suffix' instead of 'prefix').",
+    explanation: "If a component name clashes with another input's, disambiguate with this prefix (or use a suffix instead).",
     yaml: [
       'dispute:',
       '  prefix: serviceA_',
       '  alwaysApply: false',
     ].join('\n'),
+    alternatives: [
+      [
+        'dispute:',
+        '  suffix: _serviceA',
+        '  alwaysApply: false',
+      ].join('\n'),
+    ],
   },
 ];
 
-/** Renders one {@link OptionalFieldBlock} as commented-out lines at the given indent. */
+/**
+ * Renders one {@link OptionalFieldBlock} as commented-out lines at the given
+ * indent: the explanation, `yaml` (the default), then every entry in
+ * `alternatives` -- each an equally valid, equally commented choice, so
+ * picking one is "uncomment this line instead of that one," never "edit
+ * this value by hand."
+ */
 function renderCommentedBlock(block: OptionalFieldBlock, indent: string): string {
-  const lines = [`${indent}# ${block.explanation}`, ...block.yaml.split('\n').map(line => `${indent}# ${line}`)];
+  const lines = [
+    `${indent}# ${block.explanation}`,
+    ...block.yaml.split('\n').map(line => `${indent}# ${line}`),
+    ...(block.alternatives ?? []).flatMap(alt => alt.split('\n').map(line => `${indent}# ${line}`)),
+  ];
   return lines.join('\n');
 }
 

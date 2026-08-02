@@ -283,7 +283,12 @@ describe('init YAML rendering (renderInitYaml)', () => {
     const rendered = render(['./a.yaml', './b.yaml', './c.yaml']);
 
     for (const block of PER_INPUT_OPTIONAL_BLOCKS) {
-      const occurrences = rendered.split(`# ${block.name}:`).length - 1;
+      // Counted by `explanation`, not by field name: a block with
+      // `alternatives` (e.g. `dispute`, `duplicatePathHandling`) legitimately
+      // repeats its own field name once per alternative within its ONE
+      // occurrence of the block -- `explanation` is the part that only ever
+      // appears once per block, regardless of how many alternatives it has.
+      const occurrences = rendered.split(`# ${block.explanation}`).length - 1;
       expect(occurrences).toBe(1);
     }
     // Every input after the first points back at it instead of repeating it.
@@ -322,35 +327,50 @@ describe('init YAML rendering (renderInitYaml)', () => {
     });
   });
 
-  describe('every commented block is independently valid once uncommented', () => {
+  describe('every commented block, and every one of its alternatives, is independently valid once uncommented', () => {
     // Not "uncomment everything at once": `dispute` is prefix XOR suffix, and
     // an input is inputFile XOR inputURL, so an all-uncommented document would
     // fail ajv for reasons that have nothing to do with whether any individual
-    // block is correct. Each block is tested in isolation instead, merged into
-    // an otherwise-minimal, otherwise-valid base document.
+    // block is correct. Each candidate (a block's `yaml`, and separately each
+    // of its `alternatives`) is tested in isolation instead, merged into an
+    // otherwise-minimal, otherwise-valid base document -- an `alternatives`
+    // entry is supposed to be exactly as valid a standalone replacement for
+    // `yaml` as `yaml` itself, so it gets exactly the same test `yaml` does.
 
     const baseInputs = ['./a.yaml', './b.yaml'];
     const baseConfig = buildConfiguration(baseInputs) as Configuration;
 
-    for (const block of TOP_LEVEL_OPTIONAL_BLOCKS) {
-      it(`top-level: ${block.name}`, () => {
-        const fragment = loadYaml(block.yaml) as Partial<Configuration>;
-        const doc = { ...baseConfig, ...fragment };
+    /** `yaml` plus every entry in `alternatives`, labelled for the test name. */
+    function candidates(block: OptionalFieldBlock): ReadonlyArray<{ label: string; yaml: string }> {
+      return [
+        { label: block.name, yaml: block.yaml },
+        ...(block.alternatives ?? []).map((yaml, i) => ({ label: `${block.name} (alternative ${i + 1})`, yaml })),
+      ];
+    }
 
-        expect(validate(doc)).toBe(true);
-      });
+    for (const block of TOP_LEVEL_OPTIONAL_BLOCKS) {
+      for (const candidate of candidates(block)) {
+        it(`top-level: ${candidate.label}`, () => {
+          const fragment = loadYaml(candidate.yaml) as Partial<Configuration>;
+          const doc = { ...baseConfig, ...fragment };
+
+          expect(validate(doc)).toBe(true);
+        });
+      }
     }
 
     for (const block of PER_INPUT_OPTIONAL_BLOCKS) {
-      it(`per-input: ${block.name}`, () => {
-        const fragment = loadYaml(block.yaml) as Record<string, unknown>;
-        const doc: Configuration = {
-          ...baseConfig,
-          inputs: [{ ...baseConfig.inputs[0], ...fragment }, ...baseConfig.inputs.slice(1)],
-        };
+      for (const candidate of candidates(block)) {
+        it(`per-input: ${candidate.label}`, () => {
+          const fragment = loadYaml(candidate.yaml) as Record<string, unknown>;
+          const doc: Configuration = {
+            ...baseConfig,
+            inputs: [{ ...baseConfig.inputs[0], ...fragment }, ...baseConfig.inputs.slice(1)],
+          };
 
-        expect(validate(doc)).toBe(true);
-      });
+          expect(validate(doc)).toBe(true);
+        });
+      }
     }
   });
 

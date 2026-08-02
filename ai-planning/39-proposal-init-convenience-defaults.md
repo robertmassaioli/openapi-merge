@@ -361,3 +361,40 @@ default rather than an opt-in the way #10 originally was: the remedy is
 simple and already documented in the generated comment (widen `inputRoot`,
 or set it to `false`), but the first time someone hits it will be a build
 failure, not a warning.
+
+## 10. Follow-up in the same PR: every commented field's alternatives, not just its default
+
+Requested directly after §9's implementation landed, and folded into the
+same branch/PR rather than a new proposal number: for a commented-out field
+with more than one possible value -- an enum (`serversStrategy`,
+`securitySchemesStrategy`, `duplicatePathHandling`, `formatting.indent.style`)
+or a discriminated choice (`dispute`'s prefix vs. suffix) -- show *every*
+value as its own commented example line, not just the default with the
+alternatives named in a trailing inline comment. Picking one becomes
+"uncomment this line instead of that one," not "look up the other spellings
+and edit a value by hand."
+
+Implementation: `OptionalFieldBlock` gained an optional `alternatives?:
+ReadonlyArray<string>` -- each entry a complete, standalone, independently
+schema-valid replacement for `yaml`, rendered by `renderCommentedBlock`
+directly after `yaml`'s own lines, same indent, same `# ` comment prefix.
+`ACTIVE_TOP_LEVEL_DEFAULTS` (§9.1) is untouched -- neither of its two
+entries is an enum, and `alternatives` being optional means nothing there
+had to change.
+
+Every `alternatives` entry gets exactly the same per-block validity test
+`yaml` already had (`init-command.test.ts`'s
+`'every commented block, and every one of its alternatives, is independently
+valid once uncommented'`), not a weaker or separate check -- an alternative
+that fails ajv would be worse than not offering it at all. One existing
+test needed adjusting rather than just extending: `'shows the full
+per-input block exactly once'` used to count occurrences by field name
+(`# ${block.name}:`), which broke the moment a block's own alternatives
+legitimately repeat that same field name within one occurrence of the
+block (`duplicatePathHandling` alone produced 4 matches, one per
+alternative, from a single correctly-rendered block). Fixed by counting on
+`block.explanation` instead, which appears exactly once per block
+regardless of how many alternatives it has -- verified end-to-end against
+the real CLI binary, including uncommenting a non-default alternative
+(`serversStrategy: concat`) by hand and confirming the merge accepts it
+unmodified.

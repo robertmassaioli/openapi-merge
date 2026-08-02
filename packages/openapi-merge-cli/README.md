@@ -127,7 +127,11 @@ optional setting this tool supports, both per-input (`dispute`,
 `serversStrategy`, `securitySchemesStrategy`, `pruneUnusedComponents`,
 `info`), is written out commented, with a one-line explanation and a working
 example. Uncomment a block and it is immediately valid -- nothing else to
-fill in:
+fill in. **A field with more than one possible value -- an enum like
+`serversStrategy`, or a choice like `dispute`'s prefix-vs-suffix -- shows
+every value as its own commented example line**, so picking one is
+"uncomment this line instead of that one," not "look up the other spellings
+and edit a value by hand":
 
 ```yaml
 inputs:
@@ -137,7 +141,12 @@ inputs:
     # pathModification:
     #   stripStart: /v1
     #   prepend: /service-a
-    # ... operationSelection, description, duplicatePathHandling, tag, dispute ...
+    # What to do when this input declares a path another input already contributed.
+    # duplicatePathHandling: error            # (default) fail the merge
+    # duplicatePathHandling: skip-later       # keep the definition already present, drop this one
+    # duplicatePathHandling: prefer-later     # replace the definition already present with this one
+    # duplicatePathHandling: merge-operations # combine when methods don't overlap and path-level fields agree
+    # ... operationSelection, description, tag, dispute ...
   - inputFile: ./service-b.yaml
     # Per-input options: see the commented block under the first input above -- the same fields apply here.
 output: ./openapi.yaml
@@ -155,7 +164,11 @@ inputRoot: .
 # Defence in depth: refuse to write the merged output anywhere outside this directory.
 # outputRoot: .
 
-# ... formatting, serversStrategy, securitySchemesStrategy, pruneUnusedComponents, info ...
+# How to combine the top-level 'servers' array across inputs.
+# serversStrategy: first  # (default) keep only the first input's servers, discard the rest
+# serversStrategy: concat # keep every input's servers, deduplicated by URL
+
+# ... formatting, securitySchemesStrategy, pruneUnusedComponents, info ...
 ```
 
 If you would rather start from the historical permissive defaults (both
