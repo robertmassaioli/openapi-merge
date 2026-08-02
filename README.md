@@ -1,20 +1,25 @@
 ## The openapi-merge repository
 
-Welcome to the openapi-merge repository. This library is intended to be used for merging multiple OpenAPI 3.0 files together. The most common reason that developers want to do this is because they have multiple services that they wish to expose underneath a single API Gateway. Therefore, even though this merging logic is sufficiently generic to be used for most use cases, some of the feature decisions are tailored for that specific use case.
+Welcome to the openapi-merge repository. This library is intended to be used for merging multiple OpenAPI 3.0, 3.1 and 3.2 files together. The most common reason that developers want to do this is because they have multiple services that they wish to expose underneath a single API Gateway. Therefore, even though this merging logic is sufficiently generic to be used for most use cases, some of the feature decisions are tailored for that specific use case.
 
 ### Screenshots
 
-![Imgur](https://i.imgur.com/GjnSXCS.png)
-(An example of creating an openapi-merge.json configuration file for the CLI tool)
+![An example of creating an openapi-merge.yaml configuration file for the CLI tool](docs/assets/openapi-merge-config-example.png)
+(An example of creating an openapi-merge.yaml configuration file for the CLI tool)
 
 ### About this repository
 
 This is a multi-package repository that contains:
 
-* The openapi-merge library: [![npm](https://img.shields.io/npm/v/openapi-merge?label=openapi-merge&logo=npm)](https://bit.ly/2WnIytF)
-* The openapi-merge CLI tool: [![npm](https://img.shields.io/npm/v/openapi-merge-cli?label=openapi-merge-cli&logo=npm)](https://bit.ly/3bEVq3f)
+* The openapi-merge library: [![npm](https://img.shields.io/npm/v/openapi-merge?label=openapi-merge&logo=npm)](https://bit.ly/2WnIytF) — [`packages/openapi-merge`](packages/openapi-merge)
+* The openapi-merge CLI tool: [![npm](https://img.shields.io/npm/v/openapi-merge-cli?label=openapi-merge-cli&logo=npm)](https://bit.ly/3bEVq3f) — [`packages/openapi-merge-cli`](packages/openapi-merge-cli)
 
-Depending on your use-case, you may wish to use the CLI tool or the library in your project. Please see the readme file of the specific package for more details.
+#### Which package do I want?
+
+* **Use the CLI** ([`openapi-merge-cli`](packages/openapi-merge-cli)) if you have one or more OpenAPI files on disk (or reachable by URL) and want a merged file produced by a config file and a command — no code to write.
+* **Use the library** ([`openapi-merge`](packages/openapi-merge)) if you're merging specs programmatically, e.g. as part of a larger build or gateway-generation tool. The CLI is itself a thin wrapper around this library, so anything the CLI can do, the library can do from your own code.
+
+Please see the README file of the specific package for full usage details.
 
 ### Developing on openapi-merge
 
@@ -41,6 +46,15 @@ cd packages/openapi-merge && bun run build -- --watch
 ```
 
 This will ensure that the Typescript is compiled into JavaScript so that it can be used by the `openapi-merge-cli` tool.
+
+Before committing, run the full test suite and lint (eslint + a typecheck of both packages):
+
+``` shell
+bun run test
+bun run lint
+```
+
+`bun run lint` also runs automatically on every `git commit` via a Husky pre-commit hook, so a commit will fail locally rather than in CI if either check doesn't pass.
 
 For the other operations that you wish to perform, please see the package.json of the other packages in this repository.
 
