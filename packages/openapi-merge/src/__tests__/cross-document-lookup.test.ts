@@ -69,6 +69,43 @@ describe('CrossDocumentLookup', () => {
 
       expect(lookup.getRequestBody({ $ref: '#/components/schemas/NotABody' })).toBeUndefined();
     });
+
+    it('does not backfill a title for a nested (non-4-segment) fragment', () => {
+      // Backfill is an exact `refSplit.length === 4` check in InternalLookup;
+      // a nested property path is 6 segments and must come back untouched.
+      const local = doc30({
+        components: { schemas: { Foo: schema({ type: 'object', properties: { name: schema({ type: 'string' }) } }) } },
+      });
+      const lookup = new CrossDocumentLookup(local);
+
+      expect(lookup.getSchema({ $ref: '#/components/schemas/Foo/properties/name' })).toEqual({ type: 'string' });
+    });
+
+    it('returns undefined for a bare ref with no components section on the document at all', () => {
+      const lookup = new CrossDocumentLookup(doc30({}));
+
+      expect(lookup.getSchema({ $ref: '#/components/schemas/Foo' })).toBeUndefined();
+    });
+
+    it('returns undefined, rather than throwing, for a bare ref that is just "#" (no path at all)', () => {
+      const local = doc30({ components: { schemas: { Foo: schema({ type: 'string' }) } } });
+      const lookup = new CrossDocumentLookup(local);
+
+      expect(() => lookup.getSchema({ $ref: '#' })).not.toThrow();
+      expect(lookup.getSchema({ $ref: '#' })).toBeUndefined();
+    });
+
+    it('propagates InternalLookup\'s own exception for a malformed pointer (missing the leading slash) rather than swallowing it', () => {
+      // Not a case this class introduces or is meant to guard against -- a
+      // `$ref` shaped `#foo` (no `/`) is invalid JSON Pointer syntax, and
+      // InternalLookup (unchanged, still doing the actual resolution for any
+      // bare ref) throws for it today regardless of this class. Documented so
+      // a future reader sees this is inherited, not a new failure mode.
+      const local = doc30({ components: { schemas: { Foo: schema({ type: 'string' }) } } });
+      const lookup = new CrossDocumentLookup(local);
+
+      expect(() => lookup.getSchema({ $ref: '#foo' })).toThrow('Invalid JSON pointer');
+    });
   });
 
   describe('cross-document resolution', () => {
@@ -97,6 +134,66 @@ describe('CrossDocumentLookup', () => {
       const lookup = new CrossDocumentLookup(doc30({}), { 'errors.yaml': external });
 
       expect(lookup.getSchema({ $ref: 'errors.yaml' })).toBeUndefined();
+    });
+
+    it('returns undefined for an empty fragment ("identity#", hash present but nothing after it)', () => {
+      // Distinct from the no-fragment case above: splitCrossDocumentRef
+      // returns fragment: '#' here (not undefined), which then behaves like a
+      // bare "#" against the target document -- resolves to the whole
+      // document object, which fails every accessor's shape check.
+      const external = doc30({ components: { schemas: { ServerError: schema({ type: 'object' }) } } });
+      const lookup = new CrossDocumentLookup(doc30({}), { 'errors.yaml': external });
+
+      expect(() => lookup.getSchema({ $ref: 'errors.yaml#' })).not.toThrow();
+      expect(lookup.getSchema({ $ref: 'errors.yaml#' })).toBeUndefined();
+    });
+
+    it('does not backfill a title for a nested (non-4-segment) cross-document fragment', () => {
+      const external = doc30({
+        components: { schemas: { Foo: schema({ type: 'object', properties: { name: schema({ type: 'string' }) } }) } },
+      });
+      const lookup = new CrossDocumentLookup(doc30({}), { 'errors.yaml': external });
+
+      expect(lookup.getSchema({ $ref: 'errors.yaml#/components/schemas/Foo/properties/name' })).toEqual({ type: 'string' });
+    });
+
+    it('does not overwrite an already-present title on a cross-document schema', () => {
+      const external = doc30({
+        components: { schemas: { Foo: schema({ type: 'string', title: 'Explicit' } as Record<string, unknown>) } },
+      });
+      const lookup = new CrossDocumentLookup(doc30({}), { 'errors.yaml': external });
+
+      expect(lookup.getSchema({ $ref: 'errors.yaml#/components/schemas/Foo' })).toEqual({ type: 'string', title: 'Explicit' });
+    });
+
+    it('returns undefined when a cross-document ref resolves but does not match the accessor\'s shape', () => {
+      const external = doc30({ components: { schemas: { NotABody: schema({ type: 'string' }) } } });
+      const lookup = new CrossDocumentLookup(doc30({}), { 'errors.yaml': external });
+
+      expect(lookup.getRequestBody({ $ref: 'errors.yaml#/components/schemas/NotABody' })).toBeUndefined();
+    });
+
+    it('defaults knownDocuments to empty when the constructor is called with just a local document', () => {
+      const lookup = new CrossDocumentLookup(doc30({}));
+
+      expect(() => lookup.getSchema({ $ref: 'errors.yaml#/components/schemas/Foo' })).not.toThrow();
+      expect(lookup.getSchema({ $ref: 'errors.yaml#/components/schemas/Foo' })).toBeUndefined();
+    });
+
+    it('picks up a document added to knownDocuments after construction (no stale negative caching of a miss)', () => {
+      // knownDocuments is held by reference, not copied -- a lookup that fails
+      // because an identity isn't there *yet* must not poison a later,
+      // successful attempt once the caller's own map gains that entry. This
+      // matters because `lookupFor` only ever caches a *successful* resolution
+      // (see its own guard on `doc === undefined`), never a miss.
+      const knownDocuments: Record<string, ReturnType<typeof doc30>> = {};
+      const lookup = new CrossDocumentLookup(doc30({}), knownDocuments);
+
+      expect(lookup.getSchema({ $ref: 'later.yaml#/components/schemas/Foo' })).toBeUndefined();
+
+      knownDocuments['later.yaml'] = doc30({ components: { schemas: { Foo: schema({ type: 'string' }) } } });
+
+      expect(lookup.getSchema({ $ref: 'later.yaml#/components/schemas/Foo' })).toEqual({ type: 'string', title: 'Foo' });
     });
 
     it('resolves a two-hop cross-document chain (A -> B -> C, three different identities)', () => {
@@ -151,6 +248,40 @@ describe('CrossDocumentLookup', () => {
       expect(() => lookup.getSchema({ $ref: 'a.yaml#/components/schemas/A' })).not.toThrow();
       expect(lookup.getSchema({ $ref: 'a.yaml#/components/schemas/A' })).toBeUndefined();
     });
+
+    it('returns undefined, not a stack overflow, for a cycle that alternates a local hop with a repeated cross-document identity', () => {
+      // A trickier shape than the direct A<->B cycle above: the local
+      // document's Foo names identity X; X's own component is a *local* alias
+      // (bare ref) that in turn names X again. The cycle guard only records
+      // cross-document (identity, fragment) pairs, so this checks that a
+      // local hop in between doesn't let the same pair slip through twice.
+      const local = doc30({ components: { schemas: { Foo: schema({ $ref: 'x.yaml#/components/schemas/A' }) } } });
+      const docX = doc30({
+        components: {
+          schemas: {
+            A: schema({ $ref: '#/components/schemas/B' }),
+            B: schema({ $ref: 'x.yaml#/components/schemas/A' }),
+          },
+        },
+      });
+      const lookup = new CrossDocumentLookup(local, { 'x.yaml': docX });
+
+      expect(() => lookup.getSchema({ $ref: 'x.yaml#/components/schemas/A' })).not.toThrow();
+      expect(lookup.getSchema({ $ref: 'x.yaml#/components/schemas/A' })).toBeUndefined();
+    });
+
+    // Deliberately not tested here: a *purely* local cycle (two components in
+    // the same document referencing each other, with no cross-document ref
+    // anywhere in the chain) never reaches this class's own cycle guard at
+    // all -- it's resolved entirely inside the wrapped InternalLookup, whose
+    // `performLookup` recurses with no cycle protection of its own. Verified
+    // manually (not as a suite test, since a hang -- not a clean throw -- is
+    // exactly what happens on Bun, where a genuine tail call in that
+    // recursion never grows the stack far enough to trip a RangeError): this
+    // is a pre-existing gap in `InternalLookup` shared by every caller of it,
+    // predating and unrelated to CrossDocumentLookup, not something this
+    // class could fix without reimplementing local resolution instead of
+    // delegating to it. Left as a known limitation, not silently patched over.
 
     it('resolves two different refs into the same identity consistently (exercises the memoized child lookup)', () => {
       const external = doc30({
@@ -274,6 +405,24 @@ describe('buildKnownDocuments', () => {
     const known = buildKnownDocuments([{ oas: doc30({}) }], new Set(), {});
 
     expect(known).toEqual({});
+  });
+
+  it('excludes only the ambiguous identity when inputs are a mix of ambiguous and valid', () => {
+    const goodOas = doc30({ components: { schemas: { Good: schema({ type: 'string' }) } } });
+    const ambiguousOasA = doc30({ components: { schemas: { A: schema({ type: 'string' }) } } });
+    const ambiguousOasB = doc30({ components: { schemas: { B: schema({ type: 'number' }) } } });
+
+    const known = buildKnownDocuments(
+      [
+        { oas: ambiguousOasA, sourceIdentity: 'dupe' },
+        { oas: goodOas, sourceIdentity: 'common' },
+        { oas: ambiguousOasB, sourceIdentity: 'dupe' },
+      ],
+      new Set(['dupe']),
+      {},
+    );
+
+    expect(known).toEqual({ common: goodOas });
   });
 
   it('lets a declared input win over an externalDocuments entry with the same identity', () => {
