@@ -10,6 +10,42 @@ export type OperationSelection = {
    * an includeTag and an excludeTag then it will be excluded; exclusion takes precedence.
    */
   excludeTags?: string[];
+
+  /**
+   * Only Operations whose path (and, if given, method) matches one of these selectors will be taken from this
+   * OpenAPI file. `path` supports a `*` wildcard, matched the same way `includeTags`/`excludeTags` are. Selectors
+   * are matched against this input's own original path, before `pathModification` is applied. If an Operation is
+   * matched by both `includePaths` and `includeTags` (or neither), both must pass for it to survive.
+   *
+   * @examples require("./examples-for-schema.ts").PathSelectorListExamples
+   */
+  includePaths?: PathSelector[];
+
+  /**
+   * Any Operation whose path (and, if given, method) matches one of these selectors will be excluded from the
+   * final result. If an Operation is matched by both an includePaths and an excludePaths selector, or by an
+   * exclude rule of either kind (path or tag), exclusion takes precedence.
+   *
+   * @examples require("./examples-for-schema.ts").PathSelectorListExamples
+   */
+  excludePaths?: PathSelector[];
+}
+
+export type PathSelector = {
+  /**
+   * The path (or, for a webhook, the event name) to match, exactly as it appears in this input's own OpenAPI
+   * document -- before `pathModification` is applied. Supports a `*` wildcard: `/admin/*` matches every path
+   * starting with `/admin/`.
+   *
+   * @minLength 1
+   */
+  path: string;
+
+  /**
+   * Restrict this selector to one or more specific methods (a standard HTTP method, `query`, or a 3.2
+   * `additionalOperations` custom verb, matched case-sensitively). Omit to match every method on this path.
+   */
+  method?: string | string[];
 }
 
 export type PathModification = {

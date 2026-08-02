@@ -1,4 +1,4 @@
-import { ConfigurationInput, DescriptionMergeBehaviour, DescriptionTitle, Dispute, DisputePrefix, DisputeSuffix, OperationSelection, PathModification } from './data';
+import { ConfigurationInput, DescriptionMergeBehaviour, DescriptionTitle, Dispute, DisputePrefix, DisputeSuffix, OperationSelection, PathModification, PathSelector } from './data';
 
 export const DisputePrefixExamples: Array<DisputePrefix> = [
   {
@@ -51,6 +51,25 @@ export const DescriptionMergeBehaviourExamples: Array<DescriptionMergeBehaviour>
   ...DescriptionMergeBehavioursWithTitles
 ];
 
+export const PathSelectorExamples: Array<PathSelector> = [
+  {
+    path: '/admin/*'
+  },
+  {
+    path: '/admin/users',
+    method: 'get'
+  },
+  {
+    path: '/cache',
+    method: ['get', 'PURGE']
+  }
+];
+
+export const PathSelectorListExamples: Array<Array<PathSelector>> = [
+  [PathSelectorExamples[0]],
+  PathSelectorExamples
+];
+
 export const OperationSelectionExamples: Array<OperationSelection> = [
   {
     includeTags: ['include-this-tag-only']
@@ -61,6 +80,12 @@ export const OperationSelectionExamples: Array<OperationSelection> = [
   {
     includeTags: ['select-this-first'],
     excludeTags: ['filter-out-with-this-tag']
+  },
+  {
+    includePaths: [{ path: '/admin/*' }]
+  },
+  {
+    excludePaths: [{ path: '/admin/users', method: 'get' }]
   }
 ];
 

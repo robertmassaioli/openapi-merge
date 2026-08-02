@@ -71,6 +71,7 @@ dependency health, build migrations. Named by topic rather than by issue number.
 | [`40-proposal-null-safe-document-walking.md`](40-proposal-null-safe-document-walking.md) | ✅ Systemic fix for `typeof null === 'object'` crashes across the reference walker; review of PR #97 |
 | [`41-proposal-release-gated-npm-publish.md`](41-proposal-release-gated-npm-publish.md) | `npm-publish.yml` triggers on a published GitHub Release instead of every push to `main` |
 | [`42-proposal-create-output-directories.md`](42-proposal-create-output-directories.md) | Auto-create missing output directories, improving on PR #88's non-recursive, uncaught-exception approach |
+| [`44-proposal-path-based-operation-selection.md`](44-proposal-path-based-operation-selection.md) | ✅ `includePaths`/`excludePaths`, wildcard-matched like `TagMatcher` (review of PR #67) |
 | [`issue-triage-value-vs-effort.md`](issue-triage-value-vs-effort.md) | Value/effort scoring of every open issue; the index into `issues/` |
 | [`spec-edge-case-findings.md`](spec-edge-case-findings.md) | Divergences between the merge and the spec, found by edge-case testing |
 | [`bun-tsgo-migration-build-timings.md`](bun-tsgo-migration-build-timings.md) | Measured build timings for the Bun + tsgo migration |

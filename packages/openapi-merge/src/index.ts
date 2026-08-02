@@ -1,5 +1,5 @@
 import { isPresent } from 'ts-is-present';
-import { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection, MergeOptions } from './data';
+import { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection, MergeOptions, PathSelector } from './data';
 import { mergeTags } from './tags';
 import { mergePathsAndComponents } from './paths-and-components';
 import { mergeExtensions } from './extensions';
@@ -13,7 +13,7 @@ import { MalformedDocumentError } from './safe-type-checks';
 
 export { isErrorResult };
 export { MalformedDocumentError };
-export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy, SecuritySchemesStrategy };
+export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy, SecuritySchemesStrategy, PathSelector };
 
 function getFirst<A>(inputs: Array<A>): A | undefined {
   if (inputs.length > 0) {
