@@ -1,4 +1,4 @@
-import { ConfigurationInput, DescriptionMergeBehaviour, DescriptionTitle, Dispute, DisputePrefix, DisputeSuffix, OperationSelection, PathModification, PathSelector } from './data';
+import { ConfigurationInput, DescriptionMergeBehaviour, DescriptionTitle, Dispute, DisputePrefix, DisputeSuffix, ExtensionMergeNode, OperationSelection, PathModification, PathSelector } from './data';
 
 export const DisputePrefixExamples: Array<DisputePrefix> = [
   {
@@ -146,4 +146,29 @@ export const ConfigurationInputExamples: Array<Array<ConfigurationInput>> = [
 export const TagInjectionExamples: Array<{ name: string; description?: string }> = [
   { name: 'billing' },
   { name: 'billing', description: 'Everything served by the billing service.' },
+];
+
+/** `x-tagGroups` (issue #60) re-derived as a strategy tree -- see proposal 47. */
+const XTagGroupsMergeStrategy: ExtensionMergeNode = {
+  kind: 'array',
+  strategy: 'union-by-key',
+  key: 'name',
+  item: {
+    kind: 'object',
+    strategy: 'merge',
+    fields: {
+      tags: { kind: 'array', strategy: 'concat-unique' },
+    },
+  },
+};
+
+export const ExtensionMergeStrategiesExamples: Array<{ [extensionKey: string]: ExtensionMergeNode }> = [
+  { 'x-tagGroups': XTagGroupsMergeStrategy },
+  {
+    'x-owner': { kind: 'scalar', strategy: 'error' },
+  },
+  {
+    'x-tagGroups': XTagGroupsMergeStrategy,
+    'x-rate-limit-overrides': { kind: 'object', strategy: 'merge' },
+  },
 ];

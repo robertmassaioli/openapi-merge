@@ -311,7 +311,7 @@ describe('init YAML rendering (renderInitYaml)', () => {
       // field is added, renamed or removed. init-command.ts also enforces this
       // at compile time (proposal 39 §2.2) -- this test is a readable,
       // explicit cross-check, not the only guard against drift.
-      const expectedCommented = ['outputRoot', 'formatting', 'serversStrategy', 'securitySchemesStrategy', 'pruneUnusedComponents', 'info'];
+      const expectedCommented = ['outputRoot', 'formatting', 'serversStrategy', 'securitySchemesStrategy', 'pruneUnusedComponents', 'info', 'extensionMergeStrategies'];
       const expectedActive = ['resolveExternalReferences', 'inputRoot'];
       expect(TOP_LEVEL_OPTIONAL_BLOCKS.map(block => block.name).sort()).toEqual([...expectedCommented].sort());
       expect(ACTIVE_TOP_LEVEL_DEFAULTS.map(block => block.name).sort()).toEqual([...expectedActive].sort());

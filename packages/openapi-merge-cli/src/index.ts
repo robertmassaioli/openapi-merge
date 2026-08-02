@@ -484,6 +484,7 @@ export async function main(): Promise<void> {
     pruneUnusedComponents: config.pruneUnusedComponents,
     externalDocuments: discovery.externalDocuments,
     info: config.info,
+    extensionMergeStrategies: config.extensionMergeStrategies,
   });
 
   if (isErrorResult(mergeResult)) {

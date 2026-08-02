@@ -48,6 +48,55 @@ export type PathSelector = {
   method?: string | string[];
 }
 
+/**
+ * How to combine one document-root `x-*` extension's value across inputs
+ * (proposal 47, generalising issue #60). Mirrors the extension value's own
+ * JSON shape: `kind` says what shape is expected at this point, `strategy`
+ * says how to combine it.
+ *
+ * `kind` only changes behaviour for `concat`, `concat-unique`, `union-by-key`
+ * and `merge`, which inspect the value's internal structure and fall back to
+ * taking the first input's value wholesale if it does not match. `first`,
+ * `last` and `error` work on a value of any shape -- `kind` on those three is
+ * declarative only, and in particular `error` still reports a disagreement
+ * even if the value is not the shape `kind` names, because silently doing
+ * nothing is the one behaviour that strategy must never have.
+ */
+export type ExtensionMergeNode =
+  /** A leaf value: string, number, boolean, or null. */
+  | { kind: 'scalar'; strategy: 'first' | 'last' | 'error' }
+  /** A JSON array, combined wholesale -- one input's whole array wins. */
+  | { kind: 'array'; strategy: 'first' | 'last' | 'error' }
+  /**
+   * A JSON array, combined element-by-element: every input's array
+   * concatenated in input order (`concat`), optionally deduplicated by deep
+   * equality (`concat-unique`). `sortBy` (optional) sorts the result
+   * afterwards by a named field, for arrays of objects; omitted, the result
+   * keeps concatenation order.
+   */
+  | { kind: 'array'; strategy: 'concat' | 'concat-unique'; sortBy?: string }
+  /**
+   * A JSON array of objects, where elements sharing the same value at `key`
+   * -- across, and within, inputs -- are the same logical entry and are
+   * combined using `item`. Elements whose key value appears only once pass
+   * through unchanged. Output order is first-seen order across all inputs.
+   *
+   * This is how `x-tagGroups` (issue #60) is expressed as configuration:
+   * `{ kind: 'array', strategy: 'union-by-key', key: 'name', item: { kind:
+   * 'object', strategy: 'merge', fields: { tags: { kind: 'array', strategy:
+   * 'concat-unique' } } } }` combines groups sharing a name and deduplicates
+   * their tags.
+   */
+  | { kind: 'array'; strategy: 'union-by-key'; key: string; item: ExtensionMergeNode }
+  /** A JSON object, combined wholesale -- one input's whole object wins. */
+  | { kind: 'object'; strategy: 'first' | 'last' | 'error' }
+  /**
+   * A JSON object, combined field by field. A field not listed in `fields`
+   * defaults to `first`, applied wholesale regardless of its own shape -- an
+   * unconfigured field is never guessed at.
+   */
+  | { kind: 'object'; strategy: 'merge'; fields?: { [fieldName: string]: ExtensionMergeNode } };
+
 export type PathModification = {
   /**
      * If a path starts with these characters, then stip them from the beginning of the path. Will run before prepend.
@@ -396,6 +445,19 @@ export type Configuration = {
    * field, so setting only `title` does not require restating `version`.
    */
   info?: ConfigurationInfoOverride;
+
+  /**
+   * How to combine a document-root `x-*` extension's value across inputs,
+   * keyed by extension name (issue #60, generalised as proposal 47).
+   *
+   * An extension not mentioned here keeps the historical default: the first
+   * input that declares it wins, unchanged. Only the document root is
+   * covered -- `x-*` fields elsewhere (`info`, `tags`, path items,
+   * `components`) are not reached by this option. See {@link ExtensionMergeNode}.
+   *
+   * @examples require('./examples-for-schema.ts').ExtensionMergeStrategiesExamples
+   */
+  extensionMergeStrategies?: { [extensionKey: string]: ExtensionMergeNode };
 
   /**
    * Follow `$ref`s that point outside the declared inputs -- to a file or URL

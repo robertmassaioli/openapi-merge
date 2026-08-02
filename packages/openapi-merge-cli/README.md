@@ -127,6 +127,52 @@ Not every input's tags are under your control -- some generators do not let you 
 * **If an operation matches both an `includePaths` and an `excludePaths` selector, exclusion wins** -- the same precedence `includeTags`/`excludeTags` already have. If it's matched by both a path rule and a tag rule of the same kind (both include, or both exclude), it needs to clear an include rule of *every* kind configured to survive, and is dropped by an exclude rule of *either* kind.
 * **`includePaths` on a document with 3.1 `webhooks` will drop every webhook operation**, unless one of your selectors happens to match the webhook's event name -- the same allow-list behaviour `includeTags` already has for untagged webhooks. If you need to keep webhooks while filtering paths, tag the webhook operations and use `includeTags` instead (or omit `includePaths` and use `excludePaths`, which does not have this effect).
 
+### Combining custom `x-` extensions
+
+By default, a document-root `x-` extension -- `x-tagGroups`, `x-logo`, a vendor's own metadata -- is first-wins: whichever input declares it first supplies the value, and every other input's value for that same key is discarded ([issue #60](https://github.com/robertmassaioli/openapi-merge/issues/60)). `extensionMergeStrategies` lets you combine one instead, keyed by extension name and shaped as a small tree that mirrors the extension's own JSON structure:
+
+``` json
+{
+  "inputs": [
+    { "inputFile": "service1/swagger.json" },
+    { "inputFile": "service2/swagger.json" }
+  ],
+  "output": "./dist/service.output.swagger.json",
+  "extensionMergeStrategies": {
+    "x-tagGroups": {
+      "kind": "array",
+      "strategy": "union-by-key",
+      "key": "name",
+      "item": {
+        "kind": "object",
+        "strategy": "merge",
+        "fields": {
+          "tags": { "kind": "array", "strategy": "concat-unique" }
+        }
+      }
+    }
+  }
+}
+```
+
+This example combines ReDoc's `x-tagGroups` across inputs: groups sharing a `name` merge into one entry, and each merged group's `tags` are concatenated and deduplicated -- so a group two services both contribute to ends up with every tag from both, instead of only the first input's.
+
+An extension not mentioned in `extensionMergeStrategies` keeps first-wins, unchanged. Only the document root is covered; `x-` fields elsewhere in the document (inside `info`, a `Tag` object, a path item, a component) are not reached by this option.
+
+Each node in the tree has a `kind` (what shape is expected there: `scalar`, `array` or `object`) and a `strategy` (how to combine it):
+
+* **`{ "kind": "scalar", "strategy": "first" | "last" | "error" }`** -- take the first input's value, the last input's value, or fail the merge if the inputs disagree. `first`/`last`/`error` work the same way at every kind, not just `scalar`: they operate on a value of any shape, so `error` still reports a disagreement even where the actual value turns out to be an array or object.
+* **`{ "kind": "array", "strategy": "first" | "last" | "error" }`** -- the same three choices, taking (or comparing) one input's whole array rather than combining elements.
+* **`{ "kind": "array", "strategy": "concat" | "concat-unique", "sortBy"?: string }`** -- concatenate every input's array, in input order. `concat-unique` additionally deduplicates by deep equality. `sortBy` (optional) sorts the result afterwards by a named field, for an array of objects; omitted, the result keeps concatenation order.
+* **`{ "kind": "array", "strategy": "union-by-key", "key": string, "item": ExtensionMergeNode }`** -- elements sharing the same value at `key`, across (and within) inputs, are the same logical entry and are combined using `item`. Elements whose key value appears only once pass through unchanged. Output order is first-seen order across all inputs. `item` is required -- there is no sensible default that still does what this strategy is for.
+* **`{ "kind": "object", "strategy": "first" | "last" | "error" }`** -- take (or compare) one input's whole object.
+* **`{ "kind": "object", "strategy": "merge", "fields"?: { [fieldName]: ExtensionMergeNode } }`** -- combine field by field. A field not listed in `fields` defaults to `first`, applied wholesale regardless of that field's own shape.
+
+Two things worth knowing about how this behaves:
+
+* **A type mismatch degrades to `first`, not an error.** If a node's `kind` says `array` but one input's actual value is an object (or vice versa), that value -- and only that value, not the whole document -- falls back to first-wins rather than the merge failing or guessing at a shape it was not told to expect. The same applies to a `union-by-key` array whose elements do not all carry the configured `key`.
+* **`error` always fails the whole merge on disagreement**, at whatever depth it is configured -- there is no partial-failure mode where a nested `error` merely drops that one field.
+
 ### Getting started: `init`
 
 To write that configuration file for you, run:
@@ -156,7 +202,7 @@ optional setting this tool supports, both per-input (`dispute`,
 `pathModification`, `operationSelection`, `description`,
 `duplicatePathHandling`, `tag`) and top-level (`outputRoot`, `formatting`,
 `serversStrategy`, `securitySchemesStrategy`, `pruneUnusedComponents`,
-`info`), is written out commented, with a one-line explanation and a working
+`info`, `extensionMergeStrategies`), is written out commented, with a one-line explanation and a working
 example. Uncomment a block and it is immediately valid -- nothing else to
 fill in. **A field with more than one possible value -- an enum like
 `serversStrategy`, or a choice like `dispute`'s prefix-vs-suffix -- shows
@@ -199,7 +245,7 @@ inputRoot: .
 # serversStrategy: first  # (default) keep only the first input's servers, discard the rest
 # serversStrategy: concat # keep every input's servers, deduplicated by URL
 
-# ... formatting, securitySchemesStrategy, pruneUnusedComponents, info ...
+# ... formatting, securitySchemesStrategy, pruneUnusedComponents, info, extensionMergeStrategies ...
 ```
 
 If you would rather start from the historical permissive defaults (both
