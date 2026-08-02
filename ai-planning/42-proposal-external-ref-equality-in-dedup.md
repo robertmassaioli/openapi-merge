@@ -169,26 +169,106 @@ every other dedup conflict in this codebase already uses — instead of an
 uncaught `Error`. Small, contained, and consistent with how every other
 conflict path in `paths-and-components.ts` already behaves.
 
-### Option C — Resolve, don't guess: extend dedup to reuse the existing cross-document resolver
+### Option C — Resolve, don't guess: a `Lookup` that's external-ref-aware by construction
 
-Give `deepEquality` a path parallel to its existing local-reference branch
-(`component-equivalence.ts:84-91`) for cross-document refs: use
-`splitCrossDocumentRef` to pull `{identity, fragment}` out of the `$ref`,
-resolve `identity` against `MergeOptions.externalDocuments` or a sibling
-input's `sourceIdentity`, fetch the *actual* target schema, and deep-compare
-that — exactly as local refs already do via `xLookup.getSchema`.
+`SwaggerLookup.InternalLookup` (from `@atlassian/atlassian-openapi`) is not
+missing external-ref support by oversight — its own source comment says so:
+*"Any references that don't start with a # are external, and thus not
+handled."* It was built assuming whoever calls it already has a single,
+fully self-contained document — i.e. that bundling happened upstream, before
+anything in this library ever sees a `Lookup`. That assumption is false for
+`deepEquality`'s two call sites (`paths-and-components.ts:405-409`,
+`external-references.ts:245-248`): both build a **fresh, ordinary
+`InternalLookup`** per input, over exactly that input's own document, so
+external refs are unreachable from either by design, not by bug.
 
-This is the only option that doesn't rely on string identity at all, so it's
-correct even for a caller that hasn't normalized its refs. But given §2, that
-buys correctness for a caller this repo doesn't have (the CLI already
-guarantees the precondition Option A needs) — it stops being "the fix that
-avoids a data-loss bug" and becomes "the fix that generalizes to callers this
-proposal can't identify a concrete need for yet." Worth keeping on the shelf,
-not worth building ahead of a real request: real effort (deepEquality's
-`Lookup` type would need `externalDocuments`/sibling-input context threaded
-in, plumbing through `paths-and-components.ts:433`; `resolveIdentityFragment`
-is currently private to `external-references.ts` and would need exporting)
-for a correctness gain with no known caller today.
+Rather than teach `compare()` a second, parallel branch for cross-document
+refs (an earlier draft of this option), fix it at the source: implement a
+second class alongside `InternalLookup` that satisfies the same
+`SwaggerLookup.Lookup` interface but *is* external-ref-aware —
+`CrossDocumentLookup`, say. `deepEquality`'s own code
+(`component-equivalence.ts:89-91`, `xLookup.getSchema(x)`) doesn't change at
+all; it just gets handed a smarter `Lookup`.
+
+**Shape**, keeping faith with this library's "no I/O" rule
+(`external-references.ts`'s own docstring: *"`openapi-merge` deliberately has
+no file-path or network awareness"*) — the class does zero fetching, only
+in-memory resolution over documents the caller already loaded:
+
+```ts
+class CrossDocumentLookup implements SwaggerLookup.Lookup {
+  constructor(
+    localDocument: OpenApiDocument,
+    // Every other document a cross-document $ref might name, keyed by the
+    // exact identity string that appears before the `#` -- i.e. the same
+    // map paths-and-components.ts already has in hand: MergeOptions.externalDocuments,
+    // plus each sibling input's own document keyed by its sourceIdentity.
+    knownDocuments: Record<string, OpenApiDocument>,
+  ) { /* ... */ }
+
+  getSchema(s: Swagger.Schema | Swagger.Reference): Swagger.Schema | undefined {
+    if (!isReference(s)) return s;
+    const split = splitCrossDocumentRef(s.$ref);
+    if (split === undefined) {
+      return this.local.getSchema(s); // local InternalLookup, unchanged behaviour
+    }
+    const doc = this.knownDocuments[split.identity];
+    if (doc === undefined || split.fragment === undefined) return undefined;
+    // Delegate the fragment to a (cached, lazily built) InternalLookup over
+    // the target document -- recurses correctly if that document's own
+    // component is itself a $ref, local or cross-document.
+    return this.lookupFor(split.identity, doc).getSchema({ $ref: split.fragment });
+  }
+  // ...the same pattern for getExample, getHeaders, getLink, getParam,
+  // getRequestBody, getResponse, getCallback, getSecurityScheme(ByName).
+}
+```
+
+This is the only option that doesn't rely on string identity at all — it
+resolves and compares real content, so it's correct even for a caller that
+hasn't normalized its refs, closing the residual gap Option A's doc comment
+has to name instead of close.
+
+**Where this actually gains over Option A, precisely stated:** `compare()`
+inside `deepEquality` is one shared function — both dedup call sites already
+go through it, so Option A's string-comparison fix automatically covers both,
+same as this would. The real difference is what each fix is *entitled to
+assume*. Option A is correct only because something *outside*
+`component-equivalence.ts` (the CLI's normalization pass, §1.2) already
+guarantees canonical ref strings; that's a fact about one caller, recorded in
+a doc comment because the type system can't check it, and silently wrong for
+any caller where it doesn't hold. `CrossDocumentLookup` needs no such
+assumption — it resolves the actual referenced content itself, so it's
+correct for whoever calls `deepEquality`, CLI or not, without asking them to
+have already done something specific first. It's also a better fit for this
+library's stated design than teaching `compare()` cross-document awareness
+directly would have been: the *lookup* is the seam this codebase already
+uses to mean "how do I resolve a reference," and `InternalLookup` vs.
+`IdLookup` (the other existing implementation, `SwaggerLookup.IdLookup`) are
+already interchangeable at both call sites — this is a third implementation
+of the same interface, not a new concept, and `compare()` itself stays
+exactly as simple as it is today.
+
+Cost: implementing all ten `Lookup` methods (mechanical — each follows the
+`getSchema` pattern above), plus assembling `knownDocuments` at each call
+site (`paths-and-components.ts` already tracks every input and
+`externalDocuments`; `external-references.ts` already has both in scope
+too, per its own docstring's description of what it resolves). No plumbing
+through `MergeOptions` is needed beyond what already flows to these two
+files. Call it a day including tests across both call sites — more than
+Option A, comfortably less than reimplementing `createCrossDocumentResolver`'s
+rename-aware resolution (which this doesn't need: dedup compares *content*,
+so resolving straight into each document's own original component, without
+tracking what it was renamed to elsewhere in the output, is sufficient and
+notably simpler than what `external-references.ts:137` already does for its
+different purpose).
+
+Residual case, smaller than before but not zero: a ref naming a document
+truly outside this merge's knowledge (no `sourceIdentity` match, no
+`externalDocuments` entry) — PR #87's own literal example. `knownDocuments`
+won't have it either, so `getSchema` returns `undefined` there just as
+`InternalLookup` does today, and `deepEquality` still needs Option B's
+graceful failure underneath it for that case.
 
 ### Option D — Configurable strategy (the PR author's own suggestion)
 
@@ -200,7 +280,8 @@ a non-CLI library consumer actually reports the gap Option C would close.
 
 ## 4. Recommendation
 
-**Merge a corrected version of PR #87 (Option A)**, with:
+Phase 1, to unblock PR #87 specifically: **merge a corrected version of it
+(Option A)**, with:
 - the doc comment from §3 naming the precondition explicitly, since the
   library can't enforce it, only warn about it;
 - Option B's graceful failure underneath it, so a caller that doesn't meet
@@ -209,13 +290,25 @@ a non-CLI library consumer actually reports the gap Option C would close.
 - the test file's import path updated to `_helpers/oas-generation`, its only
   mechanical rot.
 
-Not recommended right now: Option C or D. Both solve a real gap in the
-library's contract (unnormalized cross-document refs), but it's a gap that
-predates this PR, is shared by every other cross-document feature in this
-codebase, and has no reported caller hitting it — building either ahead of
-that would be speculative generality this repo's own conventions argue
-against (see `41`'s "don't broaden scope" note, and `23`'s non-goals). Revisit
-if a non-CLI consumer of `openapi-merge` reports it.
+Phase 2, as a follow-up rather than a blocker: **build Option C**
+(`CrossDocumentLookup`). Unlike the version of "resolve properly" this
+document first sketched, this one earns Phase 2 rather than "shelf it until
+someone asks": it isn't speculative generality for a caller that doesn't
+exist, it's a single, focused class that replaces the same
+"`InternalLookup`-over-one-document, external refs unreachable" pattern
+already duplicated everywhere this library builds a `Lookup` (§3), and it
+removes the one thing Option A's doc comment can only warn about rather than
+fix: Option A is correct *because* the CLI happens to normalize refs first —
+a fact about one caller that a future caller has to know and honour.
+`CrossDocumentLookup` needs no such fact; it resolves the actual content, so
+it's correct on its own terms, for anyone, with no I/O added to the
+library — consistent with the "no file-path or network awareness" rule this
+codebase already holds itself to.
+
+Phase 3, only if a concrete need shows up after Phase 2: **Option D.**
+Its whole value is as an escape hatch for whatever `CrossDocumentLookup`'s
+own residual case (a document truly outside the merge's knowledge) turns out
+to matter for in practice — not worth guessing at ahead of that.
 
 ## 5. What this means for PR #87 itself
 
