@@ -1,9 +1,9 @@
 import _ from 'lodash';
-import { SwaggerLookup } from '@atlassian/atlassian-openapi';
 import { ErrorMergeResult } from './data';
 import { Components31, OpenApiDocument } from './oas31';
 import { walkComponentReferences } from './reference-walker';
 import { deepEquality } from './component-equivalence';
+import { CrossDocumentLookup } from './cross-document-lookup';
 import { Components, DEDUPLICATED_COMPONENT_TYPES, processComponents } from './paths-and-components';
 
 /**
@@ -121,12 +121,20 @@ export type ExternalReferenceResolution =
  *   components to pull in on demand (issue #10).
  * @param resultComponents The merge's own `components`, mutated in place as
  *   external components are placed into it.
+ * @param knownDocuments Every document a cross-document `$ref` *inside* a
+ *   pulled-in component might itself name -- declared inputs keyed by
+ *   `sourceIdentity`, plus `externalDocuments` -- so the dedup check below
+ *   (issue: PR #87 / proposal 42, Option C) can resolve one instead of
+ *   giving up on it. Built once by {@link import('./paths-and-components').mergePathsAndComponents}
+ *   via {@link import('./cross-document-lookup').buildKnownDocuments}, the
+ *   same map its own per-input dedup uses.
  */
 export function createCrossDocumentResolver(
   referenceModificationByIdentity: ReferenceModificationByIdentity,
   ambiguousIdentities: ReadonlySet<string>,
   externalDocuments: Record<string, OpenApiDocument>,
   resultComponents: Components31,
+  knownDocuments: Readonly<Record<string, OpenApiDocument>>,
 ): (identity: string, fragment: string) => ExternalReferenceResolution {
   // Keyed by `${identity}#${fragment}`, both memoizing completed placements
   // and detecting cycles: an identity+fragment re-entered while still being
@@ -242,12 +250,14 @@ export function createCrossDocumentResolver(
       // grows as earlier pulls in the same pass are placed, and a later
       // dedup check must see them. Mirrors how `mergePathsAndComponents`
       // rebuilds the equivalent lookups on every input, for the same reason.
-      const resultLookup = new SwaggerLookup.InternalLookup({
-        openapi: '3.0.1', info: { title: 'dummy', version: '0' }, paths: {}, components: resultComponents,
-      });
-      const currentLookup = new SwaggerLookup.InternalLookup({
-        openapi: '3.0.1', info: { title: 'dummy', version: '0' }, paths: {}, components: doc.components ?? {},
-      });
+      const resultLookup = new CrossDocumentLookup(
+        { openapi: '3.0.1', info: { title: 'dummy', version: '0' }, components: resultComponents },
+        knownDocuments,
+      );
+      const currentLookup = new CrossDocumentLookup(
+        { openapi: '3.0.1', info: { title: 'dummy', version: '0' }, components: doc.components ?? {} },
+        knownDocuments,
+      );
 
       const targetBucket = ((resultComponents as unknown as Record<string, Components<unknown> | undefined>)[parsed.bucket]) ?? {};
       (resultComponents as unknown as Record<string, Components<unknown>>)[parsed.bucket] = targetBucket;
