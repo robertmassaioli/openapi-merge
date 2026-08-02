@@ -89,7 +89,8 @@ Higher is better; ties broken by lower effort first.
 | 26 | [#10](https://github.com/robertmassaioli/openapi-merge/issues/10) | Resolve / bundle external `$ref`s | 5 | 5 | **5** | Big Bet | ✅ [37-proposal-10-external-ref-bundling.md](issues/37-proposal-10-external-ref-bundling.md) (Option 2-refined) |
 | 27 | [#113](https://github.com/robertmassaioli/openapi-merge/issues/113) | Add support for OpenAPI 3.1.x | 5 | 5 | **5** | Big Bet | ✅ [26](issues/26-proposal-oas-phase1-version-checking.md)/[27](issues/27-proposal-oas-phase2-31-support.md)/[28](issues/28-proposal-oas-phase3-32-support.md) |
 | 28 | [#96](https://github.com/robertmassaioli/openapi-merge/issues/96) | OpenAPI 3.1 `webhook` support | 3 | 4 | **2** | Big Bet | ✅ Closed 2026-08-01, shipped with #113 |
-| 29 | [#149](https://github.com/robertmassaioli/openapi-merge/issues/149) | Improve repository documentation (microsite + playground) | 3 | 2 | **4** | Quick Win | 📝 [43-proposal-149-readme-and-api-docs.md](issues/43-proposal-149-readme-and-api-docs.md) (options 1–2 of 4; opened 2026-08-02, after this file's generation date) |
+| 29 | [#149](https://github.com/robertmassaioli/openapi-merge/issues/149) | Improve repository documentation (microsite + playground) | 3 | 2 | **4** | Quick Win | ✅ [43-proposal-149-readme-and-api-docs.md](issues/43-proposal-149-readme-and-api-docs.md) (options 1–2 of 4; shipped as [#151](https://github.com/robertmassaioli/openapi-merge/pull/151)) |
+| 30 | [#149](https://github.com/robertmassaioli/openapi-merge/issues/149) | Documentation microsite (option 3 of 4) | 4 | 3 | **5** | Big Bet (low) | 📝 [47-proposal-149-documentation-microsite.md](issues/47-proposal-149-documentation-microsite.md) |
 
 ---
 
