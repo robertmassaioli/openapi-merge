@@ -11,8 +11,8 @@ used for most use cases, some of the feature decisions are tailored for that spe
 
 In order to use this merging cli tool you need to have one or more OpenAPI 3.0 files that you wish to merge. Then you need to create a configuration file,
 called `openapi-merge.yaml` by default (`openapi-merge.json` is also read, for configurations written before this tool wrote YAML), in your current directory.
-The [`init`](#getting-started-init) command below writes a starting point for you, with every setting documented and commented out. Written by hand, it
-should look something like this:
+The [`init`](#getting-started-init) command below writes a starting point for you, with every setting documented (most commented out, a couple turned on by
+default -- see below). Written by hand, it should look something like this:
 
 ``` json
 {
@@ -111,17 +111,27 @@ OpenAPI 3.x files it finds alongside it:
 ## Wrote openapi-merge.yaml with 2 inputs:
 ##   ./service-a.yaml
 ##   ./service-b.yaml
-##   Every other setting is included, commented out -- uncomment what you need.
+##   resolveExternalReferences and inputRoot are turned on by default -- see the
+##   comments above them. Every other setting is included, commented out -- uncomment what you need.
 ## Edit openapi-merge.yaml, then run openapi-merge-cli to produce './openapi.yaml'.
 ```
 
-The generated file is not just `inputs` and `output` -- every optional setting
-this tool supports, both per-input (`dispute`, `pathModification`,
-`operationSelection`, `description`, `duplicatePathHandling`, `tag`) and
-top-level (`outputRoot`, `formatting`, `serversStrategy`,
-`securitySchemesStrategy`, `pruneUnusedComponents`, `info`), is written out
-commented, with a one-line explanation and a working example. Uncomment a
-block and it is immediately valid -- nothing else to fill in:
+The generated file is not just `inputs` and `output`. Two settings,
+`resolveExternalReferences` and `inputRoot`, are turned **on** by default --
+see [Cross-document `$ref`s](#cross-document-refs) below for what the first
+one does; the second bounds it to the directory `init` just scanned, which
+costs nothing since everything `init` found already lives there. Every other
+optional setting this tool supports, both per-input (`dispute`,
+`pathModification`, `operationSelection`, `description`,
+`duplicatePathHandling`, `tag`) and top-level (`outputRoot`, `formatting`,
+`serversStrategy`, `securitySchemesStrategy`, `pruneUnusedComponents`,
+`info`), is written out commented, with a one-line explanation and a working
+example. Uncomment a block and it is immediately valid -- nothing else to
+fill in. **A field with more than one possible value -- an enum like
+`serversStrategy`, or a choice like `dispute`'s prefix-vs-suffix -- shows
+every value as its own commented example line**, so picking one is
+"uncomment this line instead of that one," not "look up the other spellings
+and edit a value by hand":
 
 ```yaml
 inputs:
@@ -131,16 +141,40 @@ inputs:
     # pathModification:
     #   stripStart: /v1
     #   prepend: /service-a
-    # ... operationSelection, description, duplicatePathHandling, tag, dispute ...
+    # What to do when this input declares a path another input already contributed.
+    # duplicatePathHandling: error            # (default) fail the merge
+    # duplicatePathHandling: skip-later       # keep the definition already present, drop this one
+    # duplicatePathHandling: prefer-later     # replace the definition already present with this one
+    # duplicatePathHandling: merge-operations # combine when methods don't overlap and path-level fields agree
+    # ... operationSelection, description, tag, dispute ...
   - inputFile: ./service-b.yaml
     # Per-input options: see the commented block under the first input above -- the same fields apply here.
 output: ./openapi.yaml
 
+# Follows $refs into files these inputs don't declare, and files those pull in,
+# however many deep -- so a $ref into an undeclared file just works. Paired
+# with inputRoot, below, which bounds every local file this can reach to '.'.
+# Set to false to turn this off.
+resolveExternalReferences: true
+
+# Defence in depth for the setting above: refuses to read any local file --
+# declared or discovered -- from outside this directory.
+inputRoot: .
+
 # Defence in depth: refuse to write the merged output anywhere outside this directory.
 # outputRoot: .
 
-# ... formatting, serversStrategy, securitySchemesStrategy, pruneUnusedComponents, info ...
+# How to combine the top-level 'servers' array across inputs.
+# serversStrategy: first  # (default) keep only the first input's servers, discard the rest
+# serversStrategy: concat # keep every input's servers, deduplicated by URL
+
+# ... formatting, securitySchemesStrategy, pruneUnusedComponents, info ...
 ```
+
+If you would rather start from the historical permissive defaults (both
+settings unset, matching every version of `init` before this), delete or
+comment out the two active lines -- deleting an active line is exactly as
+valid as leaving a commented one uncommented.
 
 Details worth knowing:
 
