@@ -1,7 +1,11 @@
 # Implementation Proposal: Issue #45 — Allow CLI Use Without a Config File
 
-**Status:** Proposal (revised 2026-08-02 — the original draft here predates `init` and
-several CLI architecture changes; see §0)
+**Status:** ⛔ Won't Do — closed by the maintainer 2026-08-02. The config file
+is a deliberate design choice (the single validated entry point the rest of
+the tool's safety features are built around), not a gap to close. `init`
+remains the intended answer to "I don't want to hand-write a config file."
+The revision below (predating this decision) stands as the record of what
+was investigated and why §7's recommendation leaned the same way.
 
 **Issue:** [robertmassaioli/openapi-merge#45](https://github.com/robertmassaioli/openapi-merge/issues/45)
 
