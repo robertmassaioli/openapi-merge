@@ -69,6 +69,7 @@ dependency health, build migrations. Named by topic rather than by issue number.
 | [`38-proposal-input-root-containment.md`](38-proposal-input-root-containment.md) | ✅ `inputRoot` — a read-side containment boundary mirroring `outputRoot`, closing the gap proposal 37 left open |
 | [`39-proposal-init-convenience-defaults.md`](39-proposal-init-convenience-defaults.md) | ✅ `resolveExternalReferences` + `inputRoot` turned on by default in `init`'s output |
 | [`41-proposal-release-gated-npm-publish.md`](41-proposal-release-gated-npm-publish.md) | `npm-publish.yml` triggers on a published GitHub Release instead of every push to `main` |
+| [`42-proposal-external-ref-equality-in-dedup.md`](42-proposal-external-ref-equality-in-dedup.md) | Evaluates PR #87: a crash in component dedup on external `$ref`s, and why its fix needs more care than the PR gives it |
 | [`issue-triage-value-vs-effort.md`](issue-triage-value-vs-effort.md) | Value/effort scoring of every open issue; the index into `issues/` |
 | [`spec-edge-case-findings.md`](spec-edge-case-findings.md) | Divergences between the merge and the spec, found by edge-case testing |
 | [`bun-tsgo-migration-build-timings.md`](bun-tsgo-migration-build-timings.md) | Measured build timings for the Bun + tsgo migration |
