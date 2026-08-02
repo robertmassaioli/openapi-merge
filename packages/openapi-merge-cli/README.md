@@ -1,15 +1,28 @@
 # openapi-merge-cli
 
 This tool is based on the [![npm](https://img.shields.io/npm/v/openapi-merge?label=openapi-merge&logo=npm)](https://bit.ly/2WnIytF) library. Please read
-that README for more details on how the merging algorithm works.
+[that README](https://github.com/robertmassaioli/openapi-merge/blob/main/packages/openapi-merge/README.md) for more details on how the merging algorithm works.
 
-This library is intended to be used for merging multiple OpenAPI 3.0 files together. The most common reason that developers want to do this is because
-they have multiple services that they wish to expose underneath a single API Gateway. Therefore, even though this merging logic is sufficiently generic to be
-used for most use cases, some of the feature decisions are tailored for that specific use case.
+This tool is intended to be used for merging multiple OpenAPI 3.0, 3.1 or 3.2 files together (all inputs must agree on the same major.minor version).
+The most common reason that developers want to do this is because they have multiple services that they wish to expose underneath a single API Gateway.
+Therefore, even though this merging logic is sufficiently generic to be used for most use cases, some of the feature decisions are tailored for that
+specific use case.
+
+## Contents
+
+* [Getting started](#getting-started)
+  * [Selecting only the operations with a particular tag](#selecting-only-the-operations-with-a-particular-tag)
+  * [Getting started: `init`](#getting-started-init)
+* [Formatting](#formatting)
+* [Paths](#paths)
+* [Cross-document `$ref`s](#cross-document-refs)
+* [Security](#security)
+* [Exit codes](#exit-codes)
+  * [OpenAPI version support](#openapi-version-support)
 
 ## Getting started
 
-In order to use this merging cli tool you need to have one or more OpenAPI 3.0 files that you wish to merge. Then you need to create a configuration file,
+In order to use this merging cli tool you need to have one or more OpenAPI 3.0, 3.1 or 3.2 files that you wish to merge. Then you need to create a configuration file,
 called `openapi-merge.yaml` by default (`openapi-merge.json` is also read, for configurations written before this tool wrote YAML), in your current directory.
 The [`init`](#getting-started-init) command below writes a starting point for you, with every setting documented (most commented out, a couple turned on by
 default -- see below). Written by hand, it should look something like this:

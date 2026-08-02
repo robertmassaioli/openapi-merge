@@ -168,6 +168,7 @@ bun run test       # bun test --coverage
 bun run lint       # eslint src --fix
 bun run typecheck  # tsgo --project . --noEmit
 bun run start      # bun src/index.ts         (rarely useful directly)
+bun run docs       # typedoc -> docs-api/ (gitignored); generated API reference from src/index.ts
 ```
 
 Tests run under Bun's built-in test runner (`bun:test`), which is Jest-API-compatible
@@ -596,6 +597,7 @@ When editing this repository, please follow these guidelines:
 | Run the full test suite                    | `bun run test`                                                |
 | Run only the library tests                 | `bun run --cwd packages/openapi-merge test`                   |
 | Build the library                          | `bun run --cwd packages/openapi-merge build`                  |
+| Generate the library's API reference       | `bun run --cwd packages/openapi-merge docs`                    |
 | Watch-build the library                    | `cd packages/openapi-merge && bun run build -- --watch`       |
 | Build the CLI                              | `bun run --cwd packages/openapi-merge-cli build`               |
 | Regenerate the CLI JSON Schema              | `bun run --cwd packages/openapi-merge-cli gen-schema`          |

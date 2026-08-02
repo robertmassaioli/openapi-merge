@@ -11,3 +11,6 @@
 
 # don't lint nyc coverage output
 /coverage
+
+# Generated API reference (bun run docs)
+/docs-api

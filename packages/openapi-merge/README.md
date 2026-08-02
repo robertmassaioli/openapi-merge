@@ -2,8 +2,8 @@
 
 This library assumes that you have a number of microservices that you wish to expose through one main service or gateway.
 
-With this assumption in mind, it allows you to provide multiple OpenAPI 3.0 files and have them be merged together, in a 
-deterministic manner, into a single OpenAPI specification.
+With this assumption in mind, it allows you to provide multiple OpenAPI 3.0, 3.1 or 3.2 files (all inputs must agree on the
+same major.minor version) and have them be merged together, in a deterministic manner, into a single OpenAPI specification.
 
 Many of the design decisions of this library have that use case in mind and thus the features will be geared to making that
 be a good experience.
@@ -85,7 +85,28 @@ function main() {
 main();
 ```
 
-If you wish to play around with this example further, then please [fork this Repl](https://replit.com/@RobertMassaioli/openapi-merge-Example?v=1). 
+## Merge options
+
+`merge()` takes an optional second argument, `MergeOptions`, for settings that apply to the merge as a whole rather than
+to a single input:
+
+* `pruneUnusedComponents` (default `false`): drop components nothing in the merged document references. Off by default
+  because pruning is destructive; turn it on if you're using `operationSelection` to remove operations and expect their
+  schemas to go with them ([issue #94](https://github.com/robertmassaioli/openapi-merge/issues/94)).
+* `info`: override fields of the merged `info` object, merged field by field so overriding just `title` doesn't require
+  restating `version` ([issue #102](https://github.com/robertmassaioli/openapi-merge/issues/102)).
+* `serversStrategy` (default `'first'`): `'first'` keeps only the first input's `servers`; `'concat'` keeps every input's
+  `servers`, deduplicated by URL ([issue #4](https://github.com/robertmassaioli/openapi-merge/issues/4)).
+* `securitySchemesStrategy` (default `'merge'`): how `components.securitySchemes` is combined across inputs. Unlike
+  `serversStrategy`, the default here is *not* first-wins — first-wins previously produced documents whose operations
+  required a scheme the document didn't define ([issue #33](https://github.com/robertmassaioli/openapi-merge/issues/33)).
+* `externalDocuments`: documents this merge may need to pull individual components out of via a cross-document `$ref`,
+  keyed by the same opaque identity as each input's `sourceIdentity`. Nothing here is included in the output unless a
+  `$ref` elsewhere in the merge actually asks for it ([issue #10](https://github.com/robertmassaioli/openapi-merge/issues/10)).
+
+Each `SingleMergeInput` also has its own per-input options beyond `pathModification` — `dispute`, `operationSelection`,
+`description`, `duplicatePathHandling` and `tag` — documented alongside the full type shapes in the
+[generated API reference](#api-reference) below.
 
 ## Merging Behaviour
 
@@ -95,14 +116,24 @@ modified to merge seamlessly into the first.
 For some parts of the OpenAPI file, like `paths`, `components` and `tags` we attempt to merge the definitions together 
 such that there are no overlaps and no information is dropped.
 
-However, for other elements of the OpenAPI files, the algorithm simply takes the value that is first defined in the list of
-OpenAPI files. Examples of elements of the OpenAPI files that follow this pattern are:
+For other elements, the algorithm's default behaviour is to take the value that is first defined in the list of OpenAPI
+files — the first file effectively overrides the others, matching the "API gateway" use case mentioned above, where these
+definitions are usually meant to be specific to the gateway rather than inherited from a backend. This is the behaviour for:
 
- - Info
- - Servers
- - Security Schemes
+ - Info (further overridable per field via `MergeOptions.info`, above)
+ - Servers (the `MergeOptions.serversStrategy` default; `'concat'` is available to keep every input's servers instead)
  - ExternalDocumentation
 
-The intention here is that the first file will define these elements and effectively override them from the other files. This 
-matches the "API gateway" use case that we have mentioned previously whereby we probably want these definitions to be specific to
-the API gateway and thus override the top level definitions from other inputs.
+**Security Schemes are the one exception**: unlike everything above, `securitySchemesStrategy` defaults to `'merge'`, not
+first-wins — see `MergeOptions.securitySchemesStrategy` above for why.
+
+## API reference
+
+The full type shapes for `MergeInput`, `MergeOptions`, `MergeResult` and every option mentioned above are generated
+directly from the TypeScript source, so they can't drift from what the code actually accepts. Generate a local copy with:
+
+``` shell
+bun run docs
+```
+
+This writes a browsable HTML API reference to `docs-api/` (gitignored — regenerate it whenever you need it).
