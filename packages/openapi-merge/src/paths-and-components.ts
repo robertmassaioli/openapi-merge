@@ -1,5 +1,5 @@
 import { MergeInput, ErrorMergeResult, Dispute } from "./data";
-import { Swagger, SwaggerLookup, SwaggerTypeChecks } from "@atlassian/atlassian-openapi";
+import { Swagger, SwaggerLookup } from "@atlassian/atlassian-openapi";
 import { walkAllReferences } from "./reference-walker";
 import _ from 'lodash';
 import { runOperationSelection } from "./operation-selection";
@@ -10,6 +10,7 @@ import { applyDispute, getDispute } from './dispute';
 import { DEFAULT_SECURITY_SCHEMES_STRATEGY, SecuritySchemesStrategy } from './security-schemes';
 import { Components31, getPathItemOperations, getPaths, getWebhooks, OpenApiDocument, PathItem32, PathItemMap } from './oas31';
 import { createCrossDocumentResolver, ReferenceModificationByIdentity, splitCrossDocumentRef } from './external-references';
+import { isReference, required } from './safe-type-checks';
 
 export type PathAndComponents = {
   paths: Swagger.Paths;
@@ -124,7 +125,11 @@ function countOperationsInPathItem(pathItem: PathItem32): number {
  * because nothing could reference one and survive.
  */
 function pathItemHasContent(pathItem: PathItem32): boolean {
-  return pathItem.$ref !== undefined || countOperationsInPathItem(pathItem) > 0;
+  // `countOperationsInPathItem` first, not `pathItem.$ref` -- it goes through
+  // `getPathItemOperations`, which is what actually guards against a `null`
+  // Path Item (`paths: { '/a': }`). Checking `.$ref` first would dereference
+  // the same `null` unguarded, one line earlier.
+  return countOperationsInPathItem(pathItem) > 0 || pathItem.$ref !== undefined;
 }
 
 function dropPathItemsWithNoOperations(originalOas: OpenApiDocument): OpenApiDocument {
@@ -255,30 +260,37 @@ function ensureUniqueOperationIds(pathItem: PathItem32, seenOperationIds: Set<st
  * both `paths` and `webhooks`. Mutates in place; the caller owns a deep clone.
  */
 function renameSecurityRequirements(oas: OpenApiDocument, renames: { [from: string]: string }): void {
-  if (Object.keys(renames).length === 0) {
-    return;
-  }
-
-  const rewrite = (requirements: Swagger.SecurityRequirement[] | undefined): Swagger.SecurityRequirement[] | undefined => {
+  // Runs unconditionally, not gated on `renames` being non-empty: a bare
+  // `security: [ ]` list item (a genuine authoring mistake -- see proposal 40)
+  // must be caught the same way regardless of whether some *other* scheme
+  // elsewhere in this input happened to collide and need renaming. Gating on
+  // that would make whether this input's own mistake is caught depend on what
+  // else it is merged with, which is not a distinction a config author can see.
+  const rewrite = (requirements: Swagger.SecurityRequirement[] | undefined, pointer: string): Swagger.SecurityRequirement[] | undefined => {
     if (requirements === undefined) {
       return undefined;
     }
-    return requirements.map(requirement => {
+    // Not just the `undefined` check above: `security:` present but empty
+    // (no list at all) parses as `null`, and `.map` on it would otherwise
+    // crash -- the exact failure mode this proposal exists to remove.
+    const list = required(requirements as Swagger.SecurityRequirement[] | null, 'a Security Requirements array', pointer);
+    return list.map((requirement, index) => {
+      const item = required(requirement as Swagger.SecurityRequirement | null, 'a Security Requirement Object', `${pointer}/${index}`);
       const renamed: Swagger.SecurityRequirement = {};
-      for (const schemeName of Object.keys(requirement)) {
-        renamed[renames[schemeName] ?? schemeName] = requirement[schemeName];
+      for (const schemeName of Object.keys(item)) {
+        renamed[renames[schemeName] ?? schemeName] = item[schemeName];
       }
       return renamed;
     });
   };
 
-  oas.security = rewrite(oas.security);
+  oas.security = rewrite(oas.security, '#/security');
 
-  for (const pathItemMap of [oas.paths, oas.webhooks]) {
+  for (const [mapName, pathItemMap] of [['paths', oas.paths], ['webhooks', oas.webhooks]] as const) {
     for (const key of Object.keys(pathItemMap ?? {})) {
       const pathItem = (pathItemMap ?? {})[key];
-      for (const { operation } of getPathItemOperations(pathItem)) {
-        operation.security = rewrite(operation.security);
+      for (const { method, operation } of getPathItemOperations(pathItem)) {
+        operation.security = rewrite(operation.security, `#/${mapName}/${key}/${method}/security`);
       }
     }
   }
@@ -312,7 +324,7 @@ function ensureUniqueCallbackOperationIds(
 
   for (const callbackName of Object.keys(callbacks)) {
     const callback = callbacks[callbackName];
-    if (SwaggerTypeChecks.isReference(callback)) {
+    if (isReference(callback, `#/callbacks/${callbackName}`)) {
       continue;
     }
 
@@ -402,6 +414,12 @@ export function mergePathsAndComponents(
 
       // For each component in the original input, place it in the output with deduplicate taking place
     if (oas.components !== undefined) {
+      // Not just `!== undefined`: `components:` present but empty parses as
+      // `null`, which every access below would otherwise crash on partway
+      // through instead of failing clearly, right here.
+      const components = required(oas.components as Components31 | null, 'a Components Object', '#/components');
+      oas.components = components;
+
       const resultLookup = new SwaggerLookup.InternalLookup({ openapi: '3.0.1', info: { title: 'dummy', version: '0' }, paths: {}, components: result.components });
       // InternalLookup is 3.0-shaped and needs a concrete `paths`. A 3.1
       // document may legitimately have none, and the lookup only resolves
@@ -444,7 +462,16 @@ export function mergePathsAndComponents(
 
       // `securitySchemes` is handled apart from the loop above because, unlike
       // the other nine buckets, how it combines is configurable (issue #33).
-      const incomingSchemes = oas.components.securitySchemes;
+      if (components.securitySchemes !== undefined) {
+        // Not just `!== undefined`: `securitySchemes:` present but empty
+        // parses as `null`, and `Object.keys` below would otherwise crash.
+        components.securitySchemes = required(
+          components.securitySchemes as Components31['securitySchemes'] | null,
+          'a Security Schemes map',
+          '#/components/securitySchemes',
+        );
+      }
+      const incomingSchemes = components.securitySchemes;
       if (incomingSchemes !== undefined && Object.keys(incomingSchemes).length > 0) {
         if (securitySchemesStrategy === 'first') {
           // The behaviour before #33: the first input to declare any wins.
@@ -491,14 +518,20 @@ export function mergePathsAndComponents(
           }
         }
       }
-
-      // A renamed security scheme is not reachable through `referenceModification`.
-      // Security requirements name a scheme as an OBJECT KEY -- `{ apiKey: [] }`
-      // -- not as a `$ref`, so the reference walker never sees them and a rename
-      // would leave every requirement pointing at a scheme that no longer exists.
-      // Applied to this input's clone before its operations are copied out.
-      renameSecurityRequirements(oas, securitySchemeRenames);
     }
+
+    // A renamed security scheme is not reachable through `referenceModification`.
+    // Security requirements name a scheme as an OBJECT KEY -- `{ apiKey: [] }`
+    // -- not as a `$ref`, so the reference walker never sees them and a rename
+    // would leave every requirement pointing at a scheme that no longer exists.
+    // Applied to this input's clone before its operations are copied out.
+    //
+    // Unconditional -- not nested inside `oas.components !== undefined` --
+    // because `security`/`operation.security` can carry a malformed entry
+    // (proposal 40) whether or not this input declares any components at all,
+    // and `securitySchemeRenames` is simply empty (a safe no-op rename map)
+    // when it does not.
+    renameSecurityRequirements(oas, securitySchemeRenames);
 
     if (result.security === undefined && oas.security !== undefined) {
       result.security = oas.security;

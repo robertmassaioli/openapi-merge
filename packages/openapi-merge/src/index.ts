@@ -9,8 +9,10 @@ import { OpenApiDocument } from './oas31';
 import { mergeServers, ServersStrategy } from './servers';
 import { SecuritySchemesStrategy } from './security-schemes';
 import { pruneUnusedComponents } from './prune-components';
+import { MalformedDocumentError } from './safe-type-checks';
 
 export { isErrorResult };
+export { MalformedDocumentError };
 export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy, SecuritySchemesStrategy };
 
 function getFirst<A>(inputs: Array<A>): A | undefined {
@@ -54,7 +56,22 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
     return versionError;
   }
 
-  const pathAndComponentResult = mergePathsAndComponents(inputs, options?.securitySchemesStrategy, options?.externalDocuments);
+  // `mergePathsAndComponents` and the reference walker it drives return errors
+  // for everything except a `null` in a structural slot (proposal 40): that
+  // one is *thrown*, from deep inside a recursive walk with no return-type
+  // threaded through it, and caught narrowly here rather than at every one of
+  // the dozens of intermediate call sites. Only `MalformedDocumentError` is
+  // caught -- anything else (e.g. the "more than one matching key" internal
+  // invariant errors) is a real bug and must keep propagating as an exception.
+  let pathAndComponentResult: ReturnType<typeof mergePathsAndComponents>;
+  try {
+    pathAndComponentResult = mergePathsAndComponents(inputs, options?.securitySchemesStrategy, options?.externalDocuments);
+  } catch (e) {
+    if (e instanceof MalformedDocumentError) {
+      return { type: 'malformed-document', message: e.message };
+    }
+    throw e;
+  }
 
   if (isErrorResult(pathAndComponentResult)) {
     return pathAndComponentResult;
@@ -90,5 +107,10 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
   // Last, so that reachability is computed against the finished document --
   // after operation selection, renaming and reference rewriting have all had
   // their say. Anything earlier would measure a document that does not exist.
+  //
+  // No try/catch needed here unlike above: `output` is built entirely from
+  // pieces `mergePathsAndComponents` already walked and validated, so
+  // `pruneUnusedComponents` cannot encounter a `null` the catch above did not
+  // already catch first (see the comment on `securitySchemesInUse`).
   return { output: options?.pruneUnusedComponents === true ? pruneUnusedComponents(output) : output };
 }
