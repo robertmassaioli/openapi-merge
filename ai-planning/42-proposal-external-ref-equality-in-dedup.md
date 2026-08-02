@@ -2,9 +2,9 @@
 
 **Origin:** [PR #87 — "external ref equality"](https://github.com/robertmassaioli/openapi-merge/pull/87), opened 2022-12-23 by @stropho, still open, unmerged.
 
-**Status:** Options and tradeoffs — not yet a design, let alone an implementation. Written to evaluate PR #87 on today's codebase before deciding whether to merge it, adapt it, or supersede it.
+**Status:** ✅ Option C (`CrossDocumentLookup`) implemented in full, on branch `worktree-evaluate-pr87-external-ref-equality` — see §6. PR #87 itself has not been merged; this branch supersedes what it would have done, with the correct rather than heuristic fix (§2's own conclusion).
 
-**Value:** 3 | **Effort:** 1–4 depending on option chosen (§4)
+**Value:** 3 | **Effort:** 1–4 depending on option chosen (§4) — Option C actually took, §6
 
 ---
 
@@ -333,3 +333,102 @@ proposal: a `$ref`'s *literal text* and what it *resolves to* are two
 different questions in this codebase, and any claim about which one a given
 code path is looking at needs to be checked against the code, not inferred
 from a feature's name.
+
+## 6. Implementation
+
+Built directly, at Robert's request, rather than shipping the smaller
+Option A first. `CrossDocumentLookup` (`cross-document-lookup.ts`) is a
+second `SwaggerLookup.Lookup` implementation alongside `InternalLookup`:
+every one of the interface's ten accessors resolves a bare (`#`-prefixed)
+`$ref` by delegating wholesale to a wrapped `InternalLookup` (so the
+local-only case -- the overwhelming majority of existing behaviour and
+tests -- is byte-for-byte unchanged, including `InternalLookup`'s own
+schema-title-backfill quirk, which is inherited for free rather than
+reimplemented), and resolves a cross-document `$ref` against a
+`knownDocuments: Record<identity, OpenApiDocument>` map assembled once per
+merge by `buildKnownDocuments` (declared inputs by `sourceIdentity`, plus
+`externalDocuments`, ambiguous identities excluded exactly as
+`resolveIdentityFragment` already excludes them). Wired into both of
+`deepEquality`'s call sites -- `paths-and-components.ts`'s per-input dedup
+and `external-references.ts`'s `pullInComponent` dedup -- replacing their
+`InternalLookup` constructions outright; `compare()` itself in
+`component-equivalence.ts` did not need to change at all.
+
+### 6.1 Where the design sketch in §3 undersold the real work
+
+§3's code sketch implied one hop -- split the ref, look up the identity,
+delegate the fragment to *a* `Lookup` over the target document -- would be
+enough, with a one-line aside that it "recurses correctly if that document's
+own component is itself a `$ref`, local or cross-document." Making that
+aside actually true took more than the sketch showed:
+
+- **`lookupFor` returns another `CrossDocumentLookup`, recursively** (sharing
+  the same `knownDocuments`), not a plain `InternalLookup` -- needed so a
+  chain crossing multiple identities (A's ref names B, B's own component
+  names C) keeps resolving instead of stopping one hop early.
+- **A bare ref whose target is itself foreign is a real gap `InternalLookup`
+  can't be asked to close**, because it doesn't distinguish "genuinely
+  absent" from "present, but itself a `$ref` I don't chase" -- both come back
+  as a bare `undefined`. `chaseForeignAlias` handles exactly this: only on
+  `InternalLookup` returning `undefined` does it fetch one raw pointer hop
+  itself (via the `jsonpointer` package, now a direct dependency -- it was
+  already present transitively through `@atlassian/atlassian-openapi`, and
+  is small enough, and now bundled into the published CLI artifact, to
+  declare rather than borrow) and, if that hop is itself a reference, keep
+  resolving from there. This is what makes a *local* alias that bottoms out
+  at a *foreign* document resolve correctly (§6, tested directly).
+- **A defensive `seen` set**, threaded through every recursive call (both the
+  bare-ref retry and the cross-document delegation), guards a genuine
+  cross-document cycle (A names B, B names A back). Not expected in valid
+  OpenAPI, and not a case `deepEquality`'s own cycle guard covers (that one
+  only tracks the top-level pair being compared, not calls into a `Lookup`
+  made any other way) -- added because this class does not get to assume its
+  input is well-formed.
+
+None of this changes what a caller sees; it is entirely what "resolves
+correctly" in §3 actually required once it had to be true rather than
+plausible.
+
+### 6.2 Results
+
+- `packages/openapi-merge/src/cross-document-lookup.ts`: the class and
+  `buildKnownDocuments`, 100% function and line coverage.
+- `packages/openapi-merge/src/__tests__/cross-document-lookup.test.ts`: 30
+  tests directly against the class -- every accessor, local resolution
+  (including title-backfill and its absence), cross-document resolution,
+  unknown identity, unknown fragment, whole-document (no-fragment) refs, a
+  purely-local alias chain, a cross-document chain spanning three identities,
+  a cross-document target whose own fragment is a local alias, the narrow
+  local-alias-bottoms-out-at-foreign case, a genuine cross-document cycle
+  (returns `undefined`, does not overflow the stack), and `buildKnownDocuments`
+  itself (precedence, ambiguous-identity exclusion, no-sourceIdentity
+  exclusion).
+- `packages/openapi-merge/src/__tests__/dedup-cross-document-refs.test.ts`: 10
+  end-to-end `merge()` tests, including PR #87's exact reported shape as a
+  named regression test, and -- the part a string-identity heuristic
+  (PR #87's original diff) could not get right in either direction -- cases
+  where two different external identities resolve to *equal* content (must
+  dedupe) and where the same-shaped refs resolve to *different* content
+  (must not), plus the `pullInComponent`-specific path via a nested-path
+  fragment left deliberately unresolved by the rewrite pass, and the
+  documented residual case (§3.3): a ref to a document truly outside the
+  merge's knowledge still surfaces as an uncaught `Error`, unchanged from
+  before this work, and asserted here rather than left as a surprise.
+- Full suite: 730 tests (479 library + 251 CLI), 0 failures, both packages'
+  coverage floors met (`cross-document-lookup.ts` itself at 100%/100%,
+  `paths-and-components.ts` and `external-references.ts` unchanged from their
+  pre-existing coverage numbers). `bun run lint`, `bun run build`, and
+  `scripts/verify-node-runtime.sh` (48 artifact-level checks against the
+  actual bundled CLI, on Node 25 and Bun) all green -- `jsonpointer` is now a
+  bundled dependency of the published CLI artifact for the first time, and
+  its licence appears in the generated `THIRD-PARTY-NOTICES.txt` correctly.
+  `bun audit` unchanged (the one pre-existing, unrelated `js-yaml` finding
+  from `41`; nothing new from `jsonpointer`).
+
+### 6.3 Not done, deliberately
+
+Options A, B and D from §3/§4 were not implemented. Option A is superseded
+outright: Option C is the correct version of the same fix. Option B (a typed
+`MergeResult` error instead of the residual case's uncaught exception) and
+Option D (a configurable escape hatch) remain exactly as scoped in §4 --
+real, separable follow-ups, not part of this request.
