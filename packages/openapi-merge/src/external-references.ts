@@ -198,7 +198,14 @@ export function createCrossDocumentResolver(
 
     const sourceBucket = (doc.components as Components31 | undefined)?.[parsed.bucket] as Components<unknown> | undefined;
     const raw = sourceBucket?.[parsed.name];
-    if (raw === undefined) {
+    // `== null`, not `=== undefined`: a component that is *present but empty*
+    // (`Errors:`, an empty YAML value) means exactly the same thing here as
+    // one that is missing entirely -- neither has real content to pull in.
+    // `doc` was never a declared input the config author is responsible for,
+    // so this stays the existing soft "unresolved" outcome for both, not an
+    // error (contrast a `null` in a *declared* input's own content, which
+    // does error -- proposal 40 §4.1a).
+    if (raw == null) {
       return { kind: 'unresolved' };
     }
 

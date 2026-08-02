@@ -310,7 +310,16 @@ export type ErrorType =
    * rather than silently broken or stack-overflowing, since there is no
    * sensible finite document to produce for a genuinely circular definition.
    */
-  | 'cyclic-external-reference';
+  | 'cyclic-external-reference'
+  /**
+   * A `null` sits in a slot the specification requires to be an object (or,
+   * for a discriminator mapping target, a string) -- e.g. `schemas: { Widget:
+   * }`, an empty YAML value. Technically invalid OpenAPI, and common enough as
+   * an authoring slip that it gets its own type rather than surfacing as an
+   * unrelated crash (issue #92, proposal 40). The message names what was
+   * expected and, where known, a JSON Pointer to where.
+   */
+  | 'malformed-document';
 
 export type ErrorMergeResult = {
   type: ErrorType;
