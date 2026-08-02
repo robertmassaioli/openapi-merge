@@ -73,6 +73,22 @@ describe('main - successful merges', () => {
 
     expect(Object.keys(JSON.parse(cli.read()).paths)).toEqual(['/y']);
   });
+
+  it('applies operationSelection.excludePaths from the config, wildcard included (proposal 43 / PR #67)', async () => {
+    cli.writeJson('a.json', oas({
+      '/admin/users': getPath('adminUsers'),
+      '/admin/roles': getPath('adminRoles'),
+      '/public/status': getPath('status'),
+    }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json', operationSelection: { excludePaths: [{ path: '/admin/*' }] } }],
+      output: './output.json',
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+
+    expect(Object.keys(JSON.parse(cli.read()).paths)).toEqual(['/public/status']);
+  });
 });
 
 /**

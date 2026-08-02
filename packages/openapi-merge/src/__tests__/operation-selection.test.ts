@@ -587,3 +587,234 @@ describe('tag-based path selection, as documented (issue #100)', () => {
     expect(pathKeys(output)).toEqual(['/b']);
   });
 });
+
+/**
+ * Path-based operation selection: `includePaths`/`excludePaths` (proposal 43
+ * / PR #67).
+ *
+ * Same shape as tag selection above -- exclusion wins over inclusion, every
+ * operation slot is reached -- plus the two questions specific to paths:
+ * ordering relative to `pathModification`, and how a path rule composes with
+ * a tag rule configured on the same input.
+ */
+describe('path-based operation selection (proposal 43 / PR #67)', () => {
+  it('removes only the operations matching an exclude selector', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/admin/users': { get: op('adminUsers'), post: op('createAdminUser') },
+              '/customer/details': { get: op('customerDetails') },
+            },
+          }),
+          operationSelection: { excludePaths: [{ path: '/admin/users', method: 'get' }] },
+        },
+      ]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/admin/users', '/customer/details']);
+    expect(Object.keys(output.paths?.['/admin/users'] ?? {})).toEqual(['post']);
+  });
+
+  it('drops a path whose operations are all excluded', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({ paths: { '/keep': { get: op('k') }, '/drop': { get: op('d') } } }),
+          operationSelection: { excludePaths: [{ path: '/drop' }] },
+        },
+      ]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/keep']);
+  });
+
+  it('keeps only the operations matching an include selector', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/admin/users': { get: op('adminUsers') },
+              '/customer/details': { get: op('customerDetails') },
+            },
+          }),
+          operationSelection: { includePaths: [{ path: '/admin/*' }] },
+        },
+      ]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/admin/users']);
+  });
+
+  it('filters per operation, keeping a path whose other method survives', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({ paths: { '/thing': { get: op('getThing'), post: op('postThing') } } }),
+          operationSelection: { includePaths: [{ path: '/thing', method: 'get' }] },
+        },
+      ]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/thing']);
+    expect(Object.keys(output.paths?.['/thing'] ?? {})).toEqual(['get']);
+  });
+
+  it('gives exclusion precedence when a path is both included and excluded', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({ paths: { '/a': { get: op('a') }, '/b': { get: op('b') } } }),
+          operationSelection: { includePaths: [{ path: '/a' }, { path: '/b' }], excludePaths: [{ path: '/a' }] },
+        },
+      ]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/b']);
+  });
+
+  it('matches by wildcard, covering paths added after the config was written', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/admin/users': { get: op('adminUsers') },
+              '/admin/roles': { get: op('adminRoles') },
+              '/public/status': { get: op('status') },
+            },
+          }),
+          operationSelection: { excludePaths: [{ path: '/admin/*' }] },
+        },
+      ]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/public/status']);
+  });
+
+  it('matches a path containing regex syntax literally', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({ paths: { '/v1.2/status': { get: op('status') }, '/v1x2/status': { get: op('other') } } }),
+          operationSelection: { excludePaths: [{ path: '/v1.2/status' }] },
+        },
+      ]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/v1x2/status']);
+  });
+
+  it('matches selectors against the pre-pathModification path, not the merged output path', () => {
+    // A selector for the merged, post-modification path silently matches
+    // nothing -- proposal 43 §3 -- so this pins the opposite as the real
+    // behaviour: the selector below is written against '/users', this
+    // input's own original path, even though pathModification renames it to
+    // '/service/users' in the output.
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({ paths: { '/users': { get: op('users') }, '/other': { get: op('other') } } }),
+          pathModification: { prepend: '/service' },
+          operationSelection: { excludePaths: [{ path: '/users' }] },
+        },
+      ]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/service/other']);
+  });
+
+  it('applies path selection to webhook operations too', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc31({
+            paths: {},
+            webhooks: { ping: { post: op('ping') }, keep: { post: op('keep') } },
+          }),
+          operationSelection: { excludePaths: [{ path: 'ping' }] },
+        },
+      ]),
+    );
+
+    expect(Object.keys(output.webhooks ?? {})).toEqual(['keep']);
+  });
+
+  it('includePaths drops every webhook whose event name does not match a selector (allow-list, same as includeTags)', () => {
+    // Deliberate, not a bug: includePaths is an allow-list, and webhook event
+    // names essentially never look like a path pattern such as '/admin/*'.
+    // This mirrors includeTags already dropping untagged webhook operations.
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc31({
+            paths: { '/admin/users': { get: op('adminUsers') } },
+            webhooks: { ping: { post: op('ping') } },
+          }),
+          operationSelection: { includePaths: [{ path: '/admin/*' }] },
+        },
+      ]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/admin/users']);
+    expect(output.webhooks ?? {}).toEqual({});
+  });
+
+  it('applies path selection to 3.2 query and additionalOperations slots', () => {
+    const output = expectSuccess(merge([{
+      oas: doc32({ paths: { '/cache': {
+        get: op('getCache'),
+        additionalOperations: { PURGE: op('purge') },
+      } } }),
+      operationSelection: { excludePaths: [{ path: '/cache', method: 'PURGE' }] },
+    }]));
+
+    expect(output.paths?.['/cache'].additionalOperations?.PURGE).toBeUndefined();
+    expect(output.paths?.['/cache'].get).toBeDefined();
+  });
+
+  it('requires an operation to clear both a tag include list and a path include list', () => {
+    // No precedent for this composition in the codebase (includeTags and
+    // excludeTags are an include-then-exclude pair, not two include lists) --
+    // proposal 43 §3 decided "both must pass" on its own merits.
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/admin/wanted': { get: tagged('adminWanted', ['Wanted']) },
+              '/admin/unwanted': { get: tagged('adminUnwanted', ['Unwanted']) },
+              '/other/wanted': { get: tagged('otherWanted', ['Wanted']) },
+            },
+          }),
+          operationSelection: { includeTags: ['Wanted'], includePaths: [{ path: '/admin/*' }] },
+        },
+      ]),
+    );
+
+    // '/admin/unwanted' clears the path filter but not the tag filter;
+    // '/other/wanted' clears the tag filter but not the path filter.
+    expect(pathKeys(output)).toEqual(['/admin/wanted']);
+  });
+
+  it('excludes an operation matched by either a tag exclude or a path exclude', () => {
+    const output = expectSuccess(
+      merge([
+        {
+          oas: doc30({
+            paths: {
+              '/a': { get: tagged('a', ['internal']) },
+              '/b': { get: op('b') },
+              '/admin/c': { get: op('c') },
+            },
+          }),
+          operationSelection: { excludeTags: ['internal'], excludePaths: [{ path: '/admin/*' }] },
+        },
+      ]),
+    );
+
+    expect(pathKeys(output)).toEqual(['/b']);
+  });
+});

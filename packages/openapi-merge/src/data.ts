@@ -3,6 +3,9 @@ import { OpenApiDocument } from './oas31';
 
 import { ServersStrategy } from './servers';
 import { SecuritySchemesStrategy } from './security-schemes';
+import { PathSelector } from './path-matching';
+
+export type { PathSelector };
 
 export type OperationSelection = {
   /**
@@ -16,6 +19,23 @@ export type OperationSelection = {
    * an includeTag and an excludeTag then it will be excluded; exclusion takes precedence.
    */
   excludeTags?: string[];
+
+  /**
+   * Only Operations whose path (and, if given, method) matches one of these selectors will be taken from this
+   * OpenAPI file. `path` supports a `*` wildcard, matched the same way `includeTags`/`excludeTags` are (issue #111).
+   * Selectors are matched against this input's own original path, before `pathModification` is applied. If an
+   * Operation is matched by both `includePaths` and `includeTags` (or neither), both must pass for it to survive --
+   * an include list only ever narrows what an Operation must clear, on top of any other include list configured.
+   * If an Operation is matched by both an includePaths and an excludePaths selector, exclusion takes precedence.
+   */
+  includePaths?: PathSelector[];
+
+  /**
+   * Any Operation whose path (and, if given, method) matches one of these selectors will be excluded from the
+   * final result, the same way `excludeTags` works. If an Operation is matched by both `includePaths` and
+   * `excludePaths`, or by an exclude rule of either kind (path or tag), exclusion takes precedence.
+   */
+  excludePaths?: PathSelector[];
 };
 
 export interface DisputeBase {

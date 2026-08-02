@@ -62,6 +62,7 @@ In this configuration you specify your inputs and your output file. For each inp
 * `pathModification.prepend`: When copying over the `paths` from your OpenAPI specification for this input, it will prepend this string to the start of the path if it is found. `prepend` will always run after `stripStart` so that it is deterministic.
 * `operationSelection.includeTags`: Only operations that are tagged with the tags configured here will be extracted from the OpenAPI file and merged with the others. This instruction will not remove other tags from the top level tags definition for this input. **This filter works per operation, not per path**: if `GET /thing` carries the tag and `POST /thing` does not, the merged document contains `/thing` with only its `GET`. A path whose operations are all filtered out is dropped entirely.
 * `operationSelection.excludeTags`: Only operations that are NOT tagged with the tags configured here will be extracted from the OpenAPI file and merged with the others. Also, these tags will also be removed from the top level `tags` element for this file before being merged. If a single REST API operation has an `includeTags` reference and an `excludeTags` reference then the exclusion rule will take precidence.
+* `operationSelection.includePaths` / `operationSelection.excludePaths`: Select operations by path (and, optionally, method) instead of by tag -- see [Selecting operations by path](#selecting-operations-by-path) below.
 * `description.append`: All of the inputs with `append: true` will have their `info.description`s merged together, in order, and placed in the output OpenAPI file in the `info.description` section.
 * `description.title.value`: An optional string that lets you specify a custom section title for this input's description when it is merged together in the output OpenAPI file's `info.description` section
 * `description.title.headingLevel`: The integer heading level for the title, `1` to `6`. The default is `1`.
@@ -95,6 +96,36 @@ Three things are worth knowing about how this behaves:
 * **Untagged operations are excluded.** `includeTags` is an allow-list, so an operation with no tags at all does not survive it. If a service has operations you want that are not tagged, either tag them upstream or use `excludeTags` to remove what you do not want instead.
 * **A partially-filtered path keeps its remaining operations.** Filtering is per operation; the path itself survives as long as one of its operations does.
 * **The top-level `tags` array is only pruned by `excludeTags`.** `includeTags` deliberately leaves it alone, so a tag you filtered *in* keeps its description.
+
+### Selecting operations by path
+
+Not every input's tags are under your control -- some generators do not let you customise them at all -- and two services can legitimately share a tag while only some of the operations under it should survive. `includePaths`/`excludePaths` select by where an operation lives in the document instead:
+
+``` json
+{
+  "inputs": [
+    {
+      "inputFile": "admin-service/swagger.json",
+      "operationSelection": {
+        "excludePaths": [{ "path": "/admin/users", "method": "get" }]
+      }
+    },
+    {
+      "inputFile": "internal-service/swagger.json",
+      "operationSelection": {
+        "excludePaths": [{ "path": "/internal/*" }]
+      }
+    }
+  ],
+  "output": "./dist/service.output.swagger.json"
+}
+```
+
+* **`path` supports a `*` wildcard**, matched the same way `includeTags`/`excludeTags` are: `*` matches any run of characters (including none), nothing else is special, and the match is anchored at both ends -- `/admin/*` matches `/admin/users` but not `/other/admin/users`. A path containing a literal `.` or other regex-looking character (`/v1.2/status`) is matched literally, not interpreted.
+* **`method` is optional.** Omit it to match every method on that path. Give a single method (`"get"`) or a list (`["get", "post"]`) to narrow it -- including a 3.2 `additionalOperations` custom verb like `"PURGE"`, matched case-sensitively. Standard methods are lowercase in a parsed OpenAPI document (`get`, not `GET`) -- a selector must match that spelling.
+* **Selectors are matched against this input's own original path**, before `pathModification` runs. Write the selector against the path as it appears in that input's own file, not the path it will have in the merged output.
+* **If an operation matches both an `includePaths` and an `excludePaths` selector, exclusion wins** -- the same precedence `includeTags`/`excludeTags` already have. If it's matched by both a path rule and a tag rule of the same kind (both include, or both exclude), it needs to clear an include rule of *every* kind configured to survive, and is dropped by an exclude rule of *either* kind.
+* **`includePaths` on a document with 3.1 `webhooks` will drop every webhook operation**, unless one of your selectors happens to match the webhook's event name -- the same allow-list behaviour `includeTags` already has for untagged webhooks. If you need to keep webhooks while filtering paths, tag the webhook operations and use `includeTags` instead (or omit `includePaths` and use `excludePaths`, which does not have this effect).
 
 ### Getting started: `init`
 
