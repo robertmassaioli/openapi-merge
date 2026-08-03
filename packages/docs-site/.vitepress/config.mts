@@ -2,8 +2,10 @@ import { defineConfig } from 'vitepress';
 
 // Served from GitHub Pages as a project site (no custom domain configured),
 // so every asset and internal link must be rooted at /openapi-merge/, not /.
-// Cannot be exercised by `vitepress dev`/`preview`, which always serve at /;
-// verify this against the live URL after the first deploy.
+// `vitepress dev`/`preview` do honour this locally too (confirmed: both serve
+// at http://localhost:<port>/openapi-merge/, not /) -- verified directly
+// rather than assumed, after an earlier version of this comment claimed the
+// opposite.
 const base = '/openapi-merge/';
 
 export default defineConfig({
@@ -22,7 +24,14 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/which-package' },
       { text: 'CLI Reference', link: '/cli/' },
       { text: 'Library Reference', link: '/library/' },
-      { text: 'API Reference', link: '/api/', target: '_self' },
+      // /api/index.html, not /api/: `vitepress dev`'s SPA history-fallback
+      // intercepts a bare directory path before it reaches the static file in
+      // public/api/, serving a blank app shell instead (`vitepress preview`
+      // and the real GitHub Pages deploy both resolve /api/ correctly via a
+      // real static-file server, so this only bites the dev server -- but the
+      // explicit filename works identically in all three, so there's no
+      // reason not to always use it).
+      { text: 'API Reference', link: '/api/index.html', target: '_self' },
       { text: 'GitHub', link: 'https://github.com/robertmassaioli/openapi-merge' },
     ],
 
