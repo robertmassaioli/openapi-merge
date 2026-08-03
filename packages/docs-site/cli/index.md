@@ -60,7 +60,7 @@ turned **on** by default — see [Cross-document `$ref`s](/cli/cross-document-re
 second bounds it to the directory `init` just scanned, which costs nothing since everything `init` found already
 lives there. Every other optional setting this tool supports — both per-input (`dispute`, `pathModification`,
 `operationSelection`, `description`, `duplicatePathHandling`, `tag`) and top-level (`outputRoot`, `formatting`,
-`serversStrategy`, `securitySchemesStrategy`, `pruneUnusedComponents`, `info`) — is written out commented, with a
+`serversStrategy`, `securitySchemesStrategy`, `pruneUnusedComponents`, `info`, `extensionMergeStrategies`) — is written out commented, with a
 one-line explanation and a working example. Uncomment a block and it is immediately valid.
 
 If you would rather start from the historical permissive defaults (both settings unset), delete or comment out the

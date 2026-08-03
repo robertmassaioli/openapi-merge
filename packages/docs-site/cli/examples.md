@@ -94,3 +94,64 @@ Here, `jira.swagger.json`'s paths lose their `/rest` prefix and gain a `/jira` o
 `included` are kept; and its description is appended to the merged `info.description` under a level-2 "Jira"
 heading. `confluence.swagger.yaml` gets a `/confluence` prefix, drops operations tagged `excluded`, and any
 component name it shares with another input is disambiguated with a `Confluence` prefix.
+
+## Recreating `x-tagGroups`'s merge as configuration
+
+ReDoc uses the `x-tagGroups` extension to organise its sidebar into named groups of tags. By default this tool
+treats every `x-` extension as first-wins, so merging two inputs that each declare `x-tagGroups` would keep only
+the first one's groups — `extensionMergeStrategies` fixes that:
+
+```json
+{
+  "inputs": [
+    { "inputFile": "./user-service.json" },
+    { "inputFile": "./admin-service.json" }
+  ],
+  "output": "./output.swagger.json",
+  "extensionMergeStrategies": {
+    "x-tagGroups": {
+      "kind": "array",
+      "strategy": "union-by-key",
+      "key": "name",
+      "item": {
+        "kind": "object",
+        "strategy": "merge",
+        "fields": {
+          "tags": { "kind": "array", "strategy": "concat-unique" }
+        }
+      }
+    }
+  }
+}
+```
+
+Given
+
+```jsonc
+// user-service.json
+{ "x-tagGroups": [{ "name": "User", "tags": ["listUsers", "updateUser"] }] }
+
+// admin-service.json
+{ "x-tagGroups": [
+  { "name": "User", "tags": ["deleteUser"] },
+  { "name": "Admin", "tags": ["getAuditLog"] }
+] }
+```
+
+the merged output's `x-tagGroups` is
+
+```json
+[
+  { "name": "User", "tags": ["listUsers", "updateUser", "deleteUser"] },
+  { "name": "Admin", "tags": ["getAuditLog"] }
+]
+```
+
+The `User` groups from both inputs combine into one entry carrying every tag from both; `Admin`, seen only once,
+passes through unchanged; and both appear in the order they were first seen. Without `extensionMergeStrategies`
+configured, the output would instead be exactly `user-service.json`'s original array —
+`admin-service.json`'s groups, and its addition to `User`, silently discarded.
+
+See [Configuration reference → `extensionMergeStrategies`](/cli/configuration#extensionmergestrategies) for the
+full node reference this example draws from, including what a `scalar`, plain `concat`, `sortBy`, and `error` node
+do.

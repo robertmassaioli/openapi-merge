@@ -1,5 +1,5 @@
 import { isPresent } from 'ts-is-present';
-import { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection, MergeOptions, PathSelector } from './data';
+import { MergeInput, MergeResult, isErrorResult, PathModification, OperationSelection, MergeOptions, PathSelector, ExtensionMergeNode, ExtensionMergeStrategies } from './data';
 import { mergeTags } from './tags';
 import { mergePathsAndComponents } from './paths-and-components';
 import { mergeExtensions } from './extensions';
@@ -13,7 +13,7 @@ import { MalformedDocumentError } from './safe-type-checks';
 
 export { isErrorResult };
 export { MalformedDocumentError };
-export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy, SecuritySchemesStrategy, PathSelector };
+export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy, SecuritySchemesStrategy, PathSelector, ExtensionMergeNode, ExtensionMergeStrategies, OpenApiDocument };
 
 function getFirst<A>(inputs: Array<A>): A | undefined {
   if (inputs.length > 0) {
@@ -81,7 +81,7 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
 
   const components = Object.keys(retComponents).length === 0 ? undefined : retComponents;
 
-  const output: OpenApiDocument = mergeExtensions(
+  const extensionsResult = mergeExtensions(
     {
       // The version the inputs actually declared, rather than a hard-coded
       // 3.0.3. Well defined because every input shares a major.minor by now.
@@ -101,8 +101,18 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
       $self: mergeSelf(inputs),
       components,
     },
-    inputs.map(input => input.oas)
+    inputs.map(input => input.oas),
+    options?.extensionMergeStrategies
   );
+
+  // Only reachable when an `x-*` extension is configured with the `'error'`
+  // strategy (proposal 48) and inputs disagree at that point -- every other
+  // path through `mergeExtensions` always succeeds.
+  if (isErrorResult(extensionsResult)) {
+    return extensionsResult;
+  }
+
+  const output: OpenApiDocument = extensionsResult;
 
   // Last, so that reachability is computed against the finished document --
   // after operation selection, renaming and reference rewriting have all had

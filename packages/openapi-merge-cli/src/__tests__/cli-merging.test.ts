@@ -92,6 +92,107 @@ describe('main - successful merges', () => {
 });
 
 /**
+ * Proposal 48: `extensionMergeStrategies` reaching the library from a config
+ * file (issue #60, generalised).
+ *
+ * The strategy-tree algorithm itself is covered exhaustively by
+ * `extension-merge-strategies.test.ts` in the library package; what these
+ * assert is the wiring -- that the recursive tree survives ajv validation
+ * against the generated schema (including its self-referencing `item`/`fields`)
+ * and is actually passed to `merge()`.
+ */
+describe('main - extensionMergeStrategies (issue #60, proposal 48)', () => {
+  const withTagGroups = (pathName: string, opId: string, tagGroups: unknown) => ({
+    openapi: '3.0.3',
+    info: { title: 'T', version: '1.0.0' },
+    paths: { [pathName]: { get: { operationId: opId, responses: { '200': { description: 'ok' } } } } },
+    'x-tagGroups': tagGroups,
+  });
+
+  it('combines x-tagGroups via a union-by-key + merge tree', async () => {
+    cli.writeJson('a.json', withTagGroups('/a', 'getA', [{ name: 'User', tags: ['get-user'] }]));
+    cli.writeJson('b.json', withTagGroups('/b', 'getB', [{ name: 'User', tags: ['get-user', 'delete-user'] }, { name: 'Admin', tags: ['admin-only'] }]));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }, { inputFile: './b.json' }],
+      output: './output.json',
+      extensionMergeStrategies: {
+        'x-tagGroups': {
+          kind: 'array',
+          strategy: 'union-by-key',
+          key: 'name',
+          item: { kind: 'object', strategy: 'merge', fields: { tags: { kind: 'array', strategy: 'concat-unique' } } },
+        },
+      },
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+
+    expect(JSON.parse(cli.read())['x-tagGroups']).toEqual([
+      { name: 'User', tags: ['get-user', 'delete-user'] },
+      { name: 'Admin', tags: ['admin-only'] },
+    ]);
+  });
+
+  it('leaves an unconfigured extension first-wins even while another extension is configured', async () => {
+    cli.writeJson('a.json', { ...withTagGroups('/a', 'getA', [{ name: 'User', tags: ['a'] }]), 'x-vendor': { from: 'a' } });
+    cli.writeJson('b.json', { ...withTagGroups('/b', 'getB', [{ name: 'User', tags: ['b'] }]), 'x-vendor': { from: 'b' } });
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }, { inputFile: './b.json' }],
+      output: './output.json',
+      extensionMergeStrategies: {
+        'x-tagGroups': {
+          kind: 'array',
+          strategy: 'union-by-key',
+          key: 'name',
+          item: { kind: 'object', strategy: 'merge', fields: { tags: { kind: 'array', strategy: 'concat-unique' } } },
+        },
+      },
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.Success);
+
+    const output = JSON.parse(cli.read());
+    expect(output['x-tagGroups']).toEqual([{ name: 'User', tags: ['a', 'b'] }]);
+    expect(output['x-vendor']).toEqual({ from: 'a' });
+  });
+
+  it("exits with an error when a scalar extension configured 'error' finds disagreement", async () => {
+    cli.writeJson('a.json', { openapi: '3.0.3', info: { title: 'T', version: '1.0.0' }, paths: { '/a': getPath('getA') }, 'x-owner': 'team-a' });
+    cli.writeJson('b.json', { openapi: '3.0.3', info: { title: 'T', version: '1.0.0' }, paths: { '/b': getPath('getB') }, 'x-owner': 'team-b' });
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }, { inputFile: './b.json' }],
+      output: './output.json',
+      extensionMergeStrategies: { 'x-owner': { kind: 'scalar', strategy: 'error' } },
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorMerging);
+    expect(cli.stderr().join('\n')).toContain('x-owner');
+  });
+
+  it('rejects an unknown strategy value against the generated schema', async () => {
+    cli.writeJson('a.json', oas({ '/a': getPath('getA') }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+      extensionMergeStrategies: { 'x-owner': { kind: 'scalar', strategy: 'combine-somehow' } },
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
+  });
+
+  it('rejects a union-by-key node with no `item` against the generated schema', async () => {
+    cli.writeJson('a.json', oas({ '/a': getPath('getA') }));
+    const config = cli.writeJson('openapi-merge.json', {
+      inputs: [{ inputFile: './a.json' }],
+      output: './output.json',
+      extensionMergeStrategies: { 'x-tagGroups': { kind: 'array', strategy: 'union-by-key', key: 'name' } },
+    });
+
+    expect(await cli.run('-c', config)).toBe(ExitCode.ErrorLoadingConfig);
+  });
+});
+
+/**
  * Issue #4: `serversStrategy` reaching the library from a config file.
  *
  * The library-level behaviour is covered by the openapi-merge suite; what these

@@ -4,7 +4,7 @@ import { OpenApiDocument } from '../oas31';
 import { toOAS } from './_helpers/oas-generation';
 import { expectMergeResult, toMergeInputs } from './_helpers/test-utils';
 import {
-  at, doc30, doc31, doc32, expectSuccess, ok, op, pathItem, schema, tagged,
+  at, doc30, doc31, doc32, expectMergeError, expectSuccess, ok, op, pathItem, schema, tagged,
 } from './_helpers/documents';
 
 /**
@@ -343,6 +343,103 @@ describe('extensions', () => {
     expectMergeResult(merge(toMergeInputs([first, second])), {
       output
     });
+  });
+
+  /**
+   * Proposal 48: `extensionMergeStrategies` lets a caller configure how a
+   * document-root `x-*` extension combines across inputs, as a recursive tree
+   * mirroring that extension's own JSON shape. Unconfigured stays first-wins,
+   * per the test above -- these cover it actually being wired up to `merge()`.
+   * `extension-merge-strategies.test.ts` exercises the algorithm itself in
+   * much greater depth; these are the "does this reach `merge()` correctly"
+   * checks.
+   */
+  it('combines x-tagGroups via a configured union-by-key + merge tree', () => {
+    const first = doc30({ paths: { '/a': { get: op('a') } } });
+    (first as OpenApiDocument & { 'x-tagGroups': unknown })['x-tagGroups'] = [{ name: 'User', tags: ['get-user'] }];
+
+    const second = doc30({ paths: { '/b': { get: op('b') } } });
+    (second as OpenApiDocument & { 'x-tagGroups': unknown })['x-tagGroups'] = [{ name: 'User', tags: ['delete-user'] }, { name: 'Admin', tags: ['admin-only'] }];
+
+    const output = expectSuccess(merge([{ oas: first }, { oas: second }], {
+      extensionMergeStrategies: {
+        'x-tagGroups': {
+          kind: 'array',
+          strategy: 'union-by-key',
+          key: 'name',
+          item: { kind: 'object', strategy: 'merge', fields: { tags: { kind: 'array', strategy: 'concat-unique' } } },
+        },
+      },
+    }));
+
+    expect(at(output, 'x-tagGroups')).toEqual([
+      { name: 'User', tags: ['get-user', 'delete-user'] },
+      { name: 'Admin', tags: ['admin-only'] },
+    ]);
+  });
+
+  it('leaves an unconfigured extension first-wins even while another extension is configured', () => {
+    const first = doc30({ paths: { '/a': { get: op('a') } } });
+    Object.assign(first, { 'x-tagGroups': [{ name: 'User', tags: ['a'] }], 'x-vendor': { from: 'first' } });
+
+    const second = doc30({ paths: { '/b': { get: op('b') } } });
+    Object.assign(second, { 'x-tagGroups': [{ name: 'User', tags: ['b'] }], 'x-vendor': { from: 'second' } });
+
+    const output = expectSuccess(merge([{ oas: first }, { oas: second }], {
+      extensionMergeStrategies: {
+        'x-tagGroups': {
+          kind: 'array',
+          strategy: 'union-by-key',
+          key: 'name',
+          item: { kind: 'object', strategy: 'merge', fields: { tags: { kind: 'array', strategy: 'concat-unique' } } },
+        },
+      },
+    }));
+
+    expect(at(output, 'x-tagGroups')).toEqual([{ name: 'User', tags: ['a', 'b'] }]);
+    expect(at(output, 'x-vendor')).toEqual({ from: 'first' });
+  });
+
+  it('a scalar extension configured \'error\' succeeds through merge() when only one input declares it', () => {
+    const first = doc30({ paths: { '/a': { get: op('a') } } });
+    Object.assign(first, { 'x-owner': 'team-a' });
+
+    const second = doc30({ paths: { '/b': { get: op('b') } } });
+
+    const output = expectSuccess(merge([{ oas: first }, { oas: second }], {
+      extensionMergeStrategies: { 'x-owner': { kind: 'scalar', strategy: 'error' } },
+    }));
+
+    expect(at(output, 'x-owner')).toBe('team-a');
+  });
+
+  it('fails the whole merge with \'extension-merge-conflict\' when a configured \'error\' strategy finds disagreement', () => {
+    const first = doc30({ paths: { '/a': { get: op('a') } } });
+    Object.assign(first, { 'x-owner': 'team-a' });
+
+    const second = doc30({ paths: { '/b': { get: op('b') } } });
+    Object.assign(second, { 'x-owner': 'team-b' });
+
+    const result = merge([{ oas: first }, { oas: second }], {
+      extensionMergeStrategies: { 'x-owner': { kind: 'scalar', strategy: 'error' } },
+    });
+
+    const message = expectMergeError(result, 'extension-merge-conflict');
+    expect(message).toContain('x-owner');
+  });
+
+  it('a type mismatch against the configured kind degrades to first-wins rather than failing the merge', () => {
+    const first = doc30({ paths: { '/a': { get: op('a') } } });
+    Object.assign(first, { 'x-rates': [1, 2, 3] });
+
+    const second = doc30({ paths: { '/b': { get: op('b') } } });
+    Object.assign(second, { 'x-rates': { unexpectedly: 'an object' } });
+
+    const output = expectSuccess(merge([{ oas: first }, { oas: second }], {
+      extensionMergeStrategies: { 'x-rates': { kind: 'array', strategy: 'concat-unique' } },
+    }));
+
+    expect(at(output, 'x-rates')).toEqual([1, 2, 3]);
   });
 });
 

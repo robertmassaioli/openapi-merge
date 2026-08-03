@@ -18,10 +18,14 @@ values are discarded:
 | `servers` | First input with any | [`MergeOptions.serversStrategy`](/library/merge-options#serversstrategy): `'concat'` keeps every input's servers instead |
 | `externalDocs` | First input with any | Not configurable |
 | `components.securitySchemes` | **Merged** (not first-wins) | [`MergeOptions.securitySchemesStrategy`](/library/merge-options#securityschemesstrategy) can select `'first'` or `'error'` instead |
+| A document-root `x-*` extension | First input that declares it | [`MergeOptions.extensionMergeStrategies`](/library/merge-options#extensionmergestrategies), per extension key |
 
 Security schemes are the one component bucket that does **not** default to first-wins the way `info`/`servers`/
 `externalDocs` do — see [Merge options → `securitySchemesStrategy`](/library/merge-options#securityschemesstrategy)
-for why the default changed.
+for why the default changed. `x-*` extensions are first-wins the same way `info`/`servers`/`externalDocs` are, but
+unlike those three, the alternative isn't a single fixed strategy — see
+[Merge options → `extensionMergeStrategies`](/library/merge-options#extensionmergestrategies) for the full,
+per-extension configuration this one supports.
 
 The intent behind first-wins-by-default: this library is aimed at putting several services behind one API gateway,
 where the gateway's own `info`/`servers`/`externalDocs` are canonical and a backend's own values are an
@@ -56,6 +60,7 @@ Every failure `merge()` can return comes back as `{ type: ErrorType, message: st
 | `duplicate-webhooks` | Two inputs declared the same webhook name (3.1). |
 | `cyclic-external-reference` | A component reachable from `MergeOptions.externalDocuments` transitively references itself. |
 | `malformed-document` | A `null` sits in a slot the spec requires to be an object (or, for a discriminator mapping target, a string) — e.g. `schemas: { Widget: }`, an empty YAML value. |
+| `extension-merge-conflict` | Two or more inputs disagreed on the value of an `x-*` extension (or a nested field/element within it) that [`extensionMergeStrategies`](/library/merge-options#extensionmergestrategies) configured with the `'error'` strategy at that point. The message names the exact path inside the extension's value where the disagreement was found. |
 
 ## Thrown vs. returned errors {#thrown-vs-returned-errors}
 

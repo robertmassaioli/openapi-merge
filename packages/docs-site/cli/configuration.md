@@ -17,6 +17,7 @@ optional — see [Getting started: `init`](/cli/#getting-started-init).
 | `securitySchemesStrategy` | `'merge' \| 'first' \| 'error'` | `'merge'` | How `components.securitySchemes` is combined. `'merge'` combines them like any other component (renaming on conflict); `'first'` takes only the first input's schemes (may leave later operations referencing an undefined scheme); `'error'` combines identical definitions but fails on a genuine conflict instead of renaming around it. |
 | `pruneUnusedComponents` | `boolean` | `false` | Drop components nothing in the merged output references. Useful alongside `operationSelection`, which can otherwise leave orphaned schemas behind. |
 | `info` | `{ title?, version?, description? }` | unset | Override fields of the merged `info` object, field by field — setting only `title` doesn't require restating `version`. Without this, `info` comes entirely from the first input. |
+| `extensionMergeStrategies` | `{ [extensionKey]: ExtensionMergeNode }` | unset | How a document-root `x-` extension's value is combined across inputs, keyed by extension name. Unset (or a key not mentioned) keeps the default: the first input to declare it wins. See [`extensionMergeStrategies`](#extensionmergestrategies) below. |
 | `resolveExternalReferences` | `boolean` | `false` | Follow `$ref`s into files/URLs that aren't declared `inputs`, pulling in just the components they ask for. See [Cross-document `$ref`s](/cli/cross-document-refs). |
 
 ## Per-input fields
@@ -60,6 +61,72 @@ Exclusion always wins over inclusion, and a path rule and a tag rule are indepen
 
 Applies to `webhooks` (OpenAPI 3.1) the same way it applies to `paths` — they collide by event name instead of by
 path string, but the resolution rules are identical.
+
+### `extensionMergeStrategies` {#extensionmergestrategies}
+
+By default, a document-root `x-` extension — `x-tagGroups`, `x-logo`, a vendor's own metadata — is **first-wins**:
+whichever input declares it first supplies the value, and every other input's value for that same key is discarded
+([issue #60](https://github.com/robertmassaioli/openapi-merge/issues/60)). `extensionMergeStrategies` lets you
+combine one instead, keyed by extension name. Only the document root is covered — `x-` fields elsewhere (inside
+`info`, a tag, a path item, a component) aren't reached by this option.
+
+An extension's value can be any JSON shape, and different parts of it often need to combine differently — which is
+why this isn't a single strategy per extension key. It's a small tree that mirrors the extension value's own JSON
+structure: each node says what shape it expects (`kind`) and how to combine it (`strategy`), and can recurse into
+child nodes for array elements or object fields.
+
+```json
+{
+  "extensionMergeStrategies": {
+    "x-tagGroups": {
+      "kind": "array",
+      "strategy": "union-by-key",
+      "key": "name",
+      "item": {
+        "kind": "object",
+        "strategy": "merge",
+        "fields": {
+          "tags": { "kind": "array", "strategy": "concat-unique" }
+        }
+      }
+    }
+  }
+}
+```
+
+Each node is one of six shapes:
+
+| `kind` | `strategy` | What it does |
+| --- | --- | --- |
+| `scalar` | `first` | Take the first input's value. |
+| `scalar` | `last` | Take the last input's value that actually declared it (not necessarily the numerically-last input). |
+| `scalar` | `error` | Fail the merge if the inputs disagree. Agreement — including only one input declaring it — is never a conflict. |
+| `array` | `first` / `last` / `error` | The same three choices, taking or comparing one input's **whole array**, with no element-level combination. |
+| `array` | `concat` | Concatenate every input's array, in input order, keeping duplicates. Optional `sortBy: "<field>"` sorts the result afterwards by a named field, for an array of objects; omitted, the result keeps concatenation order. |
+| `array` | `concat-unique` | Same as `concat`, deduplicated afterwards by deep equality. |
+| `array` | `union-by-key` | Elements sharing the same value at `key` — across *and within* inputs — are the same logical entry and are combined using the required `item` node. Elements whose key value appears only once still pass through `item`, applied to a single-element group. Output order is first-seen order across every input; there's no `sortBy` here, since preserving that order is the point of this strategy. |
+| `object` | `first` / `last` / `error` | Take or compare one input's **whole object**, with no field-level combination. |
+| `object` | `merge` | Combine field by field, using `fields` (a map from field name to its own node). A field not listed in `fields` — including `fields` omitted — defaults to `first`, applied wholesale regardless of that field's own shape. |
+
+Worth knowing:
+
+- **`kind` only changes behaviour for `concat`, `concat-unique`, `union-by-key` and `merge`** — the strategies that
+  need to inspect the value's structure. `first`, `last` and `error` work on a value of any shape; in particular,
+  `error` still reports a disagreement even if the actual value isn't the shape `kind` names, because silently
+  doing nothing is the one thing `error` must never do.
+- **A type mismatch degrades to `first`, and only for that one value** — not the whole document. If a node's
+  `kind` says `array` but an input's value is an object (or a `union-by-key` element is missing the configured
+  `key`), that value falls back to first-wins rather than the merge guessing at, or failing on, a shape it wasn't
+  told to expect.
+- **`error` always fails the entire merge**, at whatever depth it's configured — there's no partial-failure mode
+  where a nested `error` merely drops that one field. The error message names the exact path inside the
+  extension's value where the disagreement was found (e.g. `x-tagGroups[name=Admin].owner`).
+
+The example above reproduces ReDoc's `x-tagGroups` merge — see
+[Examples → Recreating `x-tagGroups`'s merge as configuration](/cli/examples#recreating-x-taggroups-s-merge-as-configuration)
+for it worked through end-to-end, and
+[Library reference → `extensionMergeStrategies`](/library/merge-options#extensionmergestrategies) for the same
+reference in the library's TypeScript types.
 
 ## Full example
 

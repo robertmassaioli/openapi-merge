@@ -245,6 +245,35 @@ export const TOP_LEVEL_OPTIONAL_BLOCKS = [
       '  description: A description for the merged document.',
     ].join('\n'),
   },
+  {
+    name: 'extensionMergeStrategies',
+    explanation: [
+      "How to combine an 'x-' extension's value across inputs, keyed by name.",
+      "Unlisted extensions keep the default: first input to declare it wins.",
+      "Below: x-tagGroups (issue #60) combines groups sharing a 'name', with",
+      "each group's 'tags' concatenated and deduplicated.",
+    ].join('\n'),
+    yaml: [
+      'extensionMergeStrategies:',
+      '  x-tagGroups:',
+      '    kind: array',
+      '    strategy: union-by-key',
+      '    key: name',
+      '    item:',
+      '      kind: object',
+      '      strategy: merge',
+      '      fields:',
+      '        tags:',
+      '          kind: array',
+      '          strategy: concat-unique',
+    ].join('\n'),
+    alternatives: [
+      [
+        'extensionMergeStrategies:',
+        '  x-owner: { kind: scalar, strategy: error } # fail the merge if inputs disagree',
+      ].join('\n'),
+    ],
+  },
 ] as const satisfies ReadonlyArray<OptionalFieldBlock>;
 
 /**
@@ -391,7 +420,7 @@ export const PER_INPUT_OPTIONAL_BLOCKS: ReadonlyArray<OptionalFieldBlock> = [
  */
 function renderCommentedBlock(block: OptionalFieldBlock, indent: string): string {
   const lines = [
-    `${indent}# ${block.explanation}`,
+    ...block.explanation.split('\n').map(line => `${indent}# ${line}`),
     ...block.yaml.split('\n').map(line => `${indent}# ${line}`),
     ...(block.alternatives ?? []).flatMap(alt => alt.split('\n').map(line => `${indent}# ${line}`)),
   ];

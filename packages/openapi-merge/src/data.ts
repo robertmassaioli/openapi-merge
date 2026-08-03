@@ -4,8 +4,9 @@ import { OpenApiDocument } from './oas31';
 import { ServersStrategy } from './servers';
 import { SecuritySchemesStrategy } from './security-schemes';
 import { PathSelector } from './path-matching';
+import { ExtensionMergeNode, ExtensionMergeStrategies } from './extension-merge-strategies';
 
-export type { PathSelector };
+export type { PathSelector, ExtensionMergeNode, ExtensionMergeStrategies };
 
 export type OperationSelection = {
   /**
@@ -307,6 +308,20 @@ export interface MergeOptions {
    * always.
    */
   externalDocuments?: Record<string, OpenApiDocument>;
+
+  /**
+   * How to combine a document-root `x-*` extension's value across inputs,
+   * keyed by extension name and shaped to mirror that value's own JSON
+   * structure (proposal 48, generalising issue #60).
+   *
+   * An extension not mentioned here -- the default -- keeps this library's
+   * historical behaviour: the first input that declares it wins, unchanged.
+   * Only the document root is covered; `x-*` fields elsewhere (`info`, `tags`,
+   * path items, `components`) are not reached by this option, because none of
+   * those locations combines two inputs' values by a policy the way the root
+   * does -- see {@link ExtensionMergeNode} for the full design.
+   */
+  extensionMergeStrategies?: ExtensionMergeStrategies;
 }
 
 export type SuccessfulMergeResult = {
@@ -339,7 +354,15 @@ export type ErrorType =
    * unrelated crash (issue #92, proposal 40). The message names what was
    * expected and, where known, a JSON Pointer to where.
    */
-  | 'malformed-document';
+  | 'malformed-document'
+  /**
+   * Two or more inputs disagree on the value of an `x-*` extension (or a
+   * field/element within it) that {@link MergeOptions.extensionMergeStrategies}
+   * configured with the `'error'` strategy at that point (proposal 48). The
+   * message names the extension key and, for a nested disagreement, the path
+   * inside its value where it was found.
+   */
+  | 'extension-merge-conflict';
 
 export type ErrorMergeResult = {
   type: ErrorType;
