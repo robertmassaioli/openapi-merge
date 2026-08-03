@@ -13,7 +13,7 @@ import { MalformedDocumentError } from './safe-type-checks';
 
 export { isErrorResult };
 export { MalformedDocumentError };
-export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy, SecuritySchemesStrategy, PathSelector, ExtensionMergeNode, ExtensionMergeStrategies };
+export type { MergeInput, MergeResult, PathModification, OperationSelection, MergeOptions, ServersStrategy, SecuritySchemesStrategy, PathSelector, ExtensionMergeNode, ExtensionMergeStrategies, OpenApiDocument };
 
 function getFirst<A>(inputs: Array<A>): A | undefined {
   if (inputs.length > 0) {

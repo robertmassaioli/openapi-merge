@@ -48,7 +48,7 @@ function merge(inputs: MergeInput, options?: MergeOptions): MergeResult;
 | `merge` | The function above. |
 | `isErrorResult` | Type guard narrowing a `MergeResult` to its error case. |
 | `MalformedDocumentError` | The error class thrown (not returned) for a `null` in a structural slot — see [Merging behaviour](/library/merging-behaviour#thrown-vs-returned-errors). |
-| `MergeInput`, `MergeResult`, `PathModification`, `OperationSelection`, `MergeOptions`, `ServersStrategy`, `SecuritySchemesStrategy` | Types, re-exported for consumers who want to name them explicitly. |
+| `MergeInput`, `MergeResult`, `PathModification`, `OperationSelection`, `MergeOptions`, `ServersStrategy`, `SecuritySchemesStrategy`, `PathSelector`, `ExtensionMergeNode`, `ExtensionMergeStrategies`, `OpenApiDocument` | Types, re-exported for consumers who want to name them explicitly. |
 
 Every other type (`SingleMergeInput`, `SuccessfulMergeResult`, `ErrorMergeResult`, `Dispute`, `TagInjection`, …) is
 part of the public shape reachable from these but not re-exported by name from the package root — see the
