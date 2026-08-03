@@ -148,7 +148,7 @@ export const TagInjectionExamples: Array<{ name: string; description?: string }>
   { name: 'billing', description: 'Everything served by the billing service.' },
 ];
 
-/** `x-tagGroups` (issue #60) re-derived as a strategy tree -- see proposal 47. */
+/** `x-tagGroups` (issue #60) re-derived as a strategy tree -- see proposal 48. */
 const XTagGroupsMergeStrategy: ExtensionMergeNode = {
   kind: 'array',
   strategy: 'union-by-key',

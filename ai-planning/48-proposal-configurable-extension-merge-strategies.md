@@ -1,4 +1,4 @@
-# Proposal 47: Configurable merge strategies for `x-*` extensions
+# Proposal 48: Configurable merge strategies for `x-*` extensions
 
 **Status:** ✅ Implemented. See §10 for what was actually built.
 

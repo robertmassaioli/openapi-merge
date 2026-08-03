@@ -92,7 +92,7 @@ describe('main - successful merges', () => {
 });
 
 /**
- * Proposal 47: `extensionMergeStrategies` reaching the library from a config
+ * Proposal 48: `extensionMergeStrategies` reaching the library from a config
  * file (issue #60, generalised).
  *
  * The strategy-tree algorithm itself is covered exhaustively by
@@ -101,7 +101,7 @@ describe('main - successful merges', () => {
  * against the generated schema (including its self-referencing `item`/`fields`)
  * and is actually passed to `merge()`.
  */
-describe('main - extensionMergeStrategies (issue #60, proposal 47)', () => {
+describe('main - extensionMergeStrategies (issue #60, proposal 48)', () => {
   const withTagGroups = (pathName: string, opId: string, tagGroups: unknown) => ({
     openapi: '3.0.3',
     info: { title: 'T', version: '1.0.0' },

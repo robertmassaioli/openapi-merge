@@ -312,7 +312,7 @@ export interface MergeOptions {
   /**
    * How to combine a document-root `x-*` extension's value across inputs,
    * keyed by extension name and shaped to mirror that value's own JSON
-   * structure (proposal 47, generalising issue #60).
+   * structure (proposal 48, generalising issue #60).
    *
    * An extension not mentioned here -- the default -- keeps this library's
    * historical behaviour: the first input that declares it wins, unchanged.
@@ -358,7 +358,7 @@ export type ErrorType =
   /**
    * Two or more inputs disagree on the value of an `x-*` extension (or a
    * field/element within it) that {@link MergeOptions.extensionMergeStrategies}
-   * configured with the `'error'` strategy at that point (proposal 47). The
+   * configured with the `'error'` strategy at that point (proposal 48). The
    * message names the extension key and, for a nested disagreement, the path
    * inside its value where it was found.
    */

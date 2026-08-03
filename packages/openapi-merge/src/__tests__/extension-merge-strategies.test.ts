@@ -1,7 +1,7 @@
 import { ExtensionMergeNode, mergeExtensionNode } from '../extension-merge-strategies';
 
 /**
- * Proposal 47: a recursive merge-strategy tree for `x-*` extension values,
+ * Proposal 48: a recursive merge-strategy tree for `x-*` extension values,
  * generalising issue #60 beyond `x-tagGroups`.
  *
  * These tests exercise `mergeExtensionNode` directly, independent of a whole
@@ -420,7 +420,7 @@ describe('object, merge', () => {
 
 /**
  * The full `x-tagGroups` merge PR #127 hardcodes in TypeScript, re-derived as
- * pure configuration (proposal 47 §4) -- run against the same scenarios that
+ * pure configuration (proposal 48 §4) -- run against the same scenarios that
  * document's own tests use, to demonstrate the tree is expressive enough for
  * the case that motivated it.
  */

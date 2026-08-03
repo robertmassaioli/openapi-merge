@@ -50,7 +50,7 @@ export type PathSelector = {
 
 /**
  * How to combine one document-root `x-*` extension's value across inputs
- * (proposal 47, generalising issue #60). Mirrors the extension value's own
+ * (proposal 48, generalising issue #60). Mirrors the extension value's own
  * JSON shape: `kind` says what shape is expected at this point, `strategy`
  * says how to combine it.
  *
@@ -448,7 +448,7 @@ export type Configuration = {
 
   /**
    * How to combine a document-root `x-*` extension's value across inputs,
-   * keyed by extension name (issue #60, generalised as proposal 47).
+   * keyed by extension name (issue #60, generalised as proposal 48).
    *
    * An extension not mentioned here keeps the historical default: the first
    * input that declares it wins, unchanged. Only the document root is

@@ -106,7 +106,7 @@ export function merge(inputs: MergeInput, options?: MergeOptions): MergeResult {
   );
 
   // Only reachable when an `x-*` extension is configured with the `'error'`
-  // strategy (proposal 47) and inputs disagree at that point -- every other
+  // strategy (proposal 48) and inputs disagree at that point -- every other
   // path through `mergeExtensions` always succeeds.
   if (isErrorResult(extensionsResult)) {
     return extensionsResult;

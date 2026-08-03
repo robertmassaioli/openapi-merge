@@ -346,7 +346,7 @@ describe('extensions', () => {
   });
 
   /**
-   * Proposal 47: `extensionMergeStrategies` lets a caller configure how a
+   * Proposal 48: `extensionMergeStrategies` lets a caller configure how a
    * document-root `x-*` extension combines across inputs, as a recursive tree
    * mirroring that extension's own JSON shape. Unconfigured stays first-wins,
    * per the test above -- these cover it actually being wired up to `merge()`.

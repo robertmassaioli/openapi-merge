@@ -22,7 +22,7 @@ function extractExtensions(input: OpenApiDocument): Extensions {
 
 /**
  * Every `x-*` key seen across `extensions`, combined per {@link ExtensionMergeStrategies}
- * (proposal 47). A key absent from `strategies` -- the default, and the whole
+ * (proposal 48). A key absent from `strategies` -- the default, and the whole
  * of this function's behaviour before that mechanism existed -- takes the
  * first input's value wholesale, unchanged from the historical behaviour.
  */

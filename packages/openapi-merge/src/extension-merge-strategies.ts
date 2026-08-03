@@ -2,7 +2,7 @@ import _ from 'lodash';
 
 /**
  * Configuration for how to combine one document-root `x-*` extension's value
- * across inputs (proposal 47, generalising issue #60).
+ * across inputs (proposal 48, generalising issue #60).
  *
  * A node mirrors one point in the extension value's own JSON shape: `kind`
  * says what shape is expected there, `strategy` says how to combine it. Left
