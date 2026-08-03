@@ -1,0 +1,59 @@
+name: Deploy Documentation Site
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - packages/docs-site/**
+      - packages/openapi-merge/src/**
+      - packages/openapi-merge/typedoc.json
+      - .github/workflows/docs-deploy.yml
+  # Lets the site be redeployed on demand from the Actions tab without an
+  # empty commit -- e.g. after enabling Pages for the first time.
+  workflow_dispatch:
+
+# Only one Pages deployment at a time; a second push while one is still
+# building queues behind it instead of racing it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.3.14
+    - run: bun install --frozen-lockfile
+    # Runs the library's TypeDoc generation (straight from src/, no build
+    # step needed first) into public/api/, then the VitePress production
+    # build. See packages/docs-site/package.json.
+    - run: bun run --cwd packages/docs-site build
+    - name: Configure GitHub Pages
+      uses: actions/configure-pages@v5
+    - name: Upload site artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: packages/docs-site/.vitepress/dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4

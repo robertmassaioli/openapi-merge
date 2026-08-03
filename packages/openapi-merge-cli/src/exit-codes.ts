@@ -9,6 +9,11 @@
  * Every member is pinned by `src/__tests__/exit-codes.test.ts`, so renumbering
  * one fails the build rather than someone's pipeline.
  *
+ * This table is mirrored by hand in three other places -- none of them build-
+ * checked, so a new code silently drifts if only added here. Update all of
+ * them: this package's README, `AGENTS.md`, and
+ * `packages/docs-site/cli/exit-codes.md`.
+ *
  * | Exit Code | Member                                 | Meaning                                  |
  * |-----------|----------------------------------------|------------------------------------------|
  * | 0         | ExitCode.Success                       | Merge succeeded, output written          |
