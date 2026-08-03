@@ -1,5 +1,7 @@
 ## The openapi-merge repository
 
+### 📖 [Read the full documentation](https://robertmassaioli.github.io/openapi-merge/)
+
 Welcome to the openapi-merge repository. This library is intended to be used for merging multiple OpenAPI 3.0, 3.1 and 3.2 files together. The most common reason that developers want to do this is because they have multiple services that they wish to expose underneath a single API Gateway. Therefore, even though this merging logic is sufficiently generic to be used for most use cases, some of the feature decisions are tailored for that specific use case.
 
 ### Screenshots
@@ -16,10 +18,10 @@ This is a multi-package repository that contains:
 
 #### Which package do I want?
 
-* **Use the CLI** ([`openapi-merge-cli`](packages/openapi-merge-cli)) if you have one or more OpenAPI files on disk (or reachable by URL) and want a merged file produced by a config file and a command — no code to write.
-* **Use the library** ([`openapi-merge`](packages/openapi-merge)) if you're merging specs programmatically, e.g. as part of a larger build or gateway-generation tool. The CLI is itself a thin wrapper around this library, so anything the CLI can do, the library can do from your own code.
+* **Use the CLI** ([`openapi-merge-cli`](packages/openapi-merge-cli)) if you have one or more OpenAPI files on disk (or reachable by URL) and want a merged file produced by a config file and a command — no code to write. See the [CLI reference](https://robertmassaioli.github.io/openapi-merge/cli/).
+* **Use the library** ([`openapi-merge`](packages/openapi-merge)) if you're merging specs programmatically, e.g. as part of a larger build or gateway-generation tool. The CLI is itself a thin wrapper around this library, so anything the CLI can do, the library can do from your own code. See the [library reference](https://robertmassaioli.github.io/openapi-merge/library/).
 
-Please see the README file of the specific package for full usage details.
+Please see the README file of the specific package, or the [documentation site](https://robertmassaioli.github.io/openapi-merge/), for full usage details.
 
 ### Developing on openapi-merge
 

@@ -1,5 +1,7 @@
 # openapi-merge
 
+### 📖 [Read the full library reference](https://robertmassaioli.github.io/openapi-merge/library/)
+
 This library assumes that you have a number of microservices that you wish to expose through one main service or gateway.
 
 With this assumption in mind, it allows you to provide multiple OpenAPI 3.0, 3.1 or 3.2 files (all inputs must agree on the
@@ -130,7 +132,11 @@ first-wins — see `MergeOptions.securitySchemesStrategy` above for why.
 ## API reference
 
 The full type shapes for `MergeInput`, `MergeOptions`, `MergeResult` and every option mentioned above are generated
-directly from the TypeScript source, so they can't drift from what the code actually accepts. Generate a local copy with:
+directly from the TypeScript source, so they can't drift from what the code actually accepts.
+
+The latest published copy is at
+**[robertmassaioli.github.io/openapi-merge/api](https://robertmassaioli.github.io/openapi-merge/api/)**. To generate
+your own local copy against a checkout:
 
 ``` shell
 bun run docs

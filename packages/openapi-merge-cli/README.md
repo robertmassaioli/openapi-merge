@@ -1,5 +1,7 @@
 # openapi-merge-cli
 
+### 📖 [Read the full CLI reference](https://robertmassaioli.github.io/openapi-merge/cli/)
+
 This tool is based on the [![npm](https://img.shields.io/npm/v/openapi-merge?label=openapi-merge&logo=npm)](https://bit.ly/2WnIytF) library. Please read
 [that README](https://github.com/robertmassaioli/openapi-merge/blob/main/packages/openapi-merge/README.md) for more details on how the merging algorithm works.
 
@@ -70,7 +72,7 @@ default -- see below). Written by hand, it should look something like this:
 In this configuration you specify your inputs and your output file. For each input you have the following parameters:
 
 * `inputFile` or `inputURL`: the relative or absolute path (or URL), from the `openapi-merge.json`, to the OpenAPI schema file for that input (in JSON or Yaml format). Absolute paths (e.g. `/tmp/spec.yaml`) are honoured as-is.
-* `dispute`: if two inputs both define a component with the same name then, in order to prevent incorrect overlaps, we will attempt to use the dispute prefix or suffix to come up with a unique name for that component. Please [read the documentation for more details on the format](https://github.com/robertmassaioli/openapi-merge/wiki/configuration-definitions-dispute).
+* `dispute`: if two inputs both define a component with the same name then, in order to prevent incorrect overlaps, we will attempt to use the dispute prefix or suffix to come up with a unique name for that component. See [`dispute`](https://robertmassaioli.github.io/openapi-merge/library/per-input-options#dispute) for the full format.
 * `pathModification.stripStart`: When copying over the `paths` from your OpenAPI specification for this input, it will strip this string from the start of the path if it is found.
 * `pathModification.prepend`: When copying over the `paths` from your OpenAPI specification for this input, it will prepend this string to the start of the path if it is found. `prepend` will always run after `stripStart` so that it is deterministic.
 * `operationSelection.includeTags`: Only operations that are tagged with the tags configured here will be extracted from the OpenAPI file and merged with the others. This instruction will not remove other tags from the top level tags definition for this input. **This filter works per operation, not per path**: if `GET /thing` carries the tag and `POST /thing` does not, the merged document contains `/thing` with only its `GET`. A path whose operations are all filtered out is dropped entirely.
@@ -248,7 +250,8 @@ And then, once you have your Inputs in place and your configuration file you mer
 npx openapi-merge-cli
 ```
 
-For more fine grained details on what `Configuration` options are available to you. [Please read the docs](https://github.com/robertmassaioli/openapi-merge/wiki/README).
+For more fine grained details on what `Configuration` options are available to you, see the
+[full configuration reference](https://robertmassaioli.github.io/openapi-merge/cli/configuration).
 
 If you wish, you may write your configuration file in YAML format and then run:
 
