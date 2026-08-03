@@ -34,7 +34,7 @@ the **MIT License**. Source is hosted at
 
 ```
 .
-├── .github/workflows/        # CI workflows: branch-test, npm-publish, codeql-analysis
+├── .github/workflows/        # CI workflows: branch-test, npm-publish, codeql-analysis, docs-deploy
 ├── .husky/pre-commit         # Husky pre-commit hook (runs `bun run lint`: eslint + typecheck)
 ├── scripts/publish-changed.sh # Publishes any workspace package whose version has changed
 ├── LICENSE                   # MIT
@@ -45,16 +45,24 @@ the **MIT License**. Source is hosted at
     ├── openapi-merge/        # Library package (published as `openapi-merge` on npm)
     │   ├── src/              # Library source
     │   ├── src/__tests__/    # bun:test suites for the library
+    │   ├── typedoc.json      # Generated API reference config (`bun run docs` -> docs-api/, gitignored)
     │   ├── bunfig.toml
     │   ├── tsconfig.json
     │   └── package.json
-    └── openapi-merge-cli/    # CLI package (published as `openapi-merge-cli` on npm)
-        ├── src/              # CLI source (entrypoint: `cli.ts` → `index.ts`)
-        ├── confluence.swagger.yaml   # Example OpenAPI input used for manual testing
-        ├── openapi-merge.test.json   # Example merge configuration
-        ├── bunfig.toml
-        ├── tsconfig.json         # Main project config (includes ambient `bun`/`node` types)
-        ├── tsconfig.schema.json  # Narrow config used only by `typescript-json-schema`
+    ├── openapi-merge-cli/    # CLI package (published as `openapi-merge-cli` on npm)
+    │   ├── src/              # CLI source (entrypoint: `cli.ts` → `index.ts`)
+    │   ├── confluence.swagger.yaml   # Example OpenAPI input used for manual testing
+    │   ├── openapi-merge.test.json   # Example merge configuration
+    │   ├── bunfig.toml
+    │   ├── tsconfig.json         # Main project config (includes ambient `bun`/`node` types)
+    │   ├── tsconfig.schema.json  # Narrow config used only by `typescript-json-schema`
+    │   └── package.json
+    └── docs-site/            # Documentation microsite (VitePress; not published to npm)
+        ├── index.md, guide/, cli/, library/  # Hand-written content -- source of truth for
+        │                                     # CLI/library reference detail (proposal 47)
+        ├── .vitepress/config.mts             # Nav/sidebar; `base: '/openapi-merge/'` for GitHub Pages
+        ├── public/api/        # Generated (gitignored): the library's TypeDoc reference, built into
+        │                      # the site at /api/ by `bun run build`'s build:api step
         └── package.json
 ```
 
@@ -281,6 +289,8 @@ fails the build rather than someone's pipeline.
 | `7`  | `ErrorInputUrlServerStatus` | An `inputURL` returned a 5xx status       |
 | `8`  | `ErrorInputUrlUnexpectedStatus` | `inputURL` non-2xx, neither 4xx nor 5xx |
 | `9`  | `ErrorOpenApiVersion`  | Input version unsupported, or inputs disagreed  |
+| `10` | `ErrorUnsafeInputPath` | A local file read escaped `inputRoot`          |
+| `11` | `ErrorCreatingOutputDirectory` | The output directory could not be created |
 
 The three URL-status codes are split by **responsibility**, so callers can
 branch on retryability: 4xx will fail identically on retry, 5xx may not. A
@@ -289,7 +299,8 @@ distinction is whether the server answered at all.
 
 Adding a code means: append the next unused integer (never re-use a retired
 one), add a row to the table in `exit-codes.ts`, add it to the `documented`
-list in `exit-codes.test.ts`, and update the tables here and in the CLI README.
+list in `exit-codes.test.ts`, and update the tables here, in the CLI README,
+and in the documentation site (`packages/docs-site/cli/exit-codes.md`).
 
 ### Build / Test / Lint / Generate
 
@@ -513,6 +524,28 @@ Required GitHub secrets:
 GitHub-provided CodeQL JavaScript scan: runs on push/PR against `main` and on a
 weekly cron (`28 21 * * 5`).
 
+### `.github/workflows/docs-deploy.yml`
+
+Builds and deploys the documentation microsite (`packages/docs-site`, see §2
+above) to GitHub Pages. Runs on push to `main` when `packages/docs-site/**`,
+`packages/openapi-merge/src/**`, `packages/openapi-merge/typedoc.json`, or the
+workflow file itself changes, or on demand via `workflow_dispatch`.
+
+1. `bun install --frozen-lockfile`
+2. `bun run --cwd packages/docs-site build` -- regenerates the library's
+   TypeDoc API reference straight from source into `public/api/`, then runs
+   the VitePress production build.
+3. `actions/configure-pages` + `actions/upload-pages-artifact` +
+   `actions/deploy-pages`, gated by `concurrency: { group: pages }` so two
+   pushes to `main` in quick succession queue rather than race.
+
+Requires **Settings → Pages → Source → GitHub Actions** to be enabled once;
+until then the workflow still runs and builds a deployable artifact, it just
+has nowhere to publish it. VitePress's `base` is hardcoded to `/openapi-merge/`
+(`packages/docs-site/.vitepress/config.mts`) to match where a project-repo
+Pages site with no custom domain serves from -- if a custom domain is ever
+configured instead, that needs to change to `/`.
+
 ---
 
 ## 7. Coding Conventions
@@ -604,7 +637,10 @@ When editing this repository, please follow these guidelines:
 | Regenerate the CLI Markdown docs           | `bun run --cwd packages/openapi-merge-cli gen-docs`            |
 | Run the CLI in dev mode                    | `bun run cli` (or `bun run --cwd packages/openapi-merge-cli start`) |
 | Run the CLI against the example config     | `bun run cli -- --config openapi-merge.test.json` |
+| Preview the documentation site locally     | `bun run --cwd packages/docs-site dev`                         |
+| Build the documentation site (incl. API reference) | `bun run --cwd packages/docs-site build`               |
 | Publish (CI only, on a published Release)   | Handled by `npm-publish.yml` → `scripts/publish-changed.sh` after version bump |
+| Deploy the docs site (CI only, on push to `main`) | Handled by `docs-deploy.yml`, once GitHub Pages is enabled |
 
 ---
 

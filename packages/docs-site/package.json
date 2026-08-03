@@ -1,0 +1,21 @@
+{
+  "name": "openapi-merge-docs-site",
+  "version": "0.0.0",
+  "description": "Documentation microsite for openapi-merge and openapi-merge-cli.",
+  "private": true,
+  "scripts": {
+    "dev": "vitepress dev",
+    "build:api": "bun run --cwd ../openapi-merge docs -- --out ../docs-site/public/api",
+    "build": "bun run build:api && vitepress build",
+    "preview": "vitepress preview",
+    "lint": "eslint .vitepress --fix --format=visualstudio"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.0",
+    "eslint-formatter-visualstudio": "^9.0.1",
+    "globals": "^17.7.0",
+    "typescript-eslint": "^8.65.0",
+    "vitepress": "^1.6.4"
+  }
+}

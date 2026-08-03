@@ -1,0 +1,13 @@
+# Temp Files
+*.sw[a-p]
+*~
+
+# Node modules
+/node_modules
+
+# VitePress build output and dev cache
+/.vitepress/cache
+/.vitepress/dist
+
+# Generated TypeDoc API reference (bun run build:api)
+/public/api
