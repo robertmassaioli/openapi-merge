@@ -1,0 +1,22 @@
+# Dependabot version updates.
+# https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference
+#
+# Two ecosystems, both on a monthly cadence:
+#   - bun: the root `bun.lock` covers every workspace under `packages/*`
+#     (declared via `workspaces` in the root package.json), so one entry at
+#     the repo root is enough -- Dependabot resolves the workspace members
+#     from there, the same way it would for an npm/yarn workspace root.
+#   - github-actions: keeps the pinned action versions in
+#     `.github/workflows/*.yml` current (`actions/checkout@v7`,
+#     `oven-sh/setup-bun@v2`, etc.).
+version: 2
+updates:
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
