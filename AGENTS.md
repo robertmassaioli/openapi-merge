@@ -546,6 +546,19 @@ has nowhere to publish it. VitePress's `base` is hardcoded to `/openapi-merge/`
 Pages site with no custom domain serves from -- if a custom domain is ever
 configured instead, that needs to change to `/`.
 
+### `.github/dependabot.yml`
+
+Monthly version-update PRs for two ecosystems, each with `directory: "/"`:
+
+- `bun` -- the root `bun.lock` covers every workspace under `packages/*`, so
+  one entry is enough; Dependabot resolves the workspace members from the
+  root the same way it would for an npm/yarn workspace.
+- `github-actions` -- keeps pinned action versions in
+  `.github/workflows/*.yml` current.
+
+No security-update configuration: Dependabot security updates aren't
+supported for the `bun` ecosystem yet, only version updates.
+
 ---
 
 ## 7. Coding Conventions
