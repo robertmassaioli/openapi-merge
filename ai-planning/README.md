@@ -75,6 +75,7 @@ dependency health, build migrations. Named by topic rather than by issue number.
 | [`45-proposal-external-ref-equality-in-dedup.md`](45-proposal-external-ref-equality-in-dedup.md) | ✅ `CrossDocumentLookup`: component dedup resolves a cross-document `$ref` instead of crashing on it (PR #87) |
 | [`46-proposal-local-reference-cycle-guard.md`](46-proposal-local-reference-cycle-guard.md) | ✅ Reimplements `CrossDocumentLookup`'s resolution directly so a single cycle guard covers local and cross-document refs alike |
 | [`48-proposal-configurable-extension-merge-strategies.md`](48-proposal-configurable-extension-merge-strategies.md) | ✅ A recursive merge-strategy tree for `x-*` extensions, mirroring the extension's own JSON shape (generalises issue #60 / PR #127) |
+| [`49-proposal-retire-gen-docs.md`](49-proposal-retire-gen-docs.md) | Retire `gen-docs`/`@adobe/jsonschema2md` (redundant with the docs site, and the last `bun audit` finding); publish the raw JSON Schema instead |
 | [`issue-triage-value-vs-effort.md`](issue-triage-value-vs-effort.md) | Value/effort scoring of every open issue; the index into `issues/` |
 | [`spec-edge-case-findings.md`](spec-edge-case-findings.md) | Divergences between the merge and the spec, found by edge-case testing |
 | [`bun-tsgo-migration-build-timings.md`](bun-tsgo-migration-build-timings.md) | Measured build timings for the Bun + tsgo migration |

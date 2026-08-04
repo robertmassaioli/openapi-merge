@@ -314,13 +314,22 @@ bun run prepublishOnly # same as prepare
 bun run start      # bun ./src/cli.ts           (dev mode)
 bun run lint       # eslint src --fix
 bun run typecheck  # tsgo --project . --noEmit
-bun run gen-docs   # jsonschema2md --input=src  (regenerate Markdown docs)
 ```
 
 `gen-schema` runs `typescript-json-schema` against a dedicated `tsconfig.schema.json`
 (not the package's main `tsconfig.json`), because `typescript-json-schema` bundles
 its own older TypeScript and cannot parse the ambient `bun`/`node` `@types` the main
 config pulls in. `tsconfig.schema.json` only includes `src/data.ts` and sets `"types": []`.
+
+There used to be a `gen-docs` script here (`jsonschema2md --input=src`), generating
+one Markdown file per JSON Schema node into a local, gitignored `out/` directory that
+nothing else linked to. Retired (proposal 49): `packages/docs-site/cli/configuration.md`
+already documents the same fields, better organized, and the one part of `gen-docs`'s
+output actually worth keeping -- a reachable copy of `configuration.schema.json`, for
+editor `$schema`-comment validation -- is now published by the docs site's own
+`build:schema` step instead (see below). This also removed the last `bun audit` finding
+this repo couldn't otherwise clear: `@adobe/jsonschema2md` was `gen-docs`'s only caller
+and the sole path a vulnerable `js-yaml` entered the tree.
 
 The CLI package has a **small `bun:test` suite** of its own (`formatting.test.ts`,
 `path-resolution.test.ts`); most functional coverage still lives in the library
@@ -634,7 +643,7 @@ When editing this repository, please follow these guidelines:
 | Watch-build the library                    | `cd packages/openapi-merge && bun run build -- --watch`       |
 | Build the CLI                              | `bun run --cwd packages/openapi-merge-cli build`               |
 | Regenerate the CLI JSON Schema              | `bun run --cwd packages/openapi-merge-cli gen-schema`          |
-| Regenerate the CLI Markdown docs           | `bun run --cwd packages/openapi-merge-cli gen-docs`            |
+| Publish the JSON Schema to the docs site   | `bun run --cwd packages/docs-site build:schema`                |
 | Run the CLI in dev mode                    | `bun run cli` (or `bun run --cwd packages/openapi-merge-cli start`) |
 | Run the CLI against the example config     | `bun run cli -- --config openapi-merge.test.json` |
 | Preview the documentation site locally     | `bun run --cwd packages/docs-site dev`                         |

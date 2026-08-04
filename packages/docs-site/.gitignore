@@ -11,3 +11,6 @@
 
 # Generated TypeDoc API reference (bun run build:api)
 /public/api
+
+# Generated JSON Schema copy (bun run build:schema)
+/public/configuration.schema.json

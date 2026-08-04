@@ -1,8 +1,30 @@
+<script setup>
+import { withBase } from 'vitepress';
+</script>
+
 # Configuration reference
 
 Every field the CLI's configuration file (`openapi-merge.yaml` / `openapi-merge.json`) accepts, grouped as top-level
 settings and per-input settings. `openapi-merge-cli init` will write all of these for you, commented out where
 optional — see [Getting started: `init`](/cli/#getting-started-init).
+
+The same fields are also published as a machine-readable
+<a :href="withBase('/configuration.schema.json')">JSON Schema</a> — this is the exact file `ajv` validates every
+config file against at runtime, not a hand-maintained copy that can drift from it. Point an editor's YAML language
+server at it for live validation and autocomplete, by adding this as the first line of your config file:
+
+```yaml
+# yaml-language-server: $schema=https://robertmassaioli.github.io/openapi-merge/configuration.schema.json
+```
+
+(VS Code with the [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)
+understands this comment out of the box; other editors' YAML tooling generally supports the same convention.)
+
+::: tip
+That link only resolves after a full production build (`bun run --cwd packages/docs-site build`), since the schema
+is copied into `public/` as part of that build — it 404s under `vitepress dev`, which doesn't run the copy step.
+Use `bun run --cwd packages/docs-site build && bun run --cwd packages/docs-site preview` to see it locally.
+:::
 
 ## Top-level fields
 

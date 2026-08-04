@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vitepress dev",
     "build:api": "bun run --cwd ../openapi-merge docs -- --out ../docs-site/public/api",
-    "build": "bun run build:api && vitepress build",
+    "build:schema": "bun run --cwd ../openapi-merge-cli gen-schema && cp ../openapi-merge-cli/src/configuration.schema.json public/configuration.schema.json",
+    "build": "bun run build:api && bun run build:schema && vitepress build",
     "preview": "vitepress preview",
     "lint": "eslint .vitepress --fix --format=visualstudio"
   },
