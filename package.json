@@ -25,6 +25,9 @@
     "husky": "^9.1.7"
   },
   "overrides": {
-    "fast-uri": "^4.1.1"
+    "fast-uri": "^4.1.2",
+    "brace-expansion": "^5.0.9",
+    "vite": "^6.4.3",
+    "esbuild": "^0.25.0"
   }
 }
