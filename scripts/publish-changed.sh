@@ -5,7 +5,7 @@
 # provide automatically.
 #
 # Set DRY_RUN=1 to run the whole decision process and hand `--dry-run` to
-# `bun publish`, so the script can be exercised end to end without releasing
+# `npm publish`, so the script can be exercised end to end without releasing
 # anything.
 set -euo pipefail
 
@@ -65,7 +65,14 @@ for pkg_dir in "${PUBLISH_ORDER[@]}"; do
     # No --production: that is an *install* flag ("don't install
     # devDependencies") and does nothing for publish. What lands in the tarball
     # is decided by the `files` field in each package.json.
-    (cd "$pkg_dir" && bun publish ${publish_args[@]+"${publish_args[@]}"})
+    #
+    # npm publish, not bun publish: bun publish does not reliably read the
+    # auth token from .npmrc's `_authToken` line (or NPM_CONFIG_TOKEN /
+    # NPM_TOKEN), even though the exact same .npmrc authenticates fine with
+    # npm. Confirmed against this workflow's own failed run and tracked
+    # upstream: https://github.com/oven-sh/bun/issues/24124 (this exact
+    # error message and setup) and oven-sh/bun#16523, #14824, #22423.
+    (cd "$pkg_dir" && npm publish ${publish_args[@]+"${publish_args[@]}"})
   elif [ "$local_version" = "$published_version" ]; then
     echo "Skipping $name: $local_version already published"
   else
