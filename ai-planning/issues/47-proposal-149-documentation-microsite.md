@@ -1,6 +1,9 @@
 # Implementation Proposal: Issue #149 — Documentation Microsite
 
-**Status:** Proposal
+**Status:** ✅ Implemented — `packages/docs-site` (VitePress), deployed via
+`.github/workflows/docs-deploy.yml`. This status line was stale until
+`50-proposal-149-playground.md` (option 4) needed to build on top of it and
+verified it was actually live.
 **Value:** 4/5 — a single, navigable reference for both packages; closes the gap between "quick npm README" and "actually understanding the merge model."
 **Effort:** 3/5 — new tooling (VitePress), a GitHub Pages deploy workflow, and a genuinely large amount of content.
 

@@ -23,6 +23,7 @@ export default defineConfig({
       { text: 'CLI Reference', link: '/cli/' },
       { text: 'Library Reference', link: '/library/' },
       { text: 'API Reference', link: '/api/', target: '_self' },
+      { text: 'Playground', link: '/playground' },
       { text: 'GitHub', link: 'https://github.com/robertmassaioli/openapi-merge' },
     ],
 

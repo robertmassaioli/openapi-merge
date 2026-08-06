@@ -14,3 +14,6 @@
 
 # Generated JSON Schema copy (bun run build:schema)
 /public/configuration.schema.json
+
+# Pre-bundled openapi-merge for the playground (bun run build:merge-bundle)
+/.vitepress/generated

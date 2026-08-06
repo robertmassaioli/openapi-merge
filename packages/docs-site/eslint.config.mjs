@@ -3,9 +3,9 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  // public/api and .vitepress/{cache,dist} are all generated; docs-api and
-  // node_modules are dependencies. None of it is ours to lint.
-  { ignores: ['.vitepress/cache/**', '.vitepress/dist/**', 'public/**', 'node_modules/**'] },
+  // public/api, .vitepress/{cache,dist,generated} are all generated; docs-api
+  // and node_modules are dependencies. None of it is ours to lint.
+  { ignores: ['.vitepress/cache/**', '.vitepress/dist/**', '.vitepress/generated/**', 'public/**', 'node_modules/**'] },
 
   {
     files: ['**/*.{js,mjs,cjs,ts,mts}'],

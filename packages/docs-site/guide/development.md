@@ -38,9 +38,11 @@ bun run --cwd packages/docs-site build     # production build, including the gen
 bun run --cwd packages/docs-site preview   # serve the production build locally
 ```
 
-`bun run --cwd packages/docs-site build` runs two steps: it regenerates the library's TypeDoc API reference straight
-into `public/api/` (so it's always built from the checked-out source, not a stale copy), then runs the VitePress
-production build. Both `public/api/` and `.vitepress/dist` are gitignored — nothing generated here is committed.
+Both `dev` and `build` first build `packages/openapi-merge` (`build:lib`): the [playground](/playground) imports the
+library's compiled `dist/`, the same way `openapi-merge-cli` does, so it has to exist before Vite bundles the site.
+`build` then regenerates the library's TypeDoc API reference straight into `public/api/` (so it's always built from
+the checked-out source, not a stale copy), and finally runs the VitePress production build. Both `public/api/` and
+`.vitepress/dist` are gitignored — nothing generated here is committed.
 
 ## The `ai-planning/` convention
 
