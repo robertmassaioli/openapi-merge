@@ -1,24 +1,31 @@
-# Release Notes — v2.0.1
+# Release Notes — v2.0.2
 
 **Covers:** every change merged to `main` since the last published release,
 `openapi-merge@1.3.3` / `openapi-merge-cli@1.3.2` (commit `bc232e4`,
-2024-06-06), through `bbe4a5d` (2026-08-06).
+2024-06-06), through `e9eb16c` (2026-08-06).
 
-**Why 2.0.1, not 1.5.0:** several changes below are behavior-breaking —
+**Why 2.0.2, not 1.5.0:** several changes below are behavior-breaking —
 most significantly, inputs that previously merged silently (while quietly
 losing data) now fail fast with a distinct exit code. `package.json` had
 already been bumped to `1.4.0` for the first of these (commit `1327cbf`)
 but never published; enough has landed since to warrant a major version
 instead of continuing to stack minors on an unpublished bump.
 
-**Why `.1`, not `.0`:** the `v2.0.0` GitHub Release was cut first, but its
-publish run failed before anything reached npm (`bun publish` couldn't
-authenticate — see `scripts/publish-changed.sh`'s fix). The registry never
-saw a `2.0.0`, so this release goes out as `2.0.1` rather than reusing the
-tag.
+**Why `.2`, not `.0`:** two prior tags never actually reached npm.
+`v2.0.0`'s publish run failed before anything was uploaded (`bun publish`
+couldn't authenticate — see `scripts/publish-changed.sh`'s fix). `v2.0.1`'s
+publish run got past that, but then failed with a misleading `E404` on the
+`PUT` for a package that demonstrably already exists: npm's dead
+`NPM_AUTH_TOKEN` secret (last touched 2021) fell back to a stale token,
+because the workflow had neither requested an OIDC token nor run an npm new
+enough to use one, so setting up a Trusted Publisher on npmjs.com alone had
+no effect (fixed in the `npm-publish.yml` update wiring up
+`permissions: id-token: write` plus a Node 22 / npm 11.5.1+ step for the
+publish job specifically). The registry has never seen a `2.0.0` or a
+`2.0.1`, so this release goes out as `2.0.2`.
 
 Both packages are version-locked and release together: `openapi-merge` and
-`openapi-merge-cli` both go to `2.0.1`.
+`openapi-merge-cli` both go to `2.0.2`.
 
 ---
 
@@ -198,6 +205,13 @@ Both packages are version-locked and release together: `openapi-merge` and
   build job alongside coverage reporting.
 - **npm publish now gated on a published GitHub Release**, rather than
   firing on every push to `main` (proposal [41](41-proposal-release-gated-npm-publish.md)).
+- **`npm-publish.yml` publishes via `npm publish` over npm Trusted Publishing
+  (OIDC)**, instead of a long-lived `NPM_AUTH_TOKEN` secret and `bun publish`
+  (which doesn't reliably read `.npmrc` auth — see the `.2` note above). The
+  publish job requests a GitHub OIDC token (`permissions: id-token: write`)
+  and runs it under Node 22 / npm ≥ 11.5.1, npm's stated floor for trusted
+  publishing, separate from the Node 18 pin the artifact-verification step
+  still deliberately tests against.
 - **Dependabot** configured for both the `bun` and `github-actions`
   ecosystems, monthly.
 - Dependency upgrades: `ajv` 6→8 (+ `ajv-formats`), `js-yaml` 3→5,

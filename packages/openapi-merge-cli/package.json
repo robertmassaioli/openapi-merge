@@ -1,6 +1,6 @@
 {
   "name": "openapi-merge-cli",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "A cli tool for the openapi-merge library.",
   "keywords": [
     "openapi",
@@ -43,7 +43,7 @@
     "ajv-formats": "^3.0.1",
     "commander": "^15.0.0",
     "js-yaml": "^5.2.2",
-    "openapi-merge": "^2.0.1"
+    "openapi-merge": "^2.0.2"
   },
   "scripts": {
     "build": "tsgo --project tsconfig.build.json && bun run build:bundle && bun run build:notices",

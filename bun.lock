@@ -27,7 +27,7 @@
     },
     "packages/openapi-merge": {
       "name": "openapi-merge",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "dependencies": {
         "@atlassian/atlassian-openapi": "^1.0.6",
         "jsonpointer": "^5.0.1",
@@ -48,7 +48,7 @@
     },
     "packages/openapi-merge-cli": {
       "name": "openapi-merge-cli",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "bin": {
         "openapi-merge-cli": "dist/cli.js",
       },
@@ -58,7 +58,7 @@
         "ajv-formats": "^3.0.1",
         "commander": "^15.0.0",
         "js-yaml": "^5.2.2",
-        "openapi-merge": "^2.0.1",
+        "openapi-merge": "^2.0.2",
       },
       "devDependencies": {
         "@eslint/js": "^10.0.1",
