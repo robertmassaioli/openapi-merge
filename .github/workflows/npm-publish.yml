@@ -9,6 +9,14 @@ jobs:
   npm-publish:
     name: npm-publish
     runs-on: ubuntu-latest
+    # id-token: write is what lets this job request an OIDC token from GitHub
+    # and exchange it for a short-lived npm publish token -- npm's Trusted
+    # Publisher feature (https://docs.npmjs.com/trusted-publishers), set up
+    # separately on npmjs.com for this repo + this workflow file. No
+    # NPM_AUTH_TOKEN secret needed once this is configured on both sides.
+    permissions:
+      contents: read
+      id-token: write
     steps:
     - name: Checkout repository
       uses: actions/checkout@v7
@@ -21,10 +29,10 @@ jobs:
     - run: bun run test
     - run: bun run build
     # Deliberately placed AFTER lint/test/build and immediately before the
-    # verification step. `setup-node` changes the `node` on PATH for every
-    # subsequent step in the job, and the publish step below runs `node -e` /
-    # `node -p`; there is no reason to make the release path depend on the
-    # oldest Node we support, so the pin is scoped to the step that needs it.
+    # verification step, whose whole point is exercising the oldest Node we
+    # claim to support. `setup-node` changes the `node` on PATH for every
+    # subsequent step, but the publish step further down installs its own,
+    # newer Node -- see the comment there.
     - name: Set up Node (the floor of our declared engines range)
       uses: actions/setup-node@v7
       with:
@@ -40,10 +48,14 @@ jobs:
       run: ./scripts/verify-node-runtime.sh
       env:
         RUNTIMES: node bun
+    # Trusted publishing needs npm >= 11.5.1 and Node >= 22.14.0
+    # (https://docs.npmjs.com/trusted-publishers), well above the Node 18
+    # floor the verification step above deliberately tests against -- so this
+    # is a second, separate Node setup, scoped to just the publish step below.
+    - name: Set up Node for npm trusted publishing (needs npm >= 11.5.1)
+      uses: actions/setup-node@v7
+      with:
+        node-version: '22'
+    - run: npm install -g npm@latest
     - name: Publish packages whose version has been updated
-      run: |
-        echo "//registry.npmjs.org/:_authToken=${NPM_AUTH_TOKEN}" >> ~/.npmrc
-        ./scripts/publish-changed.sh
-      env: # More info about the environment variables in the README
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Leave this as is, it's automatically generated
-        NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }} # You need to set this in your repo settings
+      run: ./scripts/publish-changed.sh
