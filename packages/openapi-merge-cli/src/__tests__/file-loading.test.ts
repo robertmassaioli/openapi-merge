@@ -95,6 +95,70 @@ describe('readYamlOrJSON', () => {
   });
 });
 
+describe('issue #165: double-quoted scalar with line continuation', () => {
+  // https://github.com/robertmassaioli/openapi-merge/issues/165
+  //
+  // The reporter's YAML nests a double-quoted, line-continued scalar
+  // (`"...;\` + `\  ...` on the next line) inside a sequence item, with the
+  // continuation line indented to the *same* column as the `description:`
+  // key itself (4 spaces). This reproduces their exact error, including the
+  // reported column (`(11:5)` in their trace vs. `(4:5)` here, both column
+  // 5 -- the offset is just where `tags:` starts in each file).
+  //
+  // Two independent YAML 1.2 parsers (js-yaml 5 here, and the `yaml` npm
+  // package used as a cross-check) both reject this input and both accept
+  // it once the continuation line is indented one column further (5
+  // spaces, past the key). That agreement indicates the input is genuinely
+  // invalid per the spec -- a folded line inside a double-quoted scalar
+  // must be indented *more* than the enclosing block node, and equal
+  // indentation is "deficient". js-yaml 3 (used through 1.3.2) was lenient
+  // and accepted it anyway; js-yaml 5 (used since 2.0.0) does not. So this
+  // looks like a stricter, spec-compliant transitive dependency upgrade
+  // surfacing a pre-existing issue in the input file, not YAML handling
+  // that openapi-merge-cli implements itself -- worth confirming with the
+  // reporter whether their actual file has this same-column indentation.
+  const deficientIndentation = [
+    'tags:',
+    '  - name: My-service processing',
+    '    description: "Processing My-service incoming requests: validates input from the client service;\\',
+    '    \\ forwards enriched data to the downstream service."',
+    '',
+  ].join('\n');
+
+  it('reproduces the reported parse failure for continuation lines indented the same as their key', async () => {
+    let caught: unknown;
+    try {
+      await readYamlOrJSON(deficientIndentation);
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught instanceof JsonOrYamlParseError).toBe(true);
+    expect((caught as Error).message).toContain('deficient indentation');
+  });
+
+  it('parses successfully once the continuation line is indented past its key (valid YAML)', async () => {
+    const validlyIndented = [
+      'tags:',
+      '  - name: My-service processing',
+      '    description: "Processing My-service incoming requests: validates input from the client service;\\',
+      '     \\ forwards enriched data to the downstream service."',
+      '',
+    ].join('\n');
+
+    const parsed = await readYamlOrJSON(validlyIndented);
+
+    expect(parsed).toEqual({
+      tags: [
+        {
+          name: 'My-service processing',
+          description: 'Processing My-service incoming requests: validates input from the client service; forwards enriched data to the downstream service.',
+        },
+      ],
+    });
+  });
+});
+
 describe('JsonOrYamlParseError', () => {
   it('is an Error carrying both underlying messages', () => {
     const error = new JsonOrYamlParseError(new Error('bad json'), new Error('bad yaml'));
