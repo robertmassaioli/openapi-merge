@@ -14,7 +14,7 @@
     "lint": "eslint .vitepress --fix --format=visualstudio"
   },
   "dependencies": {
-    "js-yaml": "^5.2.2",
+    "js-yaml": "^5.4.1",
     "openapi-merge": "^2.0.2"
   },
   "devDependencies": {
