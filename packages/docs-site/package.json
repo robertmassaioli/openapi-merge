@@ -20,7 +20,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/js-yaml": "^4.0.9",
-    "eslint": "^10.0.0",
+    "eslint": "^10.9.1",
     "eslint-formatter-visualstudio": "^9.0.1",
     "globals": "^17.7.0",
     "typescript-eslint": "^8.65.0",
