@@ -22,7 +22,7 @@
     "@types/js-yaml": "^4.0.9",
     "eslint": "^10.0.0",
     "eslint-formatter-visualstudio": "^9.0.1",
-    "globals": "^17.7.0",
+    "globals": "^17.11.0",
     "typescript-eslint": "^8.65.0",
     "vitepress": "^1.6.4"
   }
