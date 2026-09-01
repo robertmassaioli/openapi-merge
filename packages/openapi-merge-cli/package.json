@@ -29,7 +29,7 @@
     "@eslint/js": "^10.0.1",
     "@types/jest": "^30.0.0",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.4.0",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "eslint": "^10.0.0",
     "eslint-formatter-visualstudio": "^9.0.1",
