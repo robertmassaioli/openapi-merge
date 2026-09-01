@@ -43,7 +43,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "eslint": "^10.0.0",
     "eslint-formatter-visualstudio": "^9.0.1",
-    "globals": "^17.7.0",
+    "globals": "^17.11.0",
     "typedoc": "^0.28.20",
     "typescript-eslint": "^8.65.0"
   },
