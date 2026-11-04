@@ -266,6 +266,84 @@ describe('dedup across inputs sharing a cross-document $ref (PR #87)', () => {
     expect(Object.keys(output.components?.responses ?? {})).toEqual(['NotFound']);
   });
 
+  it('dedupes same-named responses whose headers reference equal Header components', () => {
+    const response = {
+      description: 'ok',
+      headers: { Trace: { $ref: '#/components/headers/H' } },
+    };
+    const header = { description: 'trace id', required: false, schema: schema({ type: 'string' }) };
+    const first = doc30({
+      paths: { '/one': { get: { responses: { '200': { $ref: '#/components/responses/R' } } } } },
+      components: { responses: { R: response }, headers: { H: header } },
+    });
+    const second = doc30({
+      paths: { '/two': { get: { responses: { '200': { $ref: '#/components/responses/R' } } } } },
+      components: { responses: { R: response }, headers: { H: header } },
+    });
+
+    const output = expectSuccess(merge([
+      { oas: first },
+      { oas: second, dispute: { prefix: 'Second', alwaysApply: false } },
+    ]));
+
+    expect(Object.keys(output.components?.responses ?? {})).toEqual(['R']);
+    expect(Object.keys(output.components?.headers ?? {})).toEqual(['H']);
+    expect(at(output, 'components', 'responses', 'R', 'headers', 'Trace', '$ref'))
+      .toBe('#/components/headers/H');
+  });
+
+  it('does not equate identical local ref text when the two inputs resolve it to different Header content', () => {
+    const first = doc30({
+      components: {
+        responses: {
+          R: { description: 'ok', headers: { Trace: { $ref: '#/components/headers/H' } } },
+        },
+        headers: { H: { description: 'left', schema: schema({ type: 'string' }) } },
+      },
+    });
+    const second = doc30({
+      components: {
+        responses: {
+          R: { description: 'ok', headers: { Trace: { $ref: '#/components/headers/H' } } },
+        },
+        headers: { H: { description: 'right', schema: schema({ type: 'string' }) } },
+      },
+    });
+
+    const output = expectSuccess(merge([{ oas: first }, { oas: second }]));
+
+    expect(Object.keys(output.components?.responses ?? {})).toEqual(['R', 'R1']);
+    expect(Object.keys(output.components?.headers ?? {})).toEqual(['H', 'H1']);
+    expect(at(output, 'components', 'responses', 'R1', 'headers', 'Trace', '$ref'))
+      .toBe('#/components/headers/H1');
+  });
+
+  it('dedupes equal Header content when the two response refs use different local names', () => {
+    const first = doc30({
+      components: {
+        responses: { R: { description: 'ok', headers: { Trace: { $ref: '#/components/headers/H1' } } } },
+        headers: { H1: { description: 'trace id', schema: schema({ type: 'string' }) } },
+      },
+    });
+    const second = doc30({
+      components: {
+        responses: { R: { description: 'ok', headers: { Trace: { $ref: '#/components/headers/H2' } } } },
+        headers: { H2: { description: 'trace id', schema: schema({ type: 'string' }) } },
+      },
+    });
+
+    const output = expectSuccess(merge([{ oas: first }, { oas: second }]));
+
+    expect(Object.keys(output.components?.responses ?? {})).toEqual(['R']);
+    // Component deduplication only compares names that collide; H1 and H2
+    // both remain even though the response definitions compare equal. Since
+    // processComponents replaces an equal component with the incoming value,
+    // the surviving response keeps the second input's H2 reference.
+    expect(Object.keys(output.components?.headers ?? {})).toEqual(['H1', 'H2']);
+    expect(at(output, 'components', 'responses', 'R', 'headers', 'Trace', '$ref'))
+      .toBe('#/components/headers/H2');
+  });
+
   it('documents the residual gap: a ref to a document truly outside the merge\'s knowledge still surfaces as an error', () => {
     // No sourceIdentity and no externalDocuments entry names 'unknown.yaml' --
     // CrossDocumentLookup correctly returns undefined for it (§3.3 of the

@@ -32,11 +32,14 @@ export function shallowEquality<A>(referenceWalker: ReferenceWalker<A>): (x: A |
   }
 }
 
-function isSchemaOrThrowError(ref: Swagger.Reference, s: Swagger.Schema | undefined): Swagger.Schema {
-  if (s === undefined) {
+export type ComparisonReferenceTarget = { kind?: string; value: unknown };
+export type ComparisonReferenceResolver = (reference: Swagger.Reference) => ComparisonReferenceTarget | undefined;
+
+function resolvedReferenceOrThrow(ref: Swagger.Reference, value: ComparisonReferenceTarget | undefined): ComparisonReferenceTarget {
+  if (value === undefined) {
     throw new Error(`Could not resolve reference: ${ref.$ref}`);
   }
-  return s;
+  return value;
 }
 
 function arraysEquivalent(leftOriginal: Array<string>, rightOriginal: Array<string>): boolean {
@@ -56,39 +59,41 @@ function arraysEquivalent(leftOriginal: Array<string>, rightOriginal: Array<stri
   return true;
 }
 
-// The idea is that, if you have made this comparison before, then don't do it again, just return true becauese you have a cycle
-type SeenResult = 'seen-before' | 'new';
-
-class ReferenceRecord {
-  private leftRightSeen: { [leftRef: string]: { [rightRef: string]: boolean }} = {};
-
-  public checkAndStore(left: Swagger.Reference, right: Swagger.Reference): SeenResult {
-    if (this.leftRightSeen[left.$ref] === undefined) {
-      this.leftRightSeen[left.$ref] = {};
-    }
-
-    const leftLookup = this.leftRightSeen[left.$ref];
-
-    const result: SeenResult = leftLookup[right.$ref] === true ? 'seen-before' : 'new';
-    leftLookup[right.$ref] = true;
-    return result;
-  }
-}
-
-export function deepEquality<A>(xLookup: Lookup.Lookup, yLookup: Lookup.Lookup): (x: A | Swagger.Reference, y: A | Swagger.Reference) => boolean {
-  const refRecord = new ReferenceRecord();
-
-  function compare<T>(x: T | Swagger.Reference, y: T | Swagger.Reference): boolean {
+export function deepEquality<A>(
+  xLookup: Lookup.Lookup,
+  yLookup: Lookup.Lookup,
+  xReferenceResolver: ComparisonReferenceResolver = reference => {
+    const value = xLookup.getSchema(reference);
+    return value === undefined ? undefined : { kind: 'schemas', value };
+  },
+  yReferenceResolver: ComparisonReferenceResolver = reference => {
+    const value = yLookup.getSchema(reference);
+    return value === undefined ? undefined : { kind: 'schemas', value };
+  },
+): (x: A | Swagger.Reference, y: A | Swagger.Reference) => boolean {
+  function compare<T>(x: T | Swagger.Reference, y: T | Swagger.Reference, activeReferencePairs: Set<string>): boolean {
     // If both are references then look up the references and compare them for equality
     if (isPresent(x) && isPresent(y)) {
       if (TC.isReference(x) && TC.isReference(y)) {
-        if (refRecord.checkAndStore(x, y) === 'seen-before') {
+        // A pair already active in this recursion is a cycle. Do not retain
+        // completed pairs: the same references may compare differently at a
+        // later component, or elsewhere in this top-level comparison.
+        const pairKey = JSON.stringify([x.$ref, y.$ref]);
+        if (activeReferencePairs.has(pairKey)) {
           return true;
         }
 
-        const xResult = isSchemaOrThrowError(x, xLookup.getSchema(x));
-        const yResult = isSchemaOrThrowError(y, yLookup.getSchema(y));
-        return compare(xResult, yResult);
+        activeReferencePairs.add(pairKey);
+        try {
+          const xResult = resolvedReferenceOrThrow(x, xReferenceResolver(x));
+          const yResult = resolvedReferenceOrThrow(y, yReferenceResolver(y));
+          if (xResult.kind !== undefined && yResult.kind !== undefined && xResult.kind !== yResult.kind) {
+            return false;
+          }
+          return compare(xResult.value, yResult.value, activeReferencePairs);
+        } finally {
+          activeReferencePairs.delete(pairKey);
+        }
       } else if (TC.isReference(x) || TC.isReference(y)) {
         return false;
       } else if (typeof x === 'object' && x !== null && typeof y === 'object' && y !== null) {
@@ -97,7 +102,7 @@ export function deepEquality<A>(xLookup: Lookup.Lookup, yLookup: Lookup.Lookup):
           return false;
         }
         const xKeys = Object.keys(x) as Array<keyof T>;
-        return xKeys.every(key => compare(x[key], y[key]));
+        return xKeys.every(key => compare(x[key], y[key], activeReferencePairs));
       }
     }
 
@@ -105,5 +110,5 @@ export function deepEquality<A>(xLookup: Lookup.Lookup, yLookup: Lookup.Lookup):
     return _.isEqual(x, y);
   }
 
-  return compare;
+  return (x, y) => compare(x, y, new Set());
 }
