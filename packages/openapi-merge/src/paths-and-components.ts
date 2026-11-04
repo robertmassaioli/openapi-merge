@@ -463,7 +463,12 @@ export function mergePathsAndComponents(
         const componentError = processComponents(
           target,
           incoming,
-          deepEquality(resultLookup, currentLookup),
+          deepEquality(
+            resultLookup,
+            currentLookup,
+            reference => resultLookup.getReferenceTargetForComparison(reference),
+            reference => currentLookup.getReferenceTargetForComparison(reference),
+          ),
           dispute,
           (from: string, to: string) => {
             referenceModification[`#/components/${componentType}/${from}`] = `#/components/${componentType}/${to}`;
@@ -497,7 +502,12 @@ export function mergePathsAndComponents(
           const target = result.components.securitySchemes ?? {};
           result.components.securitySchemes = target;
 
-          const areEqual = deepEquality(resultLookup, currentLookup);
+          const areEqual = deepEquality(
+            resultLookup,
+            currentLookup,
+            reference => resultLookup.getReferenceTargetForComparison(reference),
+            reference => currentLookup.getReferenceTargetForComparison(reference),
+          );
 
           if (securitySchemesStrategy === 'error') {
             // Refuse a genuine conflict rather than renaming around it.
