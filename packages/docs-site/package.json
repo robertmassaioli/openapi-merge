@@ -23,7 +23,7 @@
     "eslint": "^10.0.0",
     "eslint-formatter-visualstudio": "^9.0.1",
     "globals": "^17.7.0",
-    "typescript-eslint": "^8.65.0",
+    "typescript-eslint": "^8.68.0",
     "vitepress": "^1.6.4"
   }
 }

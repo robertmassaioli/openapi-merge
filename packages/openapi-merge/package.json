@@ -45,7 +45,7 @@
     "eslint-formatter-visualstudio": "^9.0.1",
     "globals": "^17.7.0",
     "typedoc": "^0.28.20",
-    "typescript-eslint": "^8.65.0"
+    "typescript-eslint": "^8.68.0"
   },
   "dependencies": {
     "@atlassian/atlassian-openapi": "^1.0.6",
