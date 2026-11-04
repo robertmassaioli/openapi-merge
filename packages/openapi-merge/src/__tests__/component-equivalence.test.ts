@@ -70,6 +70,69 @@ describe('component-equivalence: null and undefined handling (issue #92)', () =>
   });
 });
 
+describe('deepEquality: heterogeneous reference targets and cycle bookkeeping', () => {
+  it('compares two resolved non-schema values structurally', () => {
+    const left = { $ref: '#/components/headers/Trace' } as Swagger.Reference;
+    const right = { $ref: '#/components/headers/Trace' } as Swagger.Reference;
+    const compare = deepEquality(
+      buildLookup(),
+      buildLookup(),
+      () => ({ kind: 'headers', value: { description: 'trace', required: false } }),
+      () => ({ kind: 'headers', value: { description: 'trace', required: false } }),
+    );
+
+    expect(compare(left, right)).toBe(true);
+  });
+
+  it('does not retain an unequal reference pair between calls', () => {
+    const left = { $ref: '#/components/headers/Trace' } as Swagger.Reference;
+    const right = { $ref: '#/components/headers/Trace' } as Swagger.Reference;
+    const compare = deepEquality(
+      buildLookup(),
+      buildLookup(),
+      () => ({ kind: 'headers', value: { description: 'left' } }),
+      () => ({ kind: 'headers', value: { description: 'right' } }),
+    );
+
+    expect(compare(left, right)).toBe(false);
+    expect(compare(left, right)).toBe(false);
+  });
+
+  it('breaks active cycles while still comparing the rest of each object', () => {
+    const leftRef = { $ref: '#/components/headers/Left' } as Swagger.Reference;
+    const rightRef = { $ref: '#/components/headers/Right' } as Swagger.Reference;
+    const compare = deepEquality(
+      buildLookup(),
+      buildLookup(),
+      () => ({ kind: 'headers', value: { next: leftRef, marker: 'same' } }),
+      () => ({ kind: 'headers', value: { next: rightRef, marker: 'same' } }),
+    );
+
+    expect(compare(leftRef, rightRef)).toBe(true);
+    const unequal = deepEquality(
+      buildLookup(),
+      buildLookup(),
+      () => ({ kind: 'headers', value: { next: leftRef, marker: 'left' } }),
+      () => ({ kind: 'headers', value: { next: rightRef, marker: 'right' } }),
+    );
+    expect(unequal(leftRef, rightRef)).toBe(false);
+  });
+
+  it('does not compare known references to different component kinds as equal', () => {
+    const schemaRef = { $ref: '#/components/schemas/Item' } as Swagger.Reference;
+    const headerRef = { $ref: '#/components/headers/Item' } as Swagger.Reference;
+    const sameShape = { description: 'same' };
+    const compare = deepEquality(
+      buildLookup(),
+      buildLookup(),
+      () => ({ kind: 'schemas', value: sameShape }),
+      () => ({ kind: 'headers', value: sameShape }),
+    );
+
+    expect(compare(schemaRef, headerRef)).toBe(false);
+  });
+});
+
 describe('shallowEquality: reference counting', () => {
   it('treats two identical reference-free schemas as equal', () => {
     // Reaches referenceCount: equal, present, not a Reference, zero refs found.
