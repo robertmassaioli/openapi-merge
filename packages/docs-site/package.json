@@ -14,7 +14,7 @@
     "lint": "eslint .vitepress --fix --format=visualstudio"
   },
   "dependencies": {
-    "js-yaml": "^5.2.2",
+    "js-yaml": "^5.4.1",
     "openapi-merge": "^2.0.2"
   },
   "devDependencies": {
@@ -23,7 +23,7 @@
     "eslint": "^10.0.0",
     "eslint-formatter-visualstudio": "^9.0.1",
     "globals": "^17.11.0",
-    "typescript-eslint": "^8.65.0",
+    "typescript-eslint": "^8.68.0",
     "vitepress": "^1.6.4"
   }
 }
