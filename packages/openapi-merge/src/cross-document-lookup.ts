@@ -101,6 +101,54 @@ export class CrossDocumentLookup implements SwaggerLookup.Lookup {
     return this.getSecurityScheme({ $ref: `#/components/securitySchemes/${name}` });
   }
 
+  /**
+   * Resolve a reference for structural comparison without assuming every
+   * target is a Schema Object. For whole component references, dispatch by
+   * the component bucket so the same type checks (and schema title backfill)
+   * as the public lookup accessors are retained. Nested or non-component
+   * pointers are first checked as schemas, then accepted as another OpenAPI
+   * object; structural equality only needs their JSON shape.
+   */
+  getReferenceTargetForComparison(reference: Swagger.Reference): { kind?: string; value: unknown } | undefined {
+    const fragment = splitCrossDocumentRef(reference.$ref)?.fragment ?? reference.$ref;
+    const segments = fragment.startsWith('#/') ? fragment.slice(2).split('/') : [];
+    const bucket = segments[0] === 'components' ? segments[1] : undefined;
+
+    if (segments.length === 3 && bucket !== undefined) {
+      switch (bucket) {
+        case 'schemas':
+          return comparisonTarget(bucket, this.getSchema(reference));
+        case 'responses':
+          return comparisonTarget(bucket, this.getResponse(reference));
+        case 'parameters':
+          return comparisonTarget(bucket, this.getParam(reference));
+        case 'examples':
+          return comparisonTarget(bucket, this.getExample(reference));
+        case 'requestBodies':
+          return comparisonTarget(bucket, this.getRequestBody(reference));
+        case 'headers':
+          return comparisonTarget(bucket, this.getHeaders(reference));
+        case 'links':
+          return comparisonTarget(bucket, this.getLink(reference));
+        case 'callbacks':
+          return comparisonTarget(bucket, this.getCallback(reference));
+        case 'securitySchemes':
+          return comparisonTarget(bucket, this.getSecurityScheme(reference));
+        case 'pathItems':
+          return comparisonTarget(bucket, this.resolve(reference, TC.isPathItem, 'a Path Item Object'));
+      }
+    }
+
+    // Preserve getSchema's title behavior for nested schema pointers and
+    // references outside components that still resolve to a Schema Object.
+    const schema = this.getSchema(reference);
+    if (schema !== undefined) {
+      return comparisonTarget('schemas', schema);
+    }
+
+    return comparisonTarget(undefined, this.resolve(reference, isOpenApiObject, 'an OpenAPI Object'));
+  }
+
   getSchema(s: Swagger.Schema | Swagger.Reference): Swagger.Schema | undefined {
     const result = this.resolve(s, TC.isSchema, 'a Schema Object');
     if (result === undefined || !TC.isReference(s) || (result as { title?: string }).title !== undefined) {
@@ -214,6 +262,14 @@ export class CrossDocumentLookup implements SwaggerLookup.Lookup {
 
     return tCheck(raw) ? raw : undefined;
   }
+}
+
+function isOpenApiObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function comparisonTarget(kind: string | undefined, value: unknown | undefined): { kind?: string; value: unknown } | undefined {
+  return value === undefined ? undefined : kind === undefined ? { value } : { kind, value };
 }
 
 /**

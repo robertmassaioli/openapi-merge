@@ -277,7 +277,12 @@ export function createCrossDocumentResolver(
       const placementError = processComponents(
         targetBucket,
         { [parsed.name]: cloned },
-        deepEquality(resultLookup, currentLookup),
+        deepEquality(
+          resultLookup,
+          currentLookup,
+          reference => resultLookup.getReferenceTargetForComparison(reference),
+          reference => currentLookup.getReferenceTargetForComparison(reference),
+        ),
         undefined,
         (_from, to) => { finalName = to; },
       );

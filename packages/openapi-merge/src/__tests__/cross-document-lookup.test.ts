@@ -32,6 +32,32 @@ describe('CrossDocumentLookup', () => {
       expect(lookup.getSchema({ $ref: '#/components/schemas/Foo' })).toEqual({ type: 'string', title: 'Foo' });
     });
 
+    it('resolves a Header reference for comparison without treating it as a Schema Object', () => {
+      const header = { description: 'trace id', required: false, schema: schema({ type: 'string' }) };
+      const local = doc30({ components: { headers: { Trace: header } } });
+      const lookup = new CrossDocumentLookup(local);
+
+      expect(lookup.getReferenceTargetForComparison({ $ref: '#/components/headers/Trace' }))
+        .toEqual({ kind: 'headers', value: header });
+    });
+
+    it('keeps schema title backfill when resolving schema references for comparison', () => {
+      const local = doc30({ components: { schemas: { Foo: schema({ type: 'string' }) } } });
+      const lookup = new CrossDocumentLookup(local);
+
+      expect(lookup.getReferenceTargetForComparison({ $ref: '#/components/schemas/Foo' }))
+        .toEqual({ kind: 'schemas', value: { type: 'string', title: 'Foo' } });
+    });
+
+    it('resolves Path Item component references for comparison', () => {
+      const pathItem = { get: { responses: { '200': { description: 'ok' } } } };
+      const local = doc30({ components: { pathItems: { Resource: pathItem } } });
+      const lookup = new CrossDocumentLookup(local);
+
+      expect(lookup.getReferenceTargetForComparison({ $ref: '#/components/pathItems/Resource' }))
+        .toEqual({ kind: 'pathItems', value: pathItem });
+    });
+
     it('does not backfill a title that is already present', () => {
       const local = doc30({ components: { schemas: { Foo: schema({ type: 'string', title: 'Explicit' } as Record<string, unknown>) } } });
       const lookup = new CrossDocumentLookup(local);
@@ -162,6 +188,17 @@ describe('CrossDocumentLookup', () => {
   });
 
   describe('cross-document resolution', () => {
+    it('resolves a cross-document Header reference for comparison and leaves unknown identities unresolved', () => {
+      const header = { description: 'trace id', schema: schema({ type: 'string' }) };
+      const external = doc30({ components: { headers: { Trace: header } } });
+      const lookup = new CrossDocumentLookup(doc30({}), { 'common.yaml': external });
+
+      expect(lookup.getReferenceTargetForComparison({ $ref: 'common.yaml#/components/headers/Trace' }))
+        .toEqual({ kind: 'headers', value: header });
+      expect(lookup.getReferenceTargetForComparison({ $ref: 'unknown.yaml#/components/headers/Trace' }))
+        .toBeUndefined();
+    });
+
     it('resolves a $ref into a known document', () => {
       const external = doc30({ components: { schemas: { ServerError: schema({ type: 'object' }) } } });
       const lookup = new CrossDocumentLookup(doc30({}), { 'errors.yaml': external });
