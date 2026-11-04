@@ -71,6 +71,24 @@ describe('component-equivalence: null and undefined handling (issue #92)', () =>
 });
 
 describe('deepEquality: heterogeneous reference targets and cycle bookkeeping', () => {
+  it('uses the default schema lookup resolvers when no custom resolver is supplied', () => {
+    const document = (type: Swagger.Schema['type']): Swagger.SwaggerV3 => ({
+      openapi: '3.0.3',
+      info: { title: 't', version: '1' },
+      paths: {},
+      components: { schemas: { Item: { type } } },
+    });
+    const compare = deepEquality(
+      new SwaggerLookup.InternalLookup(document('string')),
+      new SwaggerLookup.InternalLookup(document('string')),
+    );
+
+    expect(compare(
+      { $ref: '#/components/schemas/Item' },
+      { $ref: '#/components/schemas/Item' },
+    )).toBe(true);
+  });
+
   it('compares two resolved non-schema values structurally', () => {
     const left = { $ref: '#/components/headers/Trace' } as Swagger.Reference;
     const right = { $ref: '#/components/headers/Trace' } as Swagger.Reference;
