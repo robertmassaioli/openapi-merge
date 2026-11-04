@@ -77,6 +77,7 @@ dependency health, build migrations. Named by topic rather than by issue number.
 | [`48-proposal-configurable-extension-merge-strategies.md`](48-proposal-configurable-extension-merge-strategies.md) | ✅ A recursive merge-strategy tree for `x-*` extensions, mirroring the extension's own JSON shape (generalises issue #60 / PR #127) |
 | [`49-proposal-retire-gen-docs.md`](49-proposal-retire-gen-docs.md) | Retire `gen-docs`/`@adobe/jsonschema2md` (redundant with the docs site, and the last `bun audit` finding); publish the raw JSON Schema instead |
 | [`release-notes-2.0.2.md`](release-notes-2.0.2.md) | Everything merged since the last published release (1.3.3/1.3.2), for the upcoming 2.0.2 |
+| [`release-notes-2.0.3.md`](release-notes-2.0.3.md) | Changes merged since v2.0.2, prepared for the next patch release |
 | [`issue-triage-value-vs-effort.md`](issue-triage-value-vs-effort.md) | Value/effort scoring of every open issue; the index into `issues/` |
 | [`spec-edge-case-findings.md`](spec-edge-case-findings.md) | Divergences between the merge and the spec, found by edge-case testing |
 | [`bun-tsgo-migration-build-timings.md`](bun-tsgo-migration-build-timings.md) | Measured build timings for the Bun + tsgo migration |
